@@ -51,22 +51,22 @@
             "template": {
               "options": [
                 {
-                  "value": "8GEJ",
+                  "value": "mffz",
                   "label": "Actor",
                   "color": "purple"
                 },
                 {
-                  "value": "nkC6",
+                  "value": "31L8",
                   "label": "Resource",
                   "color": "orange"
                 },
                 {
-                  "value": "9LGR",
+                  "value": "t2h6",
                   "label": "Output",
                   "color": "blue"
                 },
                 {
-                  "value": "hEGS",
+                  "value": "2q6f",
                   "label": "Place",
                   "color": "gray"
                 }
@@ -84,17 +84,17 @@
             "template": {
               "options": [
                 {
-                  "value": "wFuX",
+                  "value": "ovzR",
                   "label": "Human",
                   "color": "purple"
                 },
                 {
-                  "value": "k6G8",
+                  "value": "dRcY",
                   "label": "System",
                   "color": "orange"
                 },
                 {
-                  "value": "qcpt",
+                  "value": "4ZRo",
                   "label": "Not an actor",
                   "color": "blue"
                 }
@@ -125,20 +125,6 @@
           }
         },
         {
-          "id": "fjrcFdt9gqU",
-          "sdkName": "elements",
-          "definition": {
-            "name": "Elements",
-            "type": "linked_record",
-            "template": {
-              "tableId": "t7Vg4eJQist",
-              "isInverse": true,
-              "allowMultiple": false,
-              "inverseFieldId": "fePk1themxs"
-            }
-          }
-        },
-        {
           "id": "fgnfumojjK4",
           "sdkName": "key",
           "definition": {
@@ -156,22 +142,36 @@
             "template": {
               "options": [
                 {
-                  "value": "6BS9",
+                  "value": "w1cg",
                   "label": "Individual",
                   "color": "purple"
                 },
                 {
-                  "value": "vW8K",
+                  "value": "9Mr4",
                   "label": "Position",
                   "color": "orange"
                 },
                 {
-                  "value": "easC",
+                  "value": "1RC8",
                   "label": "Group",
                   "color": "blue"
                 }
               ],
               "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fjrcFdt9gqU",
+          "sdkName": "elements",
+          "definition": {
+            "name": "Elements",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fePk1themxs"
             }
           }
         }
@@ -224,12 +224,12 @@
             "template": {
               "options": [
                 {
-                  "value": "2JBD",
+                  "value": "537i",
                   "label": "Internal",
                   "color": "purple"
                 },
                 {
-                  "value": "3LRf",
+                  "value": "5FDb",
                   "label": "External",
                   "color": "orange"
                 }
@@ -247,17 +247,17 @@
             "template": {
               "options": [
                 {
-                  "value": "f6QV",
+                  "value": "ubRz",
                   "label": "Active",
                   "color": "purple"
                 },
                 {
-                  "value": "t4Mw",
+                  "value": "ioWG",
                   "label": "Planned",
                   "color": "orange"
                 },
                 {
-                  "value": "dPrt",
+                  "value": "2QwZ",
                   "label": "Retired",
                   "color": "blue"
                 }
@@ -428,17 +428,17 @@
             "template": {
               "options": [
                 {
-                  "value": "4bWr",
+                  "value": "pb1U",
                   "label": "Current",
                   "color": "purple"
                 },
                 {
-                  "value": "d5PM",
+                  "value": "pPWo",
                   "label": "Future",
                   "color": "orange"
                 },
                 {
-                  "value": "quuo",
+                  "value": "5Sqq",
                   "label": "Archived",
                   "color": "blue"
                 }
@@ -559,22 +559,22 @@
             "template": {
               "options": [
                 {
-                  "value": "whbW",
+                  "value": "8C6n",
                   "label": "Task",
                   "color": "purple"
                 },
                 {
-                  "value": "aEgX",
+                  "value": "1z2U",
                   "label": "Decision",
                   "color": "orange"
                 },
                 {
-                  "value": "wEZ3",
+                  "value": "cKvf",
                   "label": "Wait",
                   "color": "gray"
                 },
                 {
-                  "value": "h6KZ",
+                  "value": "cVkc",
                   "label": "Sub-process",
                   "color": "red"
                 }

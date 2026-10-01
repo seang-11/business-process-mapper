@@ -106,10 +106,10 @@ export type ElementTypesRecordType = {
   builtIn?: boolean;
   /** "Sort Order". 0 decimal places, format: local (e.g. 1,000,000.50) */
   sortOrder?: number;
-  /** Links to elements ("Elements"). Single record only. "Elements" */
-  elements?: string | string[];
   key?: string;
   humanKind?: "Individual" | "Position" | "Group" | string;
+  /** Links to elements ("Elements"). Single record only. "Elements" */
+  elements?: string | string[];
 };
 
 /** What you may write when creating or updating a record in the "Element Types" table. */
@@ -122,9 +122,9 @@ export type ElementTypesRecordInput = {
   actorClass: "Human" | "System" | "Not an actor" | string | null;
   builtIn: string | boolean | null;
   sortOrder: string | number | null;
-  elements: string | string[] | null;
   key: string | null;
   humanKind: "Individual" | "Position" | "Group" | string | null;
+  elements: string | string[] | null;
 };
 
 /** A record in the "Elements" table, as it is read back. */
@@ -273,26 +273,6 @@ export type StepConnectionsRecordInput = {
   label: string | null;
   condition: string | null;
 };
-
-export interface NotificationLink {
-  path?: string;
-  params?: Record<string, string>;
-}
-
-export interface NotificationsCreateParams {
-  recipients: string[];
-  title: string;
-  body?: string;
-  link?: NotificationLink;
-  path?: string;
-  params?: Record<string, string>;
-  payload?: Record<string, unknown>;
-  idempotencyKey?: string;
-}
-
-export type NotificationsCreateResult =
-  | { created: number }
-  | { created: 0; preview: true; wouldCreate: number };
 
 export interface ZiteAuthUser {
   id: string;

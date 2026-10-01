@@ -4,7 +4,6 @@ import { Toaster } from '@project/components/ui/sonner';
 import WorkspaceList from '@/components/WorkspaceList';
 import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
-import WorkWithDan from '@/components/WorkWithDan';
 
 export default function App() {
   const { user, isLoading } = useAuth();
@@ -25,8 +24,6 @@ export default function App() {
         <Route path="/process/:id" element={<ProcessCanvas />} />
         <Route path="/element/:id" element={<ElementDetail />} />
       </Routes>
-      {/* Outside Routes so it is present on every screen. */}
-      <WorkWithDan />
     </BrowserRouter>
   );
 }

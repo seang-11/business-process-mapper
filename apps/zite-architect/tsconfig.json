@@ -32,7 +32,7 @@
         "./src/__zite__/integrations.ts"
       ],
       "zitejs/db": [
-        "./.zite/db.ts"
+        "../../.zite/db.ts"
       ],
       "zitejs/api": [
         "./.zite/api.ts"
@@ -60,6 +60,9 @@
       ],
       "@project/components/*": [
         "../../packages/components/*"
+      ],
+      "zitejs/meta": [
+        "./.zite/meta.ts"
       ]
     },
     "module": "ESNext",

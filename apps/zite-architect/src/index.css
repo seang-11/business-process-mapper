@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@300;400;500;600;700&display=swap");
 
 
 @tailwind base;
@@ -8,24 +8,24 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 4%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 4%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 4%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 223 78% 57%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 243 30% 96%;
-    --secondary-foreground: 0 0% 4%;
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 0 0% 98%;
 
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 44%;
 
-    --accent: 38 92% 50%;
+    --accent: 48 97% 77%;
     --accent-foreground: 0 0% 4%;
 
     --destructive: 0 84% 60%;
@@ -33,27 +33,27 @@
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 243 75% 59%;
+    --ring: 223 78% 57%;
 
-    --chart-1: 243 75% 59%;
+    --chart-1: 223 78% 57%;
     --chart-2: 12 70% 55%;
     --chart-3: 173 70% 36%;
-    --chart-4: 197 70% 45%;
+    --chart-4: 257 70% 55%;
     --chart-5: 43 70% 40%;
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 4%;
-    --sidebar-primary: 243 75% 59%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 38 92% 50%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 223 78% 57%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 48 97% 77%;
     --sidebar-accent-foreground: 0 0% 4%;
     --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 243 75% 59%;
+    --sidebar-ring: 223 78% 57%;
 
     --radius: 0.75rem;
 
-    --font-sans: 'Geist', sans-serif;
-    --font-mono: 'Geist Mono', 'Courier New', monospace;
+    --font-sans: 'Roboto', sans-serif;
+    --font-mono: 'Roboto Mono', monospace;
     --shadow-x: 0px;
     --shadow-y: 1px;
     --shadow-blur: 4px;
