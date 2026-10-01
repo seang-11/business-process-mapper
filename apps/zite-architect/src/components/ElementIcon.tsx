@@ -15,7 +15,6 @@ import {
 
 import asanaLogo from '../assets/logos/asana.svg';
 import calendlyLogo from '../assets/logos/calendly.svg';
-import filloutLogo from '../assets/logos/fillout.png';
 import frameioLogo from '../assets/logos/frameio.svg';
 import gmailLogo from '../assets/logos/gmail.svg';
 import googleCalendarLogo from '../assets/logos/googlecalendar.svg';
@@ -47,7 +46,6 @@ const BRAND_LOGOS: Record<string, string> = {
   quickbooks: quickbooksLogo,
   asana: asanaLogo,
   calendly: calendlyLogo,
-  fillout: filloutLogo,
   'google drive': googleDriveLogo,
   gmail: gmailLogo,
   'google calendar': googleCalendarLogo,
