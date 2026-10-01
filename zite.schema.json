@@ -1,0 +1,771 @@
+{
+  "tables": [
+    {
+      "id": "taAA2UwjjA5",
+      "sdkName": "elementTypes",
+      "name": "Element Types",
+      "primaryFieldId": "f39xPbhG2RH",
+      "fields": [
+        {
+          "id": "f39xPbhG2RH",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "ffpPM24BHkP",
+          "sdkName": "description",
+          "definition": {
+            "name": "Description",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fgaKGyv21xu",
+          "sdkName": "icon",
+          "definition": {
+            "name": "Icon",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f9NUb8aorFU",
+          "sdkName": "color",
+          "definition": {
+            "name": "Color",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fdZqGRVsnAr",
+          "sdkName": "categories",
+          "definition": {
+            "name": "Categories",
+            "type": "multiple_select",
+            "template": {
+              "options": [
+                {
+                  "value": "8GEJ",
+                  "label": "Actor",
+                  "color": "purple"
+                },
+                {
+                  "value": "nkC6",
+                  "label": "Resource",
+                  "color": "orange"
+                },
+                {
+                  "value": "9LGR",
+                  "label": "Output",
+                  "color": "blue"
+                },
+                {
+                  "value": "hEGS",
+                  "label": "Place",
+                  "color": "gray"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "faiyakgc7AF",
+          "sdkName": "actorClass",
+          "definition": {
+            "name": "Actor Class",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "wFuX",
+                  "label": "Human",
+                  "color": "purple"
+                },
+                {
+                  "value": "k6G8",
+                  "label": "System",
+                  "color": "orange"
+                },
+                {
+                  "value": "qcpt",
+                  "label": "Not an actor",
+                  "color": "blue"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fxnFmDjtk25",
+          "sdkName": "builtIn",
+          "definition": {
+            "name": "Built In",
+            "type": "checkbox",
+            "template": {}
+          }
+        },
+        {
+          "id": "febwLwdXRg7",
+          "sdkName": "sortOrder",
+          "definition": {
+            "name": "Sort Order",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
+        },
+        {
+          "id": "fjrcFdt9gqU",
+          "sdkName": "elements",
+          "definition": {
+            "name": "Elements",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fePk1themxs"
+            }
+          }
+        },
+        {
+          "id": "fgnfumojjK4",
+          "sdkName": "key",
+          "definition": {
+            "name": "Key",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fbFYgM4Ju3q",
+          "sdkName": "humanKind",
+          "definition": {
+            "name": "Human Kind",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "6BS9",
+                  "label": "Individual",
+                  "color": "purple"
+                },
+                {
+                  "value": "vW8K",
+                  "label": "Position",
+                  "color": "orange"
+                },
+                {
+                  "value": "easC",
+                  "label": "Group",
+                  "color": "blue"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "t7Vg4eJQist",
+      "sdkName": "elements",
+      "name": "Elements",
+      "primaryFieldId": "fbaywcCszEz",
+      "fields": [
+        {
+          "id": "fbaywcCszEz",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fxfPVANioX4",
+          "sdkName": "description",
+          "definition": {
+            "name": "Description",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fePk1themxs",
+          "sdkName": "type",
+          "definition": {
+            "name": "Type",
+            "type": "linked_record",
+            "template": {
+              "tableId": "taAA2UwjjA5",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fjrcFdt9gqU"
+            }
+          }
+        },
+        {
+          "id": "fxoymgHE21e",
+          "sdkName": "party",
+          "definition": {
+            "name": "Party",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "2JBD",
+                  "label": "Internal",
+                  "color": "purple"
+                },
+                {
+                  "value": "3LRf",
+                  "label": "External",
+                  "color": "orange"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fdihSQ1LtqQ",
+          "sdkName": "status",
+          "definition": {
+            "name": "Status",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "f6QV",
+                  "label": "Active",
+                  "color": "purple"
+                },
+                {
+                  "value": "t4Mw",
+                  "label": "Planned",
+                  "color": "orange"
+                },
+                {
+                  "value": "dPrt",
+                  "label": "Retired",
+                  "color": "blue"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fpLpfB3UdWT",
+          "sdkName": "icon",
+          "definition": {
+            "name": "Icon",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f7oRrLNXypm",
+          "sdkName": "image",
+          "definition": {
+            "name": "Image",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "frAMjRGuAQz",
+          "sdkName": "effectiveFrom",
+          "definition": {
+            "name": "Effective From",
+            "type": "date",
+            "template": {
+              "dateFormat": "local"
+            }
+          }
+        },
+        {
+          "id": "ffdtawzs7Fx",
+          "sdkName": "effectiveTo",
+          "definition": {
+            "name": "Effective To",
+            "type": "date",
+            "template": {
+              "dateFormat": "local"
+            }
+          }
+        },
+        {
+          "id": "fmZXdNBTvEv",
+          "sdkName": "owner",
+          "definition": {
+            "name": "Owner",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "allowMultiple": false
+            }
+          }
+        },
+        {
+          "id": "ffS8XsW1uXa",
+          "sdkName": "versions",
+          "definition": {
+            "name": "Versions",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t4SoumFo99e",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "f2VWmK3DPDf"
+            }
+          }
+        },
+        {
+          "id": "fwv6PbQqSzQ",
+          "sdkName": "stepsPerformed",
+          "definition": {
+            "name": "Steps performed",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fbmfiyABVvv"
+            }
+          }
+        },
+        {
+          "id": "fhmpNqv1mXB",
+          "sdkName": "stepsUsingThis",
+          "definition": {
+            "name": "Steps using this",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": true,
+              "inverseFieldId": "fgpXjzk4ePp"
+            }
+          }
+        },
+        {
+          "id": "fj9y6agdSQn",
+          "sdkName": "stepsProducingThis",
+          "definition": {
+            "name": "Steps producing this",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": true,
+              "inverseFieldId": "f1Dmi8gbt3t"
+            }
+          }
+        },
+        {
+          "id": "ft969TEZupY",
+          "sdkName": "calledFromSteps",
+          "definition": {
+            "name": "Called from steps",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "foFHES5NZGY"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "t4SoumFo99e",
+      "sdkName": "processVersions",
+      "name": "Process Versions",
+      "primaryFieldId": "fdooi83J7R5",
+      "fields": [
+        {
+          "id": "fdooi83J7R5",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f2VWmK3DPDf",
+          "sdkName": "process",
+          "definition": {
+            "name": "Process",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "ffS8XsW1uXa"
+            }
+          }
+        },
+        {
+          "id": "fmWnNMJBVJr",
+          "sdkName": "state",
+          "definition": {
+            "name": "State",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "4bWr",
+                  "label": "Current",
+                  "color": "purple"
+                },
+                {
+                  "value": "d5PM",
+                  "label": "Future",
+                  "color": "orange"
+                },
+                {
+                  "value": "quuo",
+                  "label": "Archived",
+                  "color": "blue"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fbQCS9axQxG",
+          "sdkName": "notes",
+          "definition": {
+            "name": "Notes",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fnkzGtT7sKH",
+          "sdkName": "stepCount",
+          "definition": {
+            "name": "Step Count",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
+        },
+        {
+          "id": "fhAZTCggwdp",
+          "sdkName": "lastEdited",
+          "definition": {
+            "name": "Last Edited",
+            "type": "datetime",
+            "template": {
+              "timezone": "",
+              "dateFormat": "local",
+              "timeFormat": "12h",
+              "displayTimeZone": false
+            }
+          }
+        },
+        {
+          "id": "fhcjnSzY49j",
+          "sdkName": "steps",
+          "definition": {
+            "name": "Steps",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "f4Mj7TF4hau"
+            }
+          }
+        },
+        {
+          "id": "fdd1AP9M19x",
+          "sdkName": "stepConnections",
+          "definition": {
+            "name": "Step Connections",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tbnFsGDyyVo",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "f86BuTbZhS8"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tdSqteA5YSy",
+      "sdkName": "steps",
+      "name": "Steps",
+      "primaryFieldId": "fn2fHAiyefo",
+      "fields": [
+        {
+          "id": "fn2fHAiyefo",
+          "sdkName": "title",
+          "definition": {
+            "name": "Title",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f1Py2yAfsPc",
+          "sdkName": "description",
+          "definition": {
+            "name": "Description",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f4Mj7TF4hau",
+          "sdkName": "version",
+          "definition": {
+            "name": "Version",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t4SoumFo99e",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fhcjnSzY49j"
+            }
+          }
+        },
+        {
+          "id": "feGZDMHaw5e",
+          "sdkName": "stepType",
+          "definition": {
+            "name": "Step Type",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "whbW",
+                  "label": "Task",
+                  "color": "purple"
+                },
+                {
+                  "value": "aEgX",
+                  "label": "Decision",
+                  "color": "orange"
+                },
+                {
+                  "value": "wEZ3",
+                  "label": "Wait",
+                  "color": "gray"
+                },
+                {
+                  "value": "h6KZ",
+                  "label": "Sub-process",
+                  "color": "red"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fbmfiyABVvv",
+          "sdkName": "performedBy",
+          "definition": {
+            "name": "Performed By",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fwv6PbQqSzQ"
+            }
+          }
+        },
+        {
+          "id": "fgpXjzk4ePp",
+          "sdkName": "uses",
+          "definition": {
+            "name": "Uses",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": true,
+              "inverseFieldId": "fhmpNqv1mXB"
+            }
+          }
+        },
+        {
+          "id": "f1Dmi8gbt3t",
+          "sdkName": "produces",
+          "definition": {
+            "name": "Produces",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": true,
+              "inverseFieldId": "fj9y6agdSQn"
+            }
+          }
+        },
+        {
+          "id": "foFHES5NZGY",
+          "sdkName": "subProcess",
+          "definition": {
+            "name": "Sub Process",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "ft969TEZupY"
+            }
+          }
+        },
+        {
+          "id": "fevHoYLTfWe",
+          "sdkName": "sequence",
+          "definition": {
+            "name": "Sequence",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
+        },
+        {
+          "id": "fkAPAB38FtY",
+          "sdkName": "checklist",
+          "definition": {
+            "name": "Checklist",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fmH9s63VugH",
+          "sdkName": "outgoingConnections",
+          "definition": {
+            "name": "Outgoing connections",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tbnFsGDyyVo",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "f6K3sgCSNFx"
+            }
+          }
+        },
+        {
+          "id": "fe5QzyaxV5X",
+          "sdkName": "incomingConnections",
+          "definition": {
+            "name": "Incoming connections",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tbnFsGDyyVo",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "furj1C9czpn"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tbnFsGDyyVo",
+      "sdkName": "stepConnections",
+      "name": "Step Connections",
+      "primaryFieldId": "fiJmJuhE6P7",
+      "fields": [
+        {
+          "id": "fiJmJuhE6P7",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f6K3sgCSNFx",
+          "sdkName": "fromStep",
+          "definition": {
+            "name": "From Step",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fmH9s63VugH"
+            }
+          }
+        },
+        {
+          "id": "furj1C9czpn",
+          "sdkName": "toStep",
+          "definition": {
+            "name": "To Step",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fe5QzyaxV5X"
+            }
+          }
+        },
+        {
+          "id": "f86BuTbZhS8",
+          "sdkName": "version",
+          "definition": {
+            "name": "Version",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t4SoumFo99e",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fdd1AP9M19x"
+            }
+          }
+        },
+        {
+          "id": "fckeVpJCu6b",
+          "sdkName": "label",
+          "definition": {
+            "name": "Label",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f4c42hG3Twj",
+          "sdkName": "condition",
+          "definition": {
+            "name": "Condition",
+            "type": "long_text",
+            "template": {}
+          }
+        }
+      ]
+    }
+  ]
+}
