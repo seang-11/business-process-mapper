@@ -71,6 +71,7 @@
 //   "StepConnectionsSteps" — columns: "stepConnectionsId", "stepsId" (joins "Step Connections" and "Steps")
 //   "ProcessVersionsStepConnections" — columns: "processVersionsId", "stepConnectionsId" (joins "Process Versions" and "Step Connections")
 //   "ElementsPhases" — columns: "elementsId", "phasesId" (joins "Elements" and "Phases")
+//   "ElementsMapLayouts" — columns: "elementsId", "mapLayoutsId" (joins "Elements" and "Map Layouts")
 import { createTableClient, createSqlClient, createAuthClient } from 'zitejs/runtime';
 
 /** An attachment as returned when reading a record. */
@@ -159,6 +160,8 @@ export type ElementsRecordType = {
   calledFromSteps?: string | string[];
   /** Links to phases ("Phases"). Single record only. "Phases" */
   phases?: string | string[];
+  /** Links to mapLayouts ("Map Layouts"). Single record only. "Map Layouts" */
+  mapLayouts?: string | string[];
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -179,6 +182,7 @@ export type ElementsRecordInput = {
   stepsProducingThis: string | string[] | null;
   calledFromSteps: string | string[] | null;
   phases: string | string[] | null;
+  mapLayouts: string | string[] | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */
@@ -303,6 +307,25 @@ export type PhasesRecordInput = {
   steps: string | string[] | null;
 };
 
+/** A record in the "Map Layouts" table, as it is read back. */
+export type MapLayoutsRecordType = {
+  id: string;
+  /** Primary field. "Name" */
+  name?: string;
+  /** Links to elements ("Elements"). Single record only. "Process" */
+  process?: string | string[];
+  peopleLaneOrder?: string;
+  appLaneOrder?: string;
+};
+
+/** What you may write when creating or updating a record in the "Map Layouts" table. */
+export type MapLayoutsRecordInput = {
+  name: string | null;
+  process: string | string[] | null;
+  peopleLaneOrder: string | null;
+  appLaneOrder: string | null;
+};
+
 export interface ZiteAuthUser {
   id: string;
   name: string;
@@ -319,6 +342,7 @@ export const zite = {
   steps: createTableClient<StepsRecordType, StepsRecordInput>('Steps'), // "Steps"
   stepConnections: createTableClient<StepConnectionsRecordType, StepConnectionsRecordInput>('StepConnections'), // "Step Connections"
   phases: createTableClient<PhasesRecordType, PhasesRecordInput>('Phases'), // "Phases"
+  mapLayouts: createTableClient<MapLayoutsRecordType, MapLayoutsRecordInput>('MapLayouts'), // "Map Layouts"
   sql: createSqlClient(),
   auth: createAuthClient<ZiteAuthUser>(),
 };

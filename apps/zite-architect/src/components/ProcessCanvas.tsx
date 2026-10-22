@@ -7,6 +7,7 @@ import {
   saveElement,
   createVersion,
   moveStep,
+  saveLaneOrder,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
@@ -30,6 +31,8 @@ import {
 import { toast } from 'sonner';
 import type { ElementRef, ElementSummary, ElementType, Phase, ProcessStep } from '@/types';
 import PhasesDialog from './PhasesDialog';
+
+const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -273,6 +276,26 @@ export default function ProcessCanvas() {
   );
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
   const phases = useMemo(() => (graph?.phases ?? []) as Phase[], [graph]);
+  const laneOrder = graph?.laneOrder ?? NO_LANE_ORDER;
+
+  // The new order shows at once; everyone else sees it on their next load.
+  const handleReorderLanes = useCallback(
+    async (order: string[]) => {
+      if (!id) return;
+      const grouping = laneGrouping;
+      setGraph((g) => {
+        if (!g || !g.version) return g;
+        return { ...g, laneOrder: { ...g.laneOrder, [grouping]: order } };
+      });
+      try {
+        await saveLaneOrder({ processId: id, grouping, order });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not save the lane order.');
+        load();
+      }
+    },
+    [id, laneGrouping, load],
+  );
   const phaseStepCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const s of steps) if (s.phaseId) m.set(s.phaseId, (m.get(s.phaseId) ?? 0) + 1);
@@ -431,6 +454,8 @@ export default function ProcessCanvas() {
             onMoveStep={handleMoveStep}
             phases={phases}
             onEditPhases={() => setEditingPhases(true)}
+            laneOrder={laneOrder[laneGrouping]}
+            onReorderLanes={handleReorderLanes}
           />
         </div>
 

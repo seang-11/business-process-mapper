@@ -1,11 +1,10 @@
 // Auto-generated type-narrowing wrapper. Do not edit manually.
 // Re-exports createEndpoint with context.user typed to the app User.
 
-import type { ZiteRequestContext as _ZiteRequestContext, ZiteScheduledContext, ZiteErrorCode, ZiteSchedule, ZiteStreamInterface, ZiteTrigger, ZiteTriggerContext, ZiteWebhook } from 'zitejs/backend/base';
+import type { ZiteRequestContext as _ZiteRequestContext, ZiteScheduledContext, ZiteErrorCode, ZiteSchedule, ZiteStreamInterface, ZiteWebhook } from 'zitejs/backend/base';
 import type { User } from 'zitejs/auth';
 
-export type { ZiteErrorCode, ZiteSchedule, ZiteScheduledContext, ZiteStreamInterface, ZiteTrigger, ZiteWebhook };
-export type { ZiteTriggerContext, ZiteTriggerDeliveryInfo, ZiteTriggerDeliveryRun, ZiteTriggerRun, ZiteTriggerSubscribe, ZiteTriggerSubscribeInput, ZiteTriggerSubscribeResult, ZiteTriggerUnsubscribe, ZiteTriggerUnsubscribeInput } from 'zitejs/backend/base';
+export type { ZiteErrorCode, ZiteSchedule, ZiteScheduledContext, ZiteStreamInterface, ZiteWebhook };
 export type InferSchemaType<T> = T extends { _output: infer U } ? U : T;
 
 export class ZiteError extends Error {
@@ -64,8 +63,7 @@ export type ZiteEndpointUser = Omit<
   User,
   'name' | 'emailVerified' | 'image' | 'createdAt' | 'updatedAt'
 > &
-  Pick<User, 'id' | 'email'> &
-  Pick<_ZiteRequestContext['user'], 'roles'>;
+  Pick<User, 'id' | 'email'>;
 
 export interface ZiteRequestContext extends Omit<_ZiteRequestContext, "user"> {
   user: ZiteEndpointUser;
@@ -73,7 +71,7 @@ export interface ZiteRequestContext extends Omit<_ZiteRequestContext, "user"> {
 
 type SchemaLike<TOut, TIn = TOut> = { _output: TOut; _input: TIn; parse: (data: unknown) => TOut };
 
-export interface EndpointConfig<TInput = unknown, TOutput = unknown, TStream extends boolean = false, TSchedule extends ZiteSchedule | undefined = undefined, TWebhook extends ZiteWebhook | undefined = undefined, TRawInput = TInput, TTrigger extends ZiteTrigger | undefined = undefined> {
+export interface EndpointConfig<TInput = unknown, TOutput = unknown, TStream extends boolean = false, TSchedule extends ZiteSchedule | undefined = undefined, TWebhook extends ZiteWebhook | undefined = undefined, TRawInput = TInput> {
   description?: string;
   inputSchema?: SchemaLike<TInput, TRawInput>;
   /** Documentation only. Never validated, and not an inference site for TOutput. */
@@ -84,29 +82,19 @@ export interface EndpointConfig<TInput = unknown, TOutput = unknown, TStream ext
   schedule?: TSchedule;
   /** When set, an inbound webhook can also trigger this endpoint. Like `schedule`, it widens `context` — a webhook fire has no session. */
   webhook?: TWebhook;
-  /** When set, a connection's events (registered by this file's own `subscribe` export) or a poll (`every`) also fire this endpoint. Like `webhook`, it widens `context` — a trigger fire has no session. */
-  trigger?: TTrigger;
   execute: (
     params: {
       input: TInput;
-      context: TSchedule extends ZiteSchedule ? ZiteRequestContext | ZiteScheduledContext : TWebhook extends ZiteWebhook ? ZiteRequestContext | ZiteScheduledContext : TTrigger extends ZiteTrigger ? ZiteRequestContext | ZiteScheduledContext : ZiteRequestContext;
-    } & (TStream extends true ? { stream: ZiteStreamInterface } : {}) & (TTrigger extends ZiteTrigger ? { trigger?: ZiteTriggerContext<TTrigger> } : {}),
+      context: TSchedule extends ZiteSchedule ? ZiteRequestContext | ZiteScheduledContext : TWebhook extends ZiteWebhook ? ZiteRequestContext | ZiteScheduledContext : ZiteRequestContext;
+    } & (TStream extends true ? { stream: ZiteStreamInterface } : {}),
   ) => Promise<TOutput> | TOutput;
 }
 
-export function createEndpoint<TInput = unknown, TOutput = unknown, TStream extends boolean = false, TSchedule extends ZiteSchedule | undefined = undefined, TWebhook extends ZiteWebhook | undefined = undefined, TRawInput = TInput, TTrigger extends ZiteTrigger | undefined = undefined>(
-  config: EndpointConfig<TInput, TOutput, TStream, TSchedule, TWebhook, TRawInput, TTrigger>,
-): EndpointConfig<TInput, TOutput, TStream, TSchedule, TWebhook, TRawInput, TTrigger> {
+export function createEndpoint<TInput = unknown, TOutput = unknown, TStream extends boolean = false, TSchedule extends ZiteSchedule | undefined = undefined, TWebhook extends ZiteWebhook | undefined = undefined, TRawInput = TInput>(
+  config: EndpointConfig<TInput, TOutput, TStream, TSchedule, TWebhook, TRawInput>,
+): EndpointConfig<TInput, TOutput, TStream, TSchedule, TWebhook, TRawInput> {
   return config;
 }
-
-/**
- * Checks if a user has a specific role. Returns true if the user has the role, false
- * otherwise. If the user is not logged in, returns false.
- */
-export const hasRole = (context: ZiteRequestContext, roleId: string) => {
-  return context.user?.roles?.some((r) => r.id === roleId);
-};
 
 declare global {
   namespace NodeJS {

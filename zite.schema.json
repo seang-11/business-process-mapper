@@ -401,6 +401,20 @@
               "inverseFieldId": "fti4PQwrgbB"
             }
           }
+        },
+        {
+          "id": "fkg1cSydBMV",
+          "sdkName": "mapLayouts",
+          "definition": {
+            "name": "Map Layouts",
+            "type": "linked_record",
+            "template": {
+              "tableId": "thEMMqWjdw6",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fpuLhKtPWh1"
+            }
+          }
         }
       ]
     },
@@ -848,6 +862,55 @@
               "allowMultiple": false,
               "inverseFieldId": "f14WaRm8d8E"
             }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thEMMqWjdw6",
+      "sdkName": "mapLayouts",
+      "name": "Map Layouts",
+      "primaryFieldId": "fq3oZymTvm5",
+      "fields": [
+        {
+          "id": "fq3oZymTvm5",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fpuLhKtPWh1",
+          "sdkName": "process",
+          "definition": {
+            "name": "Process",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fkg1cSydBMV"
+            }
+          }
+        },
+        {
+          "id": "f8ELTFn8isw",
+          "sdkName": "peopleLaneOrder",
+          "definition": {
+            "name": "People Lane Order",
+            "type": "long_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fitMYYoPAma",
+          "sdkName": "appLaneOrder",
+          "definition": {
+            "name": "App Lane Order",
+            "type": "long_text",
+            "template": {}
           }
         }
       ]

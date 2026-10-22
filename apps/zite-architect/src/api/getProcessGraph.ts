@@ -7,6 +7,19 @@ const one = (v?: string | string[]): string | null =>
 const many = (v?: string | string[]): string[] =>
   Array.isArray(v) ? v : v ? [v] : [];
 
+const NO_ORDER = { people: [] as string[], app: [] as string[] };
+
+/** A stored lane order, or none if it's missing or unreadable. */
+const parseOrder = (raw?: string): string[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 const elementRef = z.object({
   id: z.string(),
   name: z.string(),
@@ -54,6 +67,8 @@ export default createEndpoint({
       }),
     ),
     phases: z.array(z.object({ id: z.string(), name: z.string(), sortOrder: z.number() })),
+    /** Lane order someone dragged into place, per view, as lane ids. Empty = automatic. */
+    laneOrder: z.object({ people: z.array(z.string()), app: z.array(z.string()) }),
     connections: z.array(
       z.object({
         id: z.string(),
@@ -66,7 +81,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     if (!input.versionId && !input.processId) {
-      return { version: null, steps: [], connections: [], phases: [] };
+      return { version: null, steps: [], connections: [], phases: [], laneOrder: NO_ORDER };
     }
 
     const [typeRes, elementRes, versionRes] = await Promise.all([
@@ -86,7 +101,7 @@ export default createEndpoint({
       version = forProcess.find((v) => v.state === 'Current') ?? forProcess[0];
     }
 
-    if (!version) return { version: null, steps: [], connections: [], phases: [] };
+    if (!version) return { version: null, steps: [], connections: [], phases: [], laneOrder: NO_ORDER };
 
     const typeById = new Map(typeRes.records.map((t) => [t.id, t]));
     const elementById = new Map(elementRes.records.map((e) => [e.id, e]));
@@ -112,11 +127,18 @@ export default createEndpoint({
 
     const processId = one(version.process);
 
-    const [stepRes, connRes, phaseRes] = await Promise.all([
+    const [stepRes, connRes, phaseRes, layoutRes] = await Promise.all([
       zite.steps.findAll({ limit: 2000 }),
       zite.stepConnections.findAll({ limit: 2000 }),
       zite.phases.findAll({ limit: 2000 }),
+      zite.mapLayouts.findAll({ limit: 2000 }),
     ]);
+
+    const layout = layoutRes.records.find((l) => one(l.process) === processId);
+    const laneOrder = {
+      people: parseOrder(layout?.peopleLaneOrder),
+      app: parseOrder(layout?.appLaneOrder),
+    };
 
     const phases = phaseRes.records
       .filter((p) => one(p.process) === processId)
@@ -180,6 +202,7 @@ export default createEndpoint({
       steps,
       connections,
       phases,
+      laneOrder,
     };
   },
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, forwardRef } from 'react';
 import {
-  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil,
+  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil, GripVertical,
 } from 'lucide-react';
 import type {
   ElementRef,
@@ -48,6 +48,10 @@ interface Props {
   /** This process's phases, in order. None means the map isn't split up. */
   phases: Phase[];
   onEditPhases?: () => void;
+  /** Lane ids in the order someone dragged them into, for this view. */
+  laneOrder: string[];
+  /** Dragging a lane name. Without it, lanes keep their automatic order. */
+  onReorderLanes?: (order: string[]) => void;
 }
 
 /** What a drop means for the step: who does it, its apps in order, its phase. */
@@ -397,6 +401,8 @@ export default function SwimlaneDiagram({
   onMoveStep,
   phases,
   onEditPhases,
+  laneOrder,
+  onReorderLanes,
 }: Props) {
   const elementsById = useMemo(
     () => new Map(elements.map((e) => [e.id, e])),
@@ -427,6 +433,9 @@ export default function SwimlaneDiagram({
     stepId: string; x: number; y: number; lane: string | null; phase: string | null;
   } | null>(null);
   const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Dragging a lane by its name, to reorder lanes.
+  const laneDrag = useRef<{ lane: string; startY: number; moved: boolean } | null>(null);
+  const [laneDragView, setLaneDragView] = useState<{ lane: string; x: number; y: number; insertAt: number } | null>(null);
   const phaseEls = useRef<Map<string, HTMLDivElement>>(new Map());
 
   /** The phase under the pointer, judged by the header cells above the bands. */
@@ -627,6 +636,33 @@ export default function SwimlaneDiagram({
     }
     return m;
   }, [stepsByLane, grouping]);
+
+  // Lanes are stored by element id, so renaming someone keeps their place.
+  // Automated, Unassigned and No app have no element and go by name.
+  const laneIdOf = useCallback((lane: string) => laneTargets.get(lane)?.id ?? lane, [laneTargets]);
+
+  // A saved order wins; a lane it doesn't mention yet (someone new to the
+  // process) keeps its automatic spot after the ones that were placed.
+  const orderedLanes = useMemo(() => {
+    if (!laneOrder.length) return lanes;
+    const pos = new Map(laneOrder.map((id, i) => [id, i]));
+    return lanes
+      .map((lane, i) => ({ lane, rank: pos.get(laneIdOf(lane)) ?? laneOrder.length + i }))
+      .sort((a, b) => a.rank - b.rank)
+      .map((x) => x.lane);
+  }, [lanes, laneOrder, laneIdOf]);
+
+  /** Where a dragged lane would land: before the first lane whose middle is below the pointer. */
+  const laneInsertAt = useCallback(
+    (clientY: number) => {
+      for (let i = 0; i < orderedLanes.length; i += 1) {
+        const r = laneEls.current.get(orderedLanes[i])?.getBoundingClientRect();
+        if (r && clientY < r.top + r.height / 2) return i;
+      }
+      return orderedLanes.length;
+    },
+    [orderedLanes],
+  );
 
   /** Who does the step, and its apps, once it lands in a lane — or null if it can't. */
   const laneMove = useCallback(
@@ -858,15 +894,27 @@ export default function SwimlaneDiagram({
   const resetDrag = useCallback(() => {
     dragState.current = null;
     cardDrag.current = null;
+    laneDrag.current = null;
     pointerIdRef.current = null;
     setIsDragging(false);
     setCardDragView(null);
+    setLaneDragView(null);
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag]')) return;
+
+    const laneHandle = target.closest<HTMLElement>('[data-lane-handle]');
+    if (laneHandle && onReorderLanes) {
+      const lane = laneHandle.dataset.lane;
+      if (!lane) return;
+      didDragRef.current = false;
+      pointerIdRef.current = e.pointerId;
+      laneDrag.current = { lane, startY: e.clientY, moved: false };
+      return;
+    }
 
     const card = target.closest<HTMLElement>('[data-step-card]');
     if (card) {
@@ -892,9 +940,23 @@ export default function SwimlaneDiagram({
       moved: false,
     };
     // Do NOT capture yet — capture only once movement passes the threshold.
-  }, [onMoveStep]);
+  }, [onMoveStep, onReorderLanes]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const ld = laneDrag.current;
+    if (ld) {
+      if (!ld.moved) {
+        if (Math.abs(e.clientY - ld.startY) <= DRAG_THRESHOLD) return;
+        ld.moved = true;
+        const el = containerRef.current;
+        if (el && pointerIdRef.current != null) {
+          try { el.setPointerCapture(pointerIdRef.current); } catch { /* already released */ }
+        }
+      }
+      setLaneDragView({ lane: ld.lane, x: e.clientX, y: e.clientY, insertAt: laneInsertAt(e.clientY) });
+      return;
+    }
+
     const cd = cardDrag.current;
     if (cd) {
       if (!cd.moved) {
@@ -935,9 +997,26 @@ export default function SwimlaneDiagram({
     if (!el) return;
     el.scrollLeft = ds.scrollX - dx;
     el.scrollTop = ds.scrollY - dy;
-  }, [laneAt, phaseAt]);
+  }, [laneAt, phaseAt, laneInsertAt]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const ld = laneDrag.current;
+    if (ld) {
+      const el = containerRef.current;
+      if (el && pointerIdRef.current != null) {
+        try { el.releasePointerCapture(pointerIdRef.current); } catch { /* ok */ }
+      }
+      resetDrag();
+      if (!ld.moved) return;
+      const from = orderedLanes.indexOf(ld.lane);
+      const at = laneInsertAt(e.clientY);
+      const next = orderedLanes.filter((l) => l !== ld.lane);
+      // Taking the lane out shifts everything below it up by one.
+      next.splice(at > from ? at - 1 : at, 0, ld.lane);
+      if (next.some((l, i) => l !== orderedLanes[i])) onReorderLanes?.(next.map(laneIdOf));
+      return;
+    }
+
     const cd = cardDrag.current;
     if (cd) {
       const el = containerRef.current;
@@ -964,7 +1043,10 @@ export default function SwimlaneDiagram({
     }
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
-  }, [resetDrag, laneAt, phaseAt, steps, resolveDrop, onMoveStep]);
+  }, [
+    resetDrag, laneAt, phaseAt, steps, resolveDrop, onMoveStep,
+    orderedLanes, laneInsertAt, laneIdOf, onReorderLanes,
+  ]);
 
   const handlePointerCancel = useCallback(() => {
     const el = containerRef.current;
@@ -1010,7 +1092,7 @@ export default function SwimlaneDiagram({
     <div className="relative h-full">
     <div
       ref={containerRef}
-      className={`h-full overflow-auto relative ${isDragging || cardDragView ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+      className={`h-full overflow-auto relative ${isDragging || cardDragView || laneDragView ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1323,7 +1405,7 @@ export default function SwimlaneDiagram({
               </div>
             </div>
           )}
-          {lanes.map((lane, laneIdx) => {
+          {orderedLanes.map((lane, laneIdx) => {
             const laneSteps = stepsByLane.get(lane) || [];
             if (laneSteps.length === 0) return null;
 
@@ -1378,10 +1460,32 @@ export default function SwimlaneDiagram({
                   if (el) laneEls.current.set(lane, el);
                   else laneEls.current.delete(lane);
                 }}
-                className="border-b border-border flex"
+                className={`border-b border-border flex relative transition-opacity ${
+                  laneDragView?.lane === lane ? 'opacity-40' : ''
+                }`}
               >
-                <div className="w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15]">
+                {/* Where a dragged lane will land: a line above this lane, or
+                    below it when it is the last. */}
+                {laneDragView && laneDragView.insertAt === laneIdx && (
+                  <div className="pointer-events-none absolute -top-px inset-x-0 h-0.5 bg-primary z-[18]" />
+                )}
+                {laneDragView &&
+                  laneDragView.insertAt === orderedLanes.length &&
+                  laneIdx === orderedLanes.length - 1 && (
+                    <div className="pointer-events-none absolute -bottom-px inset-x-0 h-0.5 bg-primary z-[18]" />
+                  )}
+                <div
+                  data-lane-handle
+                  data-lane={lane}
+                  title={onReorderLanes ? 'Drag to reorder' : undefined}
+                  className={`group w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15] ${
+                    onReorderLanes ? 'cursor-grab active:cursor-grabbing' : ''
+                  }`}
+                >
                   <div className="flex items-center gap-1.5">
+                    {onReorderLanes && (
+                      <GripVertical className="h-3 w-3 -ml-3 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
+                    )}
                     {isAutomated && <Zap className="h-3 w-3 shrink-0 text-muted-foreground" />}
                     {laneColor && (
                       <span
@@ -1461,6 +1565,15 @@ export default function SwimlaneDiagram({
         </div>
       </div>
     </div>
+
+    {laneDragView && (
+      <div
+        className="pointer-events-none fixed z-50 rounded-md border border-primary/40 bg-card px-3 py-1.5 text-xs font-semibold shadow-xl"
+        style={{ left: laneDragView.x + 12, top: laneDragView.y - 14 }}
+      >
+        {laneDragView.lane}
+      </div>
+    )}
 
     {/* Follows the pointer outside the zoomed content, so it stays full size. */}
     {dragStep && cardDragView && (

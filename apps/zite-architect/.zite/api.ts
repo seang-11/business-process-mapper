@@ -19,6 +19,7 @@ import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
+import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SavePhasesEp } from '../src/api/savePhases';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
@@ -108,6 +109,11 @@ export type SaveElementTypeInputType = NonNullable<_SaveElementTypeCfg['inputSch
 export type SaveElementTypeOutputType = Awaited<ReturnType<_SaveElementTypeCfg['execute']>>;
 export const saveElementType = createCaller<SaveElementTypeInputType, SaveElementTypeOutputType>('saveElementType');
 
+type _SaveLaneOrderCfg = typeof _SaveLaneOrderEp;
+export type SaveLaneOrderInputType = NonNullable<_SaveLaneOrderCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveLaneOrderCfg['execute']>[0]['input'];
+export type SaveLaneOrderOutputType = Awaited<ReturnType<_SaveLaneOrderCfg['execute']>>;
+export const saveLaneOrder = createCaller<SaveLaneOrderInputType, SaveLaneOrderOutputType>('saveLaneOrder');
+
 type _SavePhasesCfg = typeof _SavePhasesEp;
 export type SavePhasesInputType = NonNullable<_SavePhasesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SavePhasesCfg['execute']>[0]['input'];
 export type SavePhasesOutputType = Awaited<ReturnType<_SavePhasesCfg['execute']>>;
@@ -142,6 +148,7 @@ export const api = {
   saveConnection,
   saveElement,
   saveElementType,
+  saveLaneOrder,
   savePhases,
   saveStep,
   saveVersion,
