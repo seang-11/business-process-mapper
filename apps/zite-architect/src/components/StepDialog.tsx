@@ -457,7 +457,7 @@ export default function StepDialog({
         description,
         stepType,
         performedById: performedBy[0] ?? null,
-        useIds: uses,
+        useIds: uses.filter((id) => id !== performedBy[0]),
         produceIds: produces,
         subProcessId: stepType === 'Sub-process' ? subProcessId : null,
         sequence: nextSequence,
@@ -605,7 +605,11 @@ export default function StepDialog({
               types={types}
               category="Actor"
               value={performedBy}
-              onChange={setPerformedBy}
+              onChange={(ids) => {
+                setPerformedBy(ids);
+                // Whatever does the step is never also something it uses.
+                setUses((prev) => prev.filter((id) => !ids.includes(id)));
+              }}
               recentIds={recentIds}
               onCreate={onCreateElement}
               placeholder={
@@ -625,6 +629,7 @@ export default function StepDialog({
               multiple
               value={uses}
               onChange={setUses}
+              excludeIds={performedBy}
               recentIds={recentIds}
               onCreate={onCreateElement}
               placeholder="Apps, documents, equipment…"

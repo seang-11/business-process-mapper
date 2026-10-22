@@ -32,7 +32,8 @@ export default createEndpoint({
       id: input.id,
       record: {
         performedBy: [input.performedById],
-        uses: input.useIds,
+        // Whatever does the step is never also something it uses.
+        uses: input.useIds.filter((id) => id !== input.performedById),
       },
     });
     await zite.processVersions.update({

@@ -41,7 +41,8 @@ export default createEndpoint({
       version: [input.versionId],
       stepType: input.stepType,
       performedBy: input.performedById ? [input.performedById] : [],
-      uses: input.useIds,
+      // Whatever does the step is never also something it uses.
+      uses: input.useIds.filter((id) => id !== input.performedById),
       produces: input.produceIds,
       subProcess: input.subProcessId ? [input.subProcessId] : [],
       sequence: input.sequence,
