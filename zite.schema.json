@@ -430,24 +430,29 @@
                   "color": "blue"
                 },
                 {
-                  "value": "qcNg",
-                  "label": "Project management",
-                  "color": "purple"
+                  "value": "j9ei",
+                  "label": "Customer support",
+                  "color": "sky"
                 },
                 {
                   "value": "mQPK",
-                  "label": "CRM & sales",
+                  "label": "CRM",
                   "color": "orange"
                 },
                 {
+                  "value": "kfog",
+                  "label": "Sales outreach",
+                  "color": "tangerine"
+                },
+                {
                   "value": "oaqy",
-                  "label": "Forms & data",
+                  "label": "Database",
                   "color": "teal"
                 },
                 {
-                  "value": "qrCf",
-                  "label": "Finance & payments",
-                  "color": "green"
+                  "value": "6wnH",
+                  "label": "Forms",
+                  "color": "emerald"
                 },
                 {
                   "value": "cLg7",
@@ -455,24 +460,14 @@
                   "color": "gray"
                 },
                 {
-                  "value": "nF8o",
-                  "label": "Meetings & scheduling",
-                  "color": "cyan"
+                  "value": "8WDd",
+                  "label": "Contracts & e-signature",
+                  "color": "indigo"
                 },
                 {
-                  "value": "vxPF",
-                  "label": "Automation & AI",
-                  "color": "pink"
-                },
-                {
-                  "value": "nt2R",
-                  "label": "Video & creative",
-                  "color": "red"
-                },
-                {
-                  "value": "jvRj",
-                  "label": "Social & marketing",
-                  "color": "yellow"
+                  "value": "qrCf",
+                  "label": "Finance & payments",
+                  "color": "green"
                 },
                 {
                   "value": "dqYg",
@@ -480,9 +475,59 @@
                   "color": "purple"
                 },
                 {
+                  "value": "nF8o",
+                  "label": "Meetings & scheduling",
+                  "color": "cyan"
+                },
+                {
+                  "value": "qcNg",
+                  "label": "Project management",
+                  "color": "violet"
+                },
+                {
                   "value": "jEaH",
                   "label": "Security & access",
                   "color": "gray"
+                },
+                {
+                  "value": "jvRj",
+                  "label": "Social media",
+                  "color": "yellow"
+                },
+                {
+                  "value": "mGYF",
+                  "label": "Marketing",
+                  "color": "lime"
+                },
+                {
+                  "value": "5woF",
+                  "label": "Websites & e-commerce",
+                  "color": "fuchsia"
+                },
+                {
+                  "value": "nt2R",
+                  "label": "Video & audio",
+                  "color": "red"
+                },
+                {
+                  "value": "57zk",
+                  "label": "Design",
+                  "color": "pink"
+                },
+                {
+                  "value": "dU3B",
+                  "label": "AI",
+                  "color": "indigo"
+                },
+                {
+                  "value": "vxPF",
+                  "label": "Automation",
+                  "color": "pink"
+                },
+                {
+                  "value": "rGek",
+                  "label": "Web data & scraping",
+                  "color": "emerald"
                 },
                 {
                   "value": "pv4A",

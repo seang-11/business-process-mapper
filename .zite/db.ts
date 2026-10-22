@@ -160,7 +160,7 @@ export type ElementsRecordType = {
   phases?: string | string[];
   /** Links to mapLayouts ("Map Layouts"). Single record only. "Map Layouts" */
   mapLayouts?: string | string[];
-  category?: "Communication" | "Project management" | "CRM & sales" | "Forms & data" | "Finance & payments" | "Documents & storage" | "Meetings & scheduling" | "Automation & AI" | "Video & creative" | "Social & marketing" | "HR & people" | "Security & access" | "Building & dev" | string;
+  category?: "Communication" | "Customer support" | "CRM" | "Sales outreach" | "Database" | "Forms" | "Documents & storage" | "Contracts & e-signature" | "Finance & payments" | "HR & people" | "Meetings & scheduling" | "Project management" | "Security & access" | "Social media" | "Marketing" | "Websites & e-commerce" | "Video & audio" | "Design" | "AI" | "Automation" | "Web data & scraping" | "Building & dev" | string;
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -182,7 +182,7 @@ export type ElementsRecordInput = {
   calledFromSteps: string | string[] | null;
   phases: string | string[] | null;
   mapLayouts: string | string[] | null;
-  category: "Communication" | "Project management" | "CRM & sales" | "Forms & data" | "Finance & payments" | "Documents & storage" | "Meetings & scheduling" | "Automation & AI" | "Video & creative" | "Social & marketing" | "HR & people" | "Security & access" | "Building & dev" | string | null;
+  category: "Communication" | "Customer support" | "CRM" | "Sales outreach" | "Database" | "Forms" | "Documents & storage" | "Contracts & e-signature" | "Finance & payments" | "HR & people" | "Meetings & scheduling" | "Project management" | "Security & access" | "Social media" | "Marketing" | "Websites & e-commerce" | "Video & audio" | "Design" | "AI" | "Automation" | "Web data & scraping" | "Building & dev" | string | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */

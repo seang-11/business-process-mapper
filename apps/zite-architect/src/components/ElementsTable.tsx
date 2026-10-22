@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Boxes, Search, X, ArrowDownAZ } from 'lucide-react';
+import { Boxes, Search, X, SlidersHorizontal, Check, Rows3 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { categoryStyle } from '@/lib/categories';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
@@ -229,12 +230,20 @@ export default function ElementsTable({
     setUsageFilter(ANY);
   };
 
-  // One wrapping row shared with the column picker: on a phone the search takes
-  // the full width and the four filters fall into pairs; the count and the
-  // grouping toggle stay together and the picker stays pinned right.
+  // The toolbar is just three things: search, Filter, View. Everything else lives inside them.
+  const usageLabel = usageFilter === 'used' ? 'In a process' : usageFilter === 'unused' ? 'Unused' : '';
+  const activeChips: { key: string; label: string; clear: () => void }[] = [
+    categoryFilter !== ANY && { key: 'category', label: `Category: ${categoryFilter}`, clear: () => setCategoryFilter(ANY) },
+    typeFilter !== ANY && { key: 'type', label: `Type: ${typeFilter}`, clear: () => setTypeFilter(ANY) },
+    partyFilter !== ANY && { key: 'party', label: `Party: ${partyFilter}`, clear: () => setPartyFilter(ANY) },
+    statusFilter !== ANY && { key: 'status', label: `Status: ${statusFilter}`, clear: () => setStatusFilter(ANY) },
+    usageFilter !== ANY && { key: 'usage', label: usageLabel, clear: () => setUsageFilter(ANY) },
+  ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
+  const filterCount = activeChips.length;
+
   const toolbar = (
     <>
-      <div className="relative w-full sm:w-52">
+      <div className="relative w-full sm:w-64">
         <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
@@ -244,165 +253,148 @@ export default function ElementsTable({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:flex-wrap">
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="h-8 w-full sm:w-[140px] text-xs">
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY} className="text-xs">All types</SelectItem>
-            {selectableTypes.map((t) => (
-              <SelectItem key={t.id} value={t.name} className="text-xs">
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={partyFilter} onValueChange={setPartyFilter}>
-          <SelectTrigger className="h-8 w-full sm:w-[128px] text-xs">
-            <SelectValue placeholder="Party" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY} className="text-xs">Any party</SelectItem>
-            {PARTY_VALUES.map((v) => (
-              <SelectItem key={v} value={v} className="text-xs">
-                <span className="flex items-center gap-2">
-                  <TokenDot token={partyToken(v)} />
-                  {v}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-8 w-full sm:w-[128px] text-xs">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY} className="text-xs">Any status</SelectItem>
-            {STATUS_VALUES.map((v) => (
-              <SelectItem key={v} value={v} className="text-xs">
-                <span className="flex items-center gap-2">
-                  <TokenDot token={statusToken(v)} />
-                  {v}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={usageFilter} onValueChange={setUsageFilter}>
-          <SelectTrigger className="h-8 w-full sm:w-[136px] text-xs">
-            <SelectValue placeholder="Usage" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY} className="text-xs">Used or not</SelectItem>
-            <SelectItem value="used" className="text-xs">In a process</SelectItem>
-            <SelectItem value="unused" className="text-xs">Unused</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Select
-          value={sortKnown ? sortValue : ''}
-          onValueChange={(v) => {
-            const opt = SORT_OPTIONS.find((o) => o.value === v);
-            if (opt) setSort({ key: opt.key, dir: opt.dir });
-          }}
-        >
-          <SelectTrigger className="h-8 w-[140px] text-xs">
-            <ArrowDownAZ className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground" />
-            <SelectValue placeholder={sort.key ? 'Custom sort' : 'Sort'} />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value} className="text-xs">
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Group by</span>
-          <div className="flex rounded-lg bg-muted p-0.5 text-xs">
-            {(
-              [
-                ['type', 'Type'],
-                ['category', 'Category'],
-                ['owner', 'Owner'],
-                ['none', 'None'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setGroupBy(key)}
-                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
-                  groupBy === key
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {activeFilters > 0 && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearAll}>
-            <X className="h-3.5 w-3.5 mr-1" /> Clear
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 text-xs">
+            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" /> Filter
+            {filterCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                {filterCount}
+              </span>
+            )}
           </Button>
-        )}
+        </PopoverTrigger>
+        <PopoverContent align="start" className="max-h-[70vh] w-[min(440px,92vw)] space-y-4 overflow-y-auto p-4">
+          {hasCategories && (
+            <FilterSection title="Kind of tool">
+              {categoryCounts.map(([name, count]) => {
+                const style = categoryStyle(name);
+                return (
+                  <Pick
+                    key={name}
+                    active={categoryFilter === name}
+                    onClick={() => setCategoryFilter(categoryFilter === name ? ANY : name)}
+                    activeStyle={{ backgroundColor: style.bg, borderColor: style.dot, color: style.fg }}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
+                    {name}
+                    <span className="tabular-nums opacity-60">{count}</span>
+                  </Pick>
+                );
+              })}
+            </FilterSection>
+          )}
+          <FilterSection title="Type">
+            {selectableTypes.map((t) => (
+              <Pick key={t.id} active={typeFilter === t.name} onClick={() => setTypeFilter(typeFilter === t.name ? ANY : t.name)}>
+                {t.name}
+              </Pick>
+            ))}
+          </FilterSection>
+          <FilterSection title="Party">
+            {PARTY_VALUES.map((v) => (
+              <Pick key={v} active={partyFilter === v} onClick={() => setPartyFilter(partyFilter === v ? ANY : v)}>
+                <TokenDot token={partyToken(v)} />
+                {v}
+              </Pick>
+            ))}
+          </FilterSection>
+          <FilterSection title="Status">
+            {STATUS_VALUES.map((v) => (
+              <Pick key={v} active={statusFilter === v} onClick={() => setStatusFilter(statusFilter === v ? ANY : v)}>
+                <TokenDot token={statusToken(v)} />
+                {v}
+              </Pick>
+            ))}
+          </FilterSection>
+          <FilterSection title="Use">
+            <Pick active={usageFilter === 'used'} onClick={() => setUsageFilter(usageFilter === 'used' ? ANY : 'used')}>
+              In a process
+            </Pick>
+            <Pick active={usageFilter === 'unused'} onClick={() => setUsageFilter(usageFilter === 'unused' ? ANY : 'unused')}>
+              Unused
+            </Pick>
+          </FilterSection>
+          {filterCount > 0 && (
+            <div className="flex justify-end border-t border-border pt-3">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAll}>
+                Clear all filters
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
 
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {filtered.length} of {pool.length}
-        </span>
-      </div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 text-xs">
+            <Rows3 className="mr-1.5 h-3.5 w-3.5" /> View
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 space-y-4 p-4">
+          <div>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Group by</p>
+            <div className="space-y-0.5">
+              {(
+                [
+                  ['type', 'What it is'],
+                  ['category', 'Kind of tool'],
+                  ['owner', 'Owner'],
+                  ['none', 'Don’t group'],
+                ] as const
+              ).map(([key, label]) => (
+                <MenuRow key={key} active={groupBy === key} onClick={() => setGroupBy(key)}>
+                  {label}
+                </MenuRow>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Sort by</p>
+            <div className="space-y-0.5">
+              {SORT_OPTIONS.map((o) => (
+                <MenuRow
+                  key={o.value}
+                  active={sort.key === o.key && sort.dir === o.dir}
+                  onClick={() => setSort({ key: o.key, dir: o.dir })}
+                >
+                  {o.label}
+                </MenuRow>
+              ))}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <span className="ml-1 text-xs text-muted-foreground whitespace-nowrap">
+        {filtered.length === pool.length ? `${pool.length} elements` : `${filtered.length} of ${pool.length}`}
+      </span>
     </>
   );
 
   return (
     <div>
-      {hasCategories && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by category">
-          <button
-            type="button"
-            onClick={() => setCategoryFilter(ANY)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              categoryFilter === ANY
-                ? 'border-foreground/20 bg-foreground text-background'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            All <span className="ml-1 tabular-nums opacity-70">{pool.length}</span>
-          </button>
-          {categoryCounts.map(([name, count]) => {
-            const style = categoryStyle(name);
-            const active = categoryFilter === name;
-            return (
+      {activeChips.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {activeChips.map((c) => (
+            <span
+              key={c.key}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-card py-0.5 pl-2.5 pr-1 text-xs font-medium"
+            >
+              {c.label}
               <button
-                key={name}
                 type="button"
-                onClick={() => setCategoryFilter(active ? ANY : name)}
-                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all hover:-translate-y-px"
-                style={
-                  active
-                    ? { backgroundColor: style.bg, borderColor: style.dot, color: style.fg }
-                    : { backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }
-                }
-                aria-pressed={active}
+                onClick={c.clear}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={`Remove filter ${c.label}`}
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
-                {name}
-                <span className="tabular-nums opacity-60">{count}</span>
+                <X className="h-3 w-3" />
               </button>
-            );
-          })}
+            </span>
+          ))}
+          <button type="button" onClick={clearAll} className="px-1 text-xs text-muted-foreground hover:text-foreground">
+            Clear all
+          </button>
         </div>
       )}
       <DataTable
@@ -438,5 +430,53 @@ export default function ElementsTable({
         groupStorageKey={`elements-by-${groupBy}`}
       />
     </div>
+  );
+}
+
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+/** A choice you tap on or off. Selected ones fill in. */
+function Pick({ active, onClick, activeStyle, children }: {
+  active: boolean;
+  onClick: () => void;
+  activeStyle?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={active ? activeStyle : undefined}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? activeStyle
+            ? ''
+            : 'border-primary/40 bg-primary/10 text-primary'
+          : 'border-border bg-card text-foreground hover:bg-muted'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MenuRow({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+    >
+      <Check className={`h-4 w-4 text-primary ${active ? '' : 'opacity-0'}`} />
+      {children}
+    </button>
   );
 }
