@@ -389,6 +389,8 @@ function edgePath({ x1, y1, x2, y2, vertical }: EdgeEnds): string {
 
 // Layout constants
 const LANE_LABEL_W = 176;
+const LANE_LABEL_MIN = 140;
+const LANE_LABEL_MAX = 420;
 const CARD_W = 208;
 const COL_GAP = 16;
 const PAD_X = 24;
@@ -580,8 +582,19 @@ export default function SwimlaneDiagram({
     );
   }, [connections, columnMap, totalColumns]);
 
+  // How wide the lane name column is, set by dragging its edge. Remembered per
+  // browser so a long role name stays readable next time.
+  const [labelBase, setLabelBase] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('lane_label_w'));
+      return saved >= LANE_LABEL_MIN && saved <= LANE_LABEL_MAX ? saved : LANE_LABEL_W;
+    } catch {
+      return LANE_LABEL_W;
+    }
+  });
+
   const gridMinWidth =
-    LANE_LABEL_W +
+    labelBase +
     totalColumns * CARD_W +
     columnGaps.reduce((sum, g) => sum + g, 0) +
     PAD_X * 2;
@@ -842,7 +855,39 @@ export default function SwimlaneDiagram({
   const detail: CardDetail =
     zoom >= DETAIL_FULL_AT ? 'full' : zoom >= DETAIL_COMPACT_BELOW ? 'medium' : 'compact';
   const textScale = Math.min(TEXT_MAX_BOOST, Math.max(1, 1 / zoom));
-  const laneLabelW = LANE_LABEL_W * Math.min(textScale, LANE_LABEL_MAX_GROW);
+  const labelFactor = Math.min(textScale, LANE_LABEL_MAX_GROW);
+  const laneLabelW = labelBase * labelFactor;
+
+  // Drag the edge of the name column to widen or narrow it. The map may be
+  // zoomed, so the pointer's distance is converted back into column units.
+  const startLabelResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startW = labelBase;
+    let latest = startW;
+    const onMove = (ev: PointerEvent) => {
+      const next = startW + (ev.clientX - startX) / (zoom * labelFactor);
+      latest = Math.round(Math.min(LANE_LABEL_MAX, Math.max(LANE_LABEL_MIN, next)));
+      setLabelBase(latest);
+    };
+    const onUp = () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+      try {
+        localStorage.setItem('lane_label_w', String(latest));
+      } catch {
+        /* the width just isn't remembered */
+      }
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  };
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1468,7 +1513,7 @@ export default function SwimlaneDiagram({
                         )}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold leading-tight">
+                        <p className="break-words text-sm font-semibold leading-tight">
                           {isNoApp ? 'Done by hand' : lane}
                         </p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -1526,7 +1571,7 @@ export default function SwimlaneDiagram({
                         {isAutomated ? <Zap className="h-[18px] w-[18px]" /> : initialsOf(personName || lane)}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold leading-tight">{lane}</p>
+                        <p className="break-words text-sm font-semibold leading-tight">{lane}</p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
                           {laneType ? `${laneType} · ` : ''}
                           {personName ? `${personName} · ` : ''}
@@ -1545,6 +1590,23 @@ export default function SwimlaneDiagram({
                     )}
                   </div>
                   )}
+                  {/* Drag this edge to make the name column wider or narrower. */}
+                  <div
+                    data-no-drag
+                    onPointerDown={startLabelResize}
+                    onDoubleClick={() => {
+                      setLabelBase(LANE_LABEL_W);
+                      try {
+                        localStorage.removeItem('lane_label_w');
+                      } catch {
+                        /* nothing to forget */
+                      }
+                    }}
+                    title="Drag to resize, double-click to reset"
+                    className="group/resize absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none"
+                  >
+                    <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors group-hover/resize:bg-primary/50" />
+                  </div>
                   {onOpenLane && (
                     <button
                       type="button"
@@ -1837,7 +1899,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         {detail !== 'compact' && (
         <div className="flex items-center justify-between gap-1.5 mb-1.5">
           <span
-            className="text-[10px] font-medium px-1.5 py-0.5 rounded truncate max-w-[110px]"
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded break-words leading-tight max-w-[120px]"
             style={
               color
                 ? { backgroundColor: `${color}26`, color }
@@ -1907,7 +1969,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
                 color={primaryUse.color}
                 size={12}
               />
-              <span className={`truncate ${shownExtras.length ? 'max-w-[72px]' : 'max-w-[128px]'}`}>
+              <span className={`break-words leading-tight ${shownExtras.length ? 'max-w-[80px]' : 'max-w-[128px]'}`}>
                 {primaryUse.name}
               </span>
             </span>
