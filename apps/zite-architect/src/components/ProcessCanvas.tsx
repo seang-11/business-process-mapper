@@ -6,6 +6,7 @@ import {
   getTaxonomy,
   saveElement,
   createVersion,
+  moveStep,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
@@ -27,8 +28,8 @@ import {
   SelectValue,
 } from '@project/components/ui/select';
 import { toast } from 'sonner';
-import type { ElementSummary, ElementType, ProcessStep } from '@/types';
-import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
+import type { ElementRef, ElementSummary, ElementType, ProcessStep } from '@/types';
+import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -206,6 +207,66 @@ export default function ProcessCanvas() {
   );
 
   const steps = useMemo(() => (graph?.steps ?? []) as ProcessStep[], [graph]);
+
+  /**
+   * A card dropped in another lane. The map moves it at once and the server
+   * catches up; the refetch afterwards puts things right either way.
+   */
+  const versionId = graph?.version?.id;
+  const handleMoveStep = useCallback(
+    async (step: ProcessStep, move: StepMove) => {
+      if (!versionId) return;
+      const refOf = (elementId: string): ElementRef | null => {
+        const e = elements.find((x) => x.id === elementId);
+        return e
+          ? {
+              id: e.id,
+              name: e.name,
+              typeName: e.typeName,
+              image: e.image,
+              icon: e.icon,
+              typeIcon: e.typeIcon,
+              color: e.typeColor,
+              actorClass: e.actorClass,
+              party: e.party,
+            }
+          : null;
+      };
+
+      setGraph((g) => {
+        if (!g || !g.version) return g;
+        return {
+          ...g,
+          steps: g.steps.map((s) =>
+            s.id !== step.id
+              ? s
+              : {
+                  ...s,
+                  performedBy: refOf(move.performedById) ?? s.performedBy,
+                  uses: move.useIds
+                    .map((uid) => s.uses.find((u) => u.id === uid) ?? refOf(uid))
+                    .filter((u): u is ElementRef => u !== null),
+                },
+          ),
+        };
+      });
+
+      try {
+        await moveStep({
+          id: step.id,
+          versionId,
+          performedById: move.performedById,
+          useIds: move.useIds,
+        });
+        toast.success(`Moved "${step.title}" to ${move.laneName}`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not move that step.');
+      } finally {
+        load();
+      }
+    },
+    [versionId, elements, load],
+  );
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
 
 
@@ -357,6 +418,7 @@ export default function ProcessCanvas() {
             elements={elements}
             onClickStep={openStep}
             onOpenSubProcess={(processId) => navigate(`/process/${processId}`)}
+            onMoveStep={handleMoveStep}
           />
         </div>
 

@@ -15,6 +15,7 @@ import type { default as _GetElementDetailEp } from '../src/api/getElementDetail
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
+import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
@@ -86,6 +87,11 @@ export type GetTaxonomyInputType = NonNullable<_GetTaxonomyCfg['inputSchema']> e
 export type GetTaxonomyOutputType = Awaited<ReturnType<_GetTaxonomyCfg['execute']>>;
 export const getTaxonomy = createCaller<GetTaxonomyInputType, GetTaxonomyOutputType>('getTaxonomy');
 
+type _MoveStepCfg = typeof _MoveStepEp;
+export type MoveStepInputType = NonNullable<_MoveStepCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MoveStepCfg['execute']>[0]['input'];
+export type MoveStepOutputType = Awaited<ReturnType<_MoveStepCfg['execute']>>;
+export const moveStep = createCaller<MoveStepInputType, MoveStepOutputType>('moveStep');
+
 type _SaveConnectionCfg = typeof _SaveConnectionEp;
 export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveConnectionCfg['execute']>[0]['input'];
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
@@ -126,6 +132,7 @@ export const api = {
   getProcessGraph,
   getProcesses,
   getTaxonomy,
+  moveStep,
   saveConnection,
   saveElement,
   saveElementType,

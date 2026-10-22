@@ -3,6 +3,7 @@ import {
   Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2,
 } from 'lucide-react';
 import type {
+  ElementRef,
   ElementSummary,
   ProcessStep,
   ProcessConnection,
@@ -41,6 +42,16 @@ interface Props {
   onClickStep: (step: ProcessStep) => void;
   /** Drill into the process a sub-process step expands into. */
   onOpenSubProcess: (processId: string) => void;
+  /** Dragging a card into another lane. Without it, cards don't drag. */
+  onMoveStep?: (step: ProcessStep, move: StepMove) => void;
+}
+
+/** What a lane change means for the step: who does it, and its apps in order. */
+export interface StepMove {
+  performedById: string;
+  useIds: string[];
+  /** The lane it lands in, for telling the reader what happened. */
+  laneName: string;
 }
 
 /** Longest owner chain worth following before calling it a cycle. */
@@ -360,6 +371,7 @@ export default function SwimlaneDiagram({
   elements,
   onClickStep,
   onOpenSubProcess,
+  onMoveStep,
 }: Props) {
   const elementsById = useMemo(
     () => new Map(elements.map((e) => [e.id, e])),
@@ -382,6 +394,20 @@ export default function SwimlaneDiagram({
   const [isDragging, setIsDragging] = useState(false);
   const dragState = useRef<{ active: boolean; startX: number; startY: number; scrollX: number; scrollY: number; moved: boolean } | null>(null);
   const didDragRef = useRef(false);
+
+  // Dragging a card. Kept apart from panning: a press on a card can only ever
+  // become a card drag, a press on the background only ever a pan.
+  const cardDrag = useRef<{ stepId: string; startX: number; startY: number; moved: boolean } | null>(null);
+  const [cardDragView, setCardDragView] = useState<{ stepId: string; x: number; y: number; lane: string | null } | null>(null);
+  const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const laneAt = useCallback((clientY: number): string | null => {
+    for (const [lane, el] of laneEls.current) {
+      const r = el.getBoundingClientRect();
+      if (clientY >= r.top && clientY < r.bottom) return lane;
+    }
+    return null;
+  }, []);
 
   // The ref leads the state: wheel events arrive faster than React renders, and
   // each one has to build on the zoom the last one asked for.
@@ -487,6 +513,59 @@ export default function SwimlaneDiagram({
     for (const s of steps) m.set(s.id, getLaneKey(s, grouping));
     return m;
   }, [steps, grouping]);
+
+  // The element each lane stands for, so a drop knows what to change. Same rule
+  // as the lane header: the performer in the people view, the app in the app
+  // view. Automated, Unassigned and No app stand for nothing in particular.
+  const laneTargets = useMemo(() => {
+    const m = new Map<string, ElementRef | null>();
+    for (const [lane, laneSteps] of stepsByLane) {
+      const first = laneSteps[0];
+      if (grouping === 'people') {
+        m.set(lane, lane === AUTOMATED_LANE ? null : first?.performedBy ?? null);
+      } else {
+        m.set(
+          lane,
+          first?.performedBy?.actorClass === 'System'
+            ? first.performedBy
+            : first?.uses.find((u) => u.actorClass === 'System') ?? null,
+        );
+      }
+    }
+    return m;
+  }, [stepsByLane, grouping]);
+
+  /** What dropping a step into a lane would change, or null if it can't go there. */
+  const resolveDrop = useCallback(
+    (step: ProcessStep, lane: string): StepMove | null => {
+      if (stepLaneMap.get(step.id) === lane) return null;
+      const useIds = step.uses.map((u) => u.id);
+
+      if (grouping === 'people') {
+        // An app can only take over a step it is already part of.
+        if (lane === AUTOMATED_LANE) {
+          const app = step.uses.find((u) => u.actorClass === 'System');
+          return app ? { performedById: app.id, useIds, laneName: lane } : null;
+        }
+        const person = laneTargets.get(lane);
+        return person ? { performedById: person.id, useIds, laneName: lane } : null;
+      }
+
+      const app = laneTargets.get(lane);
+      if (!app || !step.performedBy) return null;
+      // A step an app runs is laned by that app, so the new app runs it.
+      if (step.performedBy.actorClass === 'System') {
+        return { performedById: app.id, useIds, laneName: lane };
+      }
+      // A person's step is laned by its first app, so the new one goes first.
+      return {
+        performedById: step.performedBy.id,
+        useIds: [app.id, ...useIds.filter((id) => id !== app.id)],
+        laneName: lane,
+      };
+    },
+    [grouping, stepLaneMap, laneTargets],
+  );
 
   const isCrossLane = useCallback(
     (c: ProcessConnection) => {
@@ -648,14 +727,26 @@ export default function SwimlaneDiagram({
 
   const resetDrag = useCallback(() => {
     dragState.current = null;
+    cardDrag.current = null;
     pointerIdRef.current = null;
     setIsDragging(false);
+    setCardDragView(null);
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, textarea, select, [role="button"], [data-step-card]')) return;
+    if (target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag]')) return;
+
+    const card = target.closest<HTMLElement>('[data-step-card]');
+    if (card) {
+      const stepId = card.dataset.stepId;
+      if (!onMoveStep || !stepId) return;
+      didDragRef.current = false;
+      pointerIdRef.current = e.pointerId;
+      cardDrag.current = { stepId, startX: e.clientX, startY: e.clientY, moved: false };
+      return;
+    }
 
     const el = containerRef.current;
     if (!el) return;
@@ -671,9 +762,24 @@ export default function SwimlaneDiagram({
       moved: false,
     };
     // Do NOT capture yet — capture only once movement passes the threshold.
-  }, []);
+  }, [onMoveStep]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const cd = cardDrag.current;
+    if (cd) {
+      if (!cd.moved) {
+        if (Math.abs(e.clientX - cd.startX) + Math.abs(e.clientY - cd.startY) <= DRAG_THRESHOLD) return;
+        cd.moved = true;
+        setHoveredStepId(null);
+        const el = containerRef.current;
+        if (el && pointerIdRef.current != null) {
+          try { el.setPointerCapture(pointerIdRef.current); } catch { /* already released */ }
+        }
+      }
+      setCardDragView({ stepId: cd.stepId, x: e.clientX, y: e.clientY, lane: laneAt(e.clientY) });
+      return;
+    }
+
     const ds = dragState.current;
     if (!ds?.active) return;
     const dx = e.clientX - ds.startX;
@@ -693,9 +799,27 @@ export default function SwimlaneDiagram({
     if (!el) return;
     el.scrollLeft = ds.scrollX - dx;
     el.scrollTop = ds.scrollY - dy;
-  }, []);
+  }, [laneAt]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const cd = cardDrag.current;
+    if (cd) {
+      const el = containerRef.current;
+      if (el && pointerIdRef.current != null) {
+        try { el.releasePointerCapture(pointerIdRef.current); } catch { /* ok */ }
+      }
+      resetDrag();
+      if (!cd.moved) return;
+      // Swallow the click that follows the drop, so it doesn't open the step.
+      didDragRef.current = true;
+      setTimeout(() => { didDragRef.current = false; }, 0);
+      const lane = laneAt(e.clientY);
+      const step = steps.find((s) => s.id === cd.stepId);
+      const move = step && lane ? resolveDrop(step, lane) : null;
+      if (step && move) onMoveStep?.(step, move);
+      return;
+    }
+
     const ds = dragState.current;
     if (!ds?.active) { resetDrag(); return; }
     if (ds.moved) didDragRef.current = true;
@@ -705,7 +829,7 @@ export default function SwimlaneDiagram({
     }
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
-  }, [resetDrag]);
+  }, [resetDrag, laneAt, steps, resolveDrop, onMoveStep]);
 
   const handlePointerCancel = useCallback(() => {
     const el = containerRef.current;
@@ -719,6 +843,13 @@ export default function SwimlaneDiagram({
     // The browser took capture away — make sure local state is clean.
     resetDrag();
   }, [resetDrag]);
+
+  const dragStep = cardDragView ? steps.find((s) => s.id === cardDragView.stepId) ?? null : null;
+  const dropLane =
+    dragStep && cardDragView?.lane && cardDragView.lane !== stepLaneMap.get(dragStep.id)
+      ? cardDragView.lane
+      : null;
+  const dropOk = dragStep && dropLane ? resolveDrop(dragStep, dropLane) !== null : false;
 
   const handleClickStep = useCallback((step: ProcessStep) => {
     if (didDragRef.current) return;
@@ -738,7 +869,7 @@ export default function SwimlaneDiagram({
     <div className="relative h-full">
     <div
       ref={containerRef}
-      className={`h-full overflow-auto relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+      className={`h-full overflow-auto relative ${isDragging || cardDragView ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -999,7 +1130,14 @@ export default function SwimlaneDiagram({
             const personName = person && person.name !== lane ? person.name : '';
 
             return (
-              <div key={lane} className="border-b border-border flex">
+              <div
+                key={lane}
+                ref={(el) => {
+                  if (el) laneEls.current.set(lane, el);
+                  else laneEls.current.delete(lane);
+                }}
+                className="border-b border-border flex"
+              >
                 <div className="w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15]">
                   <div className="flex items-center gap-1.5">
                     {isAutomated && <Zap className="h-3 w-3 shrink-0 text-muted-foreground" />}
@@ -1021,8 +1159,12 @@ export default function SwimlaneDiagram({
 
                 {/* Faint banding so a row stays trackable across a wide diagram. */}
                 <div
-                  className={`flex-1 px-6 py-5 ${
-                    laneIdx % 2 === 1 ? 'bg-foreground/[0.025]' : ''
+                  className={`flex-1 px-6 py-5 transition-colors ${
+                    dropLane === lane
+                      ? dropOk
+                        ? 'bg-primary/[0.06] shadow-[inset_0_0_0_2px_hsl(var(--primary)/0.35)]'
+                        : 'bg-destructive/[0.04]'
+                      : laneIdx % 2 === 1 ? 'bg-foreground/[0.025]' : ''
                   }`}
                 >
                   <div className="space-y-3">
@@ -1057,6 +1199,8 @@ export default function SwimlaneDiagram({
                             hasCrossLaneDep={connections.some(
                               c => isCrossLane(c) && (c.fromStepId === step.id || c.toStepId === step.id)
                             )}
+                            isDragSource={cardDragView?.stepId === step.id}
+                            draggable={!!onMoveStep}
                             ref={(el) => setCardRef(step.id, el)}
                           />
                         ) : (
@@ -1075,6 +1219,25 @@ export default function SwimlaneDiagram({
         </div>
       </div>
     </div>
+
+    {/* Follows the pointer outside the zoomed content, so it stays full size. */}
+    {dragStep && cardDragView && (
+      <div
+        className="pointer-events-none fixed z-50 w-52 rotate-[1.5deg] rounded-lg border border-primary/40 bg-card p-3 shadow-xl"
+        style={{ left: cardDragView.x - 20, top: cardDragView.y - 16 }}
+      >
+        <p className="text-xs font-medium line-clamp-1">{dragStep.title}</p>
+        <p className={`mt-1 text-[10px] ${dropLane && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
+          {!dropLane
+            ? 'Drop in another lane'
+            : dropOk
+            ? `Move to ${dropLane}`
+            : grouping === 'people' && dropLane === AUTOMATED_LANE
+            ? 'Add an app to this step first'
+            : "Can't move here"}
+        </p>
+      </div>
+    )}
 
     <div className="absolute bottom-4 right-4 z-30 flex items-center gap-0.5 rounded-full border border-border bg-card/95 p-1 shadow-md backdrop-blur">
       <button
@@ -1134,6 +1297,9 @@ interface StepCardProps {
   isStart: boolean;
   isEnd: boolean;
   hasCrossLaneDep: boolean;
+  /** This card is the one being dragged; the ghost stands in for it. */
+  isDragSource: boolean;
+  draggable: boolean;
 }
 
 const PANEL_W = 256;
@@ -1154,6 +1320,8 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       isStart,
       isEnd,
       hasCrossLaneDep,
+      isDragSource,
+      draggable,
     },
     ref,
   ) => {
@@ -1217,13 +1385,14 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       <div
         ref={setRefs}
         data-step-card
-        className={`w-52 shrink-0 rounded-lg bg-card p-3 cursor-pointer pointer-events-auto transition-all duration-200 relative ${
+        data-step-id={step.id}
+        className={`w-52 shrink-0 rounded-lg bg-card p-3 ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} pointer-events-auto transition-all duration-200 relative ${
           isHighlighted
             ? 'border-2 border-primary shadow-sm'
             : hasCrossLaneDep
             ? 'border border-primary/30'
             : 'border border-border'
-        } ${isDimmed ? 'opacity-30' : 'opacity-100'} shadow-sm hover:shadow-md`}
+        } ${isDragSource ? 'opacity-30 border-dashed' : isDimmed ? 'opacity-30' : 'opacity-100'} shadow-sm hover:shadow-md`}
         onClick={onClick}
         onMouseEnter={() => { onHover(step.id); if (hasDetail) openDetail(); }}
         onMouseLeave={() => { onHover(null); scheduleCloseDetail(); }}
@@ -1368,7 +1537,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             className={`absolute top-0 w-64 bg-popover border border-border rounded-lg shadow-lg p-3 z-[20] transition-[opacity,transform] ease-out ${
               side === 'right' ? 'left-full ml-2' : 'right-full mr-2'
             } ${
-              showDetail
+              showDetail && !isDragSource
                 ? 'opacity-100 translate-x-0'
                 : `opacity-0 pointer-events-none ${
                     side === 'right' ? '-translate-x-1' : 'translate-x-1'
@@ -1376,6 +1545,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             }`}
             style={{ transitionDuration: `${PANEL_FADE_MS}ms` }}
             aria-hidden={!showDetail}
+            data-no-drag
             onMouseEnter={openDetail}
             onMouseLeave={scheduleCloseDetail}
             onClick={(e) => e.stopPropagation()}
