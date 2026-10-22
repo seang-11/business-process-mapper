@@ -21,6 +21,7 @@ import type { default as _GoLiveEp } from '../src/api/goLive';
 import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
+import type { default as _ReorderStepEp } from '../src/api/reorderStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
@@ -124,6 +125,11 @@ export type MoveStepInputType = NonNullable<_MoveStepCfg['inputSchema']> extends
 export type MoveStepOutputType = Awaited<ReturnType<_MoveStepCfg['execute']>>;
 export const moveStep = createCaller<MoveStepInputType, MoveStepOutputType>('moveStep');
 
+type _ReorderStepCfg = typeof _ReorderStepEp;
+export type ReorderStepInputType = NonNullable<_ReorderStepCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_ReorderStepCfg['execute']>[0]['input'];
+export type ReorderStepOutputType = Awaited<ReturnType<_ReorderStepCfg['execute']>>;
+export const reorderStep = createCaller<ReorderStepInputType, ReorderStepOutputType>('reorderStep');
+
 type _SaveConnectionCfg = typeof _SaveConnectionEp;
 export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveConnectionCfg['execute']>[0]['input'];
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
@@ -180,6 +186,7 @@ export const api = {
   listEditors,
   matchVersionSteps,
   moveStep,
+  reorderStep,
   saveConnection,
   saveElement,
   saveElementType,

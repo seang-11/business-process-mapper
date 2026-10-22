@@ -8,6 +8,7 @@ import {
   createVersion,
   goLive,
   moveStep,
+  reorderStep,
   saveLaneOrder,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
@@ -393,6 +394,22 @@ export default function ProcessCanvas() {
     },
     [versionId, elements, load],
   );
+  /** A card dropped before or after another. The server rewires the arrows; then the map reloads. */
+  const handleReorderStep = useCallback(
+    async (step: ProcessStep, targetId: string, position: 'before' | 'after') => {
+      if (!versionId) return;
+      try {
+        await reorderStep({ versionId, stepId: step.id, targetId, position });
+        const target = steps.find((s) => s.id === targetId);
+        toast.success(`Moved "${step.title}" ${position} "${target?.title ?? 'that step'}"`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not move that step.');
+      } finally {
+        load();
+      }
+    },
+    [versionId, steps, load],
+  );
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
 
   const laneOrder = graph?.laneOrder ?? NO_LANE_ORDER;
@@ -762,6 +779,7 @@ export default function ProcessCanvas() {
             onClickStep={openStep}
             onOpenSubProcess={(processId) => navigate(`/process/${processId}`)}
             onMoveStep={canEdit ? handleMoveStep : undefined}
+            onReorderStep={canEdit ? handleReorderStep : undefined}
             laneOrder={laneOrder[laneGrouping]}
             onReorderLanes={canEdit ? handleReorderLanes : undefined}
             viewKey={graph?.version?.id ?? id}

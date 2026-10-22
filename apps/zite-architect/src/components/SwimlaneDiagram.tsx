@@ -45,6 +45,8 @@ interface Props {
   onOpenSubProcess: (processId: string) => void;
   /** Dragging a card into another lane. Without it, cards don't drag. */
   onMoveStep?: (step: ProcessStep, move: StepMove) => void;
+  /** Dropping a card on another card: place it just before or after that one. */
+  onReorderStep?: (step: ProcessStep, targetId: string, position: 'before' | 'after') => void;
   /** Lane ids in the order someone dragged them into, for this view. */
   laneOrder: string[];
   /** Dragging a lane name. Without it, lanes keep their automatic order. */
@@ -462,6 +464,7 @@ export default function SwimlaneDiagram({
   onClickStep,
   onOpenSubProcess,
   onMoveStep,
+  onReorderStep,
   laneOrder,
   onReorderLanes,
   viewKey,
@@ -495,7 +498,22 @@ export default function SwimlaneDiagram({
   const cardDrag = useRef<{ stepId: string; startX: number; startY: number; moved: boolean } | null>(null);
   const [cardDragView, setCardDragView] = useState<{
     stepId: string; x: number; y: number; lane: string | null;
+    /** Set while the pointer is over another card: where the dragged one would slot in. */
+    drop: { targetId: string; position: 'before' | 'after'; left: number; right: number; top: number; height: number } | null;
   } | null>(null);
+
+  /** The card under the pointer, and which side of it, for dropping a card before or after another. */
+  const cardUnder = useCallback((x: number, y: number, dragId: string) => {
+    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-step-card]');
+    const targetId = hit?.dataset.stepId;
+    if (!hit || !targetId || targetId === dragId) return null;
+    const r = hit.getBoundingClientRect();
+    return {
+      targetId,
+      position: (x < r.left + r.width / 2 ? 'before' : 'after') as 'before' | 'after',
+      left: r.left, right: r.right, top: r.top, height: r.height,
+    };
+  }, []);
   const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
   // Dragging a lane by its name, to reorder lanes.
   const laneDrag = useRef<{ lane: string; startY: number; moved: boolean } | null>(null);
@@ -1040,11 +1058,14 @@ export default function SwimlaneDiagram({
           try { el.setPointerCapture(pointerIdRef.current); } catch { /* already released */ }
         }
       }
+      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, cd.stepId) : null;
       setCardDragView({
         stepId: cd.stepId,
         x: e.clientX,
         y: e.clientY,
-        lane: laneAt(e.clientY),
+        // Over a card the drop reorders; only open lane space moves it to that lane.
+        lane: drop ? null : laneAt(e.clientY),
+        drop,
       });
       return;
     }
@@ -1104,6 +1125,11 @@ export default function SwimlaneDiagram({
       didDragRef.current = true;
       setTimeout(() => { didDragRef.current = false; }, 0);
       const step = steps.find((s) => s.id === cd.stepId);
+      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, cd.stepId) : null;
+      if (step && drop) {
+        onReorderStep?.(step, drop.targetId, drop.position);
+        return;
+      }
       const move = step ? resolveDrop(step, laneAt(e.clientY)) : null;
       if (step && move) onMoveStep?.(step, move);
       return;
@@ -1119,7 +1145,7 @@ export default function SwimlaneDiagram({
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
   }, [
-    resetDrag, laneAt, steps, resolveDrop, onMoveStep,
+    resetDrag, laneAt, steps, resolveDrop, onMoveStep, onReorderStep, cardUnder,
     orderedLanes, laneInsertAt, laneIdOf, onReorderLanes, onOpenLane,
   ]);
 
@@ -1704,6 +1730,18 @@ export default function SwimlaneDiagram({
       </div>
     )}
 
+    {/* A line where the dragged card will slot in: before or after the card it hovers. */}
+    {cardDragView?.drop && (
+      <div
+        className="pointer-events-none fixed z-50 w-1 rounded-full bg-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.2)]"
+        style={{
+          left: (cardDragView.drop.position === 'before' ? cardDragView.drop.left : cardDragView.drop.right) - 2,
+          top: cardDragView.drop.top,
+          height: cardDragView.drop.height,
+        }}
+      />
+    )}
+
     {/* Follows the pointer outside the zoomed content, so it stays full size. */}
     {dragStep && cardDragView && (
       <div
@@ -1712,7 +1750,9 @@ export default function SwimlaneDiagram({
       >
         <p className="text-xs font-medium line-clamp-1">{dragStep.title}</p>
         <p className={`mt-1 text-[10px] ${dropLane && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {dropMove
+          {cardDragView.drop
+            ? `Place ${cardDragView.drop.position} “${steps.find((s) => s.id === cardDragView.drop!.targetId)?.title ?? 'step'}”`
+            : dropMove
             ? `Move to ${dropMove.destination}`
             : !dropLane
             ? 'Drop in another lane'
