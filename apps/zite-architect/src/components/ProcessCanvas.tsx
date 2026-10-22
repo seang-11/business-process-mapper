@@ -60,7 +60,7 @@ export default function ProcessCanvas() {
   const [addingStep, setAddingStep] = useState(false);
   const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>('people');
   /** The whole process as one scrolling timeline instead of the map. */
-  const [showOverview, setShowOverview] = useState(true);
+  const [showOverview, setShowOverview] = useState(false);
   /** Inside the Overview: one version, or Current and Future side by side. */
   const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('single');
   const [managingVersions, setManagingVersions] = useState(false);
@@ -373,17 +373,6 @@ export default function ProcessCanvas() {
         <span className="h-5 w-px bg-border shrink-0" aria-hidden="true" />
 
         <div className="flex border border-border rounded-md overflow-hidden text-xs shrink-0">
-          <button
-            className={`px-3 py-1.5 font-medium transition-colors ${
-              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => {
-              setShowOverview(true);
-              setOpenLane(null);
-            }}
-          >
-            Overview
-          </button>
           {(['people', 'app'] as LaneGrouping[]).map((mode) => (
             <button
               key={mode}
@@ -402,6 +391,17 @@ export default function ProcessCanvas() {
               {mode === 'people' ? 'By person' : 'By app'}
             </button>
           ))}
+          <button
+            className={`px-3 py-1.5 font-medium transition-colors ${
+              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => {
+              setShowOverview(true);
+              setOpenLane(null);
+            }}
+          >
+            Overview
+          </button>
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -514,19 +514,36 @@ export default function ProcessCanvas() {
               {process && process.versions.length > 1 && (
                 <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2">
                   <div className="flex overflow-hidden rounded-md border border-border text-xs">
-                    {([['single', 'One version'], ['side', 'Side by side']] as const).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        className={`px-3 py-1.5 font-medium transition-colors ${
-                          overviewMode === mode
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                        onClick={() => setOverviewMode(mode)}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    {/* Each version is its own tab, so the one on screen is always named. */}
+                    {process.versions.map((v) => {
+                      const active = overviewMode === 'single' && graph?.version?.id === v.id;
+                      return (
+                        <button
+                          key={v.id}
+                          className={`px-3 py-1.5 font-medium transition-colors ${
+                            active
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          onClick={() => {
+                            setOverviewMode('single');
+                            if (graph?.version?.id !== v.id) setSearchParams({ version: v.id });
+                          }}
+                        >
+                          {v.name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      className={`border-l border-border px-3 py-1.5 font-medium transition-colors ${
+                        overviewMode === 'side'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => setOverviewMode('side')}
+                    >
+                      Side by side
+                    </button>
                   </div>
                 </div>
               )}
