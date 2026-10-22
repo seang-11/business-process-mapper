@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Boxes, Search, X, SlidersHorizontal, Check, Rows3 } from 'lucide-react';
+import { Boxes, Search, X, SlidersHorizontal, Check, Rows3, ChevronsUpDown } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@project/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { categoryStyle } from '@/lib/categories';
 import { Button } from '@project/components/ui/button';
@@ -64,6 +65,7 @@ export default function ElementsTable({
   // How the list is grouped: by what it is, what kind of tool it is, who owns it, or not at all.
   const [groupBy, setGroupBy] = useState<'type' | 'category' | 'owner' | 'none'>('type');
   const [categoryFilter, setCategoryFilter] = useState<string>(ANY);
+  const [kindOpen, setKindOpen] = useState(false);
   // Alphabetical by default; clicking a column header or using the Sort menu changes it.
   const [sort, setSort] = useState<{ key: string | null; dir: SortDir }>({ key: 'name', dir: 'asc' });
   const sortValue = sort.key && sort.dir ? `${sort.key}:${sort.dir}` : '';
@@ -208,7 +210,7 @@ export default function ElementsTable({
       counts.set(categoryOf(e), (counts.get(categoryOf(e)) ?? 0) + 1);
     }
     return [...counts.entries()].sort(
-      (a, b) => (a[0] === 'Uncategorized' ? 1 : 0) - (b[0] === 'Uncategorized' ? 1 : 0) || b[1] - a[1] || a[0].localeCompare(b[0]),
+      (a, b) => (a[0] === 'Uncategorized' ? 1 : 0) - (b[0] === 'Uncategorized' ? 1 : 0) || a[0].localeCompare(b[0]),
     );
   }, [pool]);
   const hasCategories = categoryCounts.some(([name]) => name !== 'Uncategorized');
@@ -252,28 +254,54 @@ export default function ElementsTable({
       </div>
 
       {hasCategories && (
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-8 w-[210px] text-xs" aria-label="Kind of tool">
-            <SelectValue placeholder="Kind of tool" />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value={ANY} className="text-xs">
-              All kinds of tool
-            </SelectItem>
-            {categoryCounts.map(([name, count]) => {
-              const style = categoryStyle(name);
-              return (
-                <SelectItem key={name} value={name} className="text-xs">
-                  <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
-                    {name}
-                    <span className="text-muted-foreground">{count}</span>
-                  </span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+        <Popover open={kindOpen} onOpenChange={setKindOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 w-[210px] justify-between text-xs font-normal" aria-label="Kind of tool">
+              <span className="truncate">{categoryFilter === ANY ? 'All kinds of tool' : categoryFilter}</span>
+              <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[250px] p-0">
+            <Command>
+              <CommandInput placeholder="Search kinds of tool…" className="h-9 text-xs" />
+              <CommandList className="max-h-72">
+                <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">Nothing matches.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="All kinds of tool"
+                    className="text-xs"
+                    onSelect={() => {
+                      setCategoryFilter(ANY);
+                      setKindOpen(false);
+                    }}
+                  >
+                    <Check className={`mr-2 h-3.5 w-3.5 ${categoryFilter === ANY ? '' : 'opacity-0'}`} />
+                    All kinds of tool
+                  </CommandItem>
+                  {categoryCounts.map(([name, count]) => {
+                    const style = categoryStyle(name);
+                    return (
+                      <CommandItem
+                        key={name}
+                        value={name}
+                        className="text-xs"
+                        onSelect={() => {
+                          setCategoryFilter(name);
+                          setKindOpen(false);
+                        }}
+                      >
+                        <Check className={`mr-2 h-3.5 w-3.5 ${categoryFilter === name ? '' : 'opacity-0'}`} />
+                        <span className="mr-2 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
+                        <span className="flex-1 truncate">{name}</span>
+                        <span className="text-muted-foreground">{count}</span>
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       )}
 
       <Popover>
