@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   X, ArrowLeft, ArrowRight, GraduationCap, Link2, Printer, Zap, CornerDownRight, ExternalLink, Check, Users,
-  Compass, Flag, Hourglass, GitFork,
+  Compass, Flag, Hourglass, GitFork, Workflow,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProcessGraph } from 'zitejs/api';
@@ -97,13 +97,13 @@ const segBtn = (active: boolean) =>
   `rounded-md px-3 py-1 font-medium transition-all ${
     active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
   }`;
-const CARD = 'rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
+const CARD = 'rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
 
 function RoleAvatar({ role, size = 36 }: { role: RoleOption; size?: number }) {
   const tint = tintFor(role.name);
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-lg text-[13px] font-semibold"
+      className="flex shrink-0 items-center justify-center rounded-xl text-[13px] font-semibold"
       style={{
         width: size,
         height: size,
@@ -226,7 +226,23 @@ export default function Train({
         </span>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Training</p>
-          <p className="truncate text-lg font-semibold leading-tight tracking-tight">{processName}</p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-lg font-semibold leading-tight tracking-tight">{processName}</p>
+            {version && (
+              <span
+                title={whenText(version)}
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  version.state === 'Current'
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                    : version.state === 'Future'
+                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {STATE_LABEL[version.state] ?? version.state}
+              </span>
+            )}
+          </div>
         </div>
 
         {versions.length > 1 && (
@@ -557,7 +573,7 @@ function ProcessStory({ story, roleKey, compact }: { story: Stage[]; roleKey: st
             </span>
 
             <div
-              className={`rounded-xl border p-3.5 ${
+              className={`rounded-2xl border p-4 ${
                 mine ? 'border-primary/40 bg-primary/[0.04]' : 'border-border bg-card'
               }`}
             >
@@ -652,7 +668,13 @@ function ProcessOverview({
 
   return (
     <div className="mx-auto max-w-3xl px-6 pb-16 pt-8">
-      <p className="text-xs font-medium text-primary">Start here</p>
+      <span
+        className="flex h-12 w-12 items-center justify-center rounded-xl"
+        style={{ backgroundColor: tintFor(processName).bg, color: tintFor(processName).fg }}
+      >
+        <Workflow className="h-6 w-6" />
+      </span>
+      <p className="mt-4 text-xs font-medium text-primary">Start here</p>
       <h2 className="mt-1 text-3xl font-semibold tracking-tight">How {processName} works</h2>
       <p className="mt-3 text-base leading-relaxed">{sentence}</p>
       {startsWith && endsWith && (
@@ -750,7 +772,7 @@ function RolePicker({ roles, processName, onPick, onBigPicture }: {
             key={r.key}
             type="button"
             onClick={() => onPick(r.key)}
-            className={`${CARD} group flex items-center gap-3 p-4 text-left transition-all hover:-translate-y-px hover:border-primary/40 hover:shadow-[0_4px_12px_rgba(16,24,40,0.08)]`}
+            className={`${CARD} group flex items-center gap-3 p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_8px_24px_rgba(16,24,40,0.08)]`}
           >
             <RoleAvatar role={r} size={40} />
             <span className="min-w-0 flex-1">
