@@ -74,6 +74,10 @@ const LOGO_ALIASES: Record<string, string> = {
   'jira software': 'jira',
   'instantly.ai': 'instantly',
   'attio crm': 'attio',
+  'google docs': 'googledocs',
+  'google doc': 'googledocs',
+  'smartlead.ai': 'smartlead',
+  'wix.com': 'wix',
 };
 
 function stemFromPath(path: string): string {
