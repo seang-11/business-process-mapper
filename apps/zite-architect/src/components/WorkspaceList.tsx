@@ -249,7 +249,7 @@ export default function WorkspaceList() {
                   return <p className="py-12 text-center text-sm text-muted-foreground">No processes match that search.</p>;
                 }
                 return view === 'board' ? (
-                  <ProcessBoard processes={visible} onOpen={open} onTrain={train} />
+                  <ProcessBoard processes={visible} onOpen={open} onTrain={train} canMove={canEdit} onChanged={load} />
                 ) : view === 'grid' ? (
                   <ProcessGrid processes={visible} onOpen={open} />
                 ) : (
