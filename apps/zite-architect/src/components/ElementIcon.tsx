@@ -66,19 +66,33 @@ function stemFromPath(path: string): string {
   return file.replace(/\.svg$/i, '').toLowerCase();
 }
 
-const BRAND_LOGOS: Record<string, string> = {};
+// One entry per SVG file. This is what the picker lists, so each brand shows
+// up exactly once no matter how many aliases point at it.
+const BRAND_FILES: Record<string, string> = {};
 for (const [path, src] of Object.entries(LOGO_MODULES)) {
-  BRAND_LOGOS[stemFromPath(path)] = src;
+  BRAND_FILES[stemFromPath(path)] = src;
 }
+
+// Lookup table: file stems plus aliases. Used to resolve stored icons and to
+// auto-match element names — never listed in the picker.
+const BRAND_LOGOS: Record<string, string> = { ...BRAND_FILES };
+const ALIASES_BY_STEM: Record<string, string[]> = {};
 for (const [alias, stem] of Object.entries(LOGO_ALIASES)) {
-  const src = BRAND_LOGOS[stem];
-  if (src) BRAND_LOGOS[alias] = src;
+  const src = BRAND_FILES[stem];
+  if (!src) continue;
+  BRAND_LOGOS[alias] = src;
+  (ALIASES_BY_STEM[stem] ??= []).push(alias);
 }
 
 /** Prefix marking a stored icon as one of the brand marks above. */
 export const LOGO_PREFIX = 'logo:';
 
-export const BRAND_LOGO_NAMES = Object.keys(BRAND_LOGOS);
+/** Unique brand marks, one per file, sorted. */
+export const BRAND_LOGO_NAMES = Object.keys(BRAND_FILES).sort();
+
+/** Does a brand (by file stem) match a search query, via its stem or any alias? */
+export const brandMatches = (stem: string, q: string): boolean =>
+  !q || stem.includes(q) || (ALIASES_BY_STEM[stem] ?? []).some((a) => a.includes(q));
 
 /**
  * The icons anyone can pick from. Element Types store a bare lucide name, so

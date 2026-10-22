@@ -7,6 +7,7 @@ import { Input } from '@project/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import ElementIcon, {
   BRAND_LOGO_NAMES,
+  brandMatches,
   ICON_GROUPS,
   ICON_LIBRARY,
   LOGO_PREFIX,
@@ -95,7 +96,7 @@ export default function IconPicker({
   };
 
   const logos = useMemo(
-    () => BRAND_LOGO_NAMES.filter((n) => !q || n.includes(q)),
+    () => BRAND_LOGO_NAMES.filter((n) => brandMatches(n, q)),
     [q],
   );
 
