@@ -84,7 +84,7 @@ export default function Walkthrough({
   }, [editing, next, back, onClose]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background" role="dialog" aria-label={`${processName} walkthrough`}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label={`${processName} walkthrough`}>
       <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{processName}</p>

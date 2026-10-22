@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
 import { Switch } from '@project/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@project/components/ui/select';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@project/components/ui/hover-card';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import ElementIcon from './ElementIcon';
@@ -177,7 +178,7 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background" role="dialog" aria-label={`Compare versions of ${processName}`}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label={`Compare versions of ${processName}`}>
       <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{processName}</p>
@@ -246,7 +247,7 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
                   >
                     <span className="pt-3 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                     {row.left ? (
-                      <StepBox step={row.left} tone={row.right ? 'plain' : 'removed'}>
+                      <StepBox step={row.left} side="left" tone={row.right ? 'plain' : 'removed'}>
                         {!row.right && <Tag tone="removed">Removed</Tag>}
                         {!row.right && unmatchedRight.length > 0 && (
                           <MatchPicker
@@ -262,6 +263,7 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
                       <StepBox
                         step={row.right}
                         was={row.left}
+                        side="right"
                         tone={!row.left ? 'new' : row.changes.includes('automated') ? 'auto' : 'plain'}
                       >
                         {!row.left && <Tag tone="new">New</Tag>}
@@ -332,36 +334,126 @@ const BORDERS: Record<Tone, string> = {
   moved: 'border-amber-400/70',
 };
 
-function StepBox({ step, was, tone, children }: {
+function StepBox({ step, was, tone, side, children }: {
   step: ProcessStep;
-  /** The matching step in the other version, to say who did it before. */
+  /** The matching step in the other version, to say what changed. */
   was?: ProcessStep | null;
   tone: Tone;
+  /** Which column it's in, so the details open away from the middle. */
+  side: 'left' | 'right';
   children?: React.ReactNode;
 }) {
   const who = step.performedBy;
   const before = was?.performedBy;
-  const changedHands = was && before?.id !== who?.id;
+  const changedHands = !!was && before?.id !== who?.id;
+  const apps = appsOf(step);
+  const beforeApps = was ? appsOf(was) : [];
+  const added = was ? apps.filter((a) => !beforeApps.some((b) => b.id === a.id)) : [];
+  const dropped = beforeApps.filter((b) => !apps.some((a) => a.id === b.id));
+
   return (
-    <div className={`rounded-lg border bg-card px-3 py-2.5 ${BORDERS[tone]}`}>
-      <p className={`text-sm font-medium ${tone === 'removed' ? 'text-muted-foreground line-through decoration-red-400/60' : ''}`}>
-        {step.title}
-      </p>
-      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-        {isApp(who) && <Zap className="h-3 w-3 text-emerald-600" />}
-        <span className={changedHands ? 'font-semibold text-foreground' : ''}>{who?.name ?? 'Unassigned'}</span>
-        {changedHands && <span>(was {before?.name ?? 'unassigned'})</span>}
-        {appsOf(step).length > 0 && (
-          <span className="ml-1 inline-flex items-center gap-1">
-            {appsOf(step).map((a) => (
-              <span key={a.id} title={a.name}>
-                <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.color} size={12} />
-              </span>
+    <HoverCard openDelay={250} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <div className={`cursor-default rounded-lg border bg-card px-3 py-2.5 transition-shadow hover:shadow-md ${BORDERS[tone]}`}>
+          <p className={`text-sm font-medium ${tone === 'removed' ? 'text-muted-foreground line-through decoration-red-400/60' : ''}`}>
+            {step.title}
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+            {isApp(who) && <Zap className="h-3 w-3 text-emerald-600" />}
+            <span className={changedHands ? 'font-semibold text-foreground' : ''}>{who?.name ?? 'Unassigned'}</span>
+            {changedHands && <span>(was {before?.name ?? 'unassigned'})</span>}
+          </p>
+          {apps.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {apps.map((a) => (
+                <AppChip key={a.id} app={a} added={added.includes(a)} />
+              ))}
+            </div>
+          )}
+          {children && <div className="mt-2 flex flex-wrap items-center gap-1.5">{children}</div>}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side={side} align="start" className="w-80">
+        <StepDetails step={step} was={was} changedHands={changedHands} added={added} dropped={dropped} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+/** An app by logo and name, outlined in blue when this version added it. */
+function AppChip({ app, added }: { app: ElementRef; added?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${
+        added ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300' : 'border-border text-foreground/80'
+      }`}
+      title={added ? `${app.name} (added in this version)` : app.name}
+    >
+      <ElementIcon name={app.name} image={app.image} icon={app.icon} typeIcon={app.typeIcon} color={app.color} size={16} />
+      {app.name}
+    </span>
+  );
+}
+
+/** Everything about a step, shown on hover: who, notes, apps and what changed, checklist, outputs. */
+function StepDetails({ step, was, changedHands, added, dropped }: {
+  step: ProcessStep;
+  was?: ProcessStep | null;
+  changedHands: boolean;
+  added: ElementRef[];
+  dropped: ElementRef[];
+}) {
+  const who = step.performedBy;
+  const apps = [who, ...step.uses].filter((e): e is ElementRef => !!e && isApp(e));
+  const appName = new Map(apps.map((a) => [a.id, a.name]));
+  const others = step.uses.filter((u) => !isApp(u));
+  const empty =
+    !step.description && step.checklist.length === 0 && step.produces.length === 0 && others.length === 0 && !changedHands && !added.length && !dropped.length;
+
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <p className="font-semibold leading-snug">{step.title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {isApp(who) ? `Runs automatically in ${who?.name}` : `Done by ${who?.name ?? 'nobody yet'}`}
+          {changedHands && ` · was ${was?.performedBy?.name ?? 'unassigned'}`}
+        </p>
+      </div>
+
+      {step.description && <p className="text-muted-foreground">{step.description}</p>}
+
+      {(added.length > 0 || dropped.length > 0) && (
+        <div className="space-y-1 text-xs">
+          {added.length > 0 && <p><span className="font-semibold text-blue-700 dark:text-blue-300">Now uses</span> {added.map((a) => a.name).join(', ')}</p>}
+          {dropped.length > 0 && <p><span className="font-semibold text-red-700 dark:text-red-300">No longer uses</span> {dropped.map((a) => a.name).join(', ')}</p>}
+        </div>
+      )}
+
+      {others.length > 0 && (
+        <p className="text-xs text-muted-foreground">With {others.map((o) => o.name).join(', ')}</p>
+      )}
+
+      {step.checklist.length > 0 && (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Checklist</p>
+          <ul className="space-y-0.5">
+            {step.checklist.map((c) => (
+              <li key={c.id} className="text-xs">
+                · {c.appId && appName.get(c.appId) ? <span className="text-muted-foreground">In {appName.get(c.appId)}: </span> : null}
+                {c.text}
+              </li>
             ))}
-          </span>
-        )}
-      </p>
-      {children && <div className="mt-2 flex flex-wrap items-center gap-1.5">{children}</div>}
+          </ul>
+        </div>
+      )}
+
+      {step.produces.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Produces <span className="text-foreground">{step.produces.map((p) => p.name).join(', ')}</span>
+        </p>
+      )}
+
+      {empty && <p className="text-xs text-muted-foreground">No more details on this step yet.</p>}
     </div>
   );
 }
