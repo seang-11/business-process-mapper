@@ -501,8 +501,13 @@
                 },
                 {
                   "value": "5woF",
-                  "label": "Websites & e-commerce",
+                  "label": "Websites & hosting",
                   "color": "fuchsia"
+                },
+                {
+                  "value": "1eUY",
+                  "label": "E-commerce",
+                  "color": "orange"
                 },
                 {
                   "value": "nt2R",
@@ -518,6 +523,11 @@
                   "value": "dU3B",
                   "label": "AI",
                   "color": "indigo"
+                },
+                {
+                  "value": "oUWZ",
+                  "label": "Voice agents",
+                  "color": "violet"
                 },
                 {
                   "value": "vxPF",
