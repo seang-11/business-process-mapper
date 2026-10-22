@@ -311,6 +311,26 @@ export function assignColumns(
  */
 export const AUTOMATED_LANE = 'Automated';
 
+/** Soft, friendly colours for the By person lane labels. */
+const LANE_PALETTE = [
+  { fg: 'hsl(217 65% 42%)', bg: 'hsl(217 90% 95%)', ring: 'hsl(217 80% 84%)' },
+  { fg: 'hsl(262 55% 48%)', bg: 'hsl(262 80% 96%)', ring: 'hsl(262 70% 86%)' },
+  { fg: 'hsl(152 55% 32%)', bg: 'hsl(152 60% 94%)', ring: 'hsl(152 50% 80%)' },
+  { fg: 'hsl(24 80% 42%)', bg: 'hsl(24 95% 94%)', ring: 'hsl(24 85% 82%)' },
+  { fg: 'hsl(336 65% 46%)', bg: 'hsl(336 85% 96%)', ring: 'hsl(336 70% 86%)' },
+  { fg: 'hsl(188 70% 30%)', bg: 'hsl(188 65% 93%)', ring: 'hsl(188 55% 78%)' },
+  { fg: 'hsl(43 85% 34%)', bg: 'hsl(45 95% 92%)', ring: 'hsl(45 85% 76%)' },
+  { fg: 'hsl(350 70% 44%)', bg: 'hsl(350 90% 96%)', ring: 'hsl(350 75% 86%)' },
+] as const;
+
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
+
 export function getLaneKey(step: ProcessStep, grouping: LaneGrouping): string {
   if (grouping === 'people') {
     if (step.performedBy?.actorClass === 'System') return AUTOMATED_LANE;
@@ -616,6 +636,17 @@ export default function SwimlaneDiagram({
   // Lanes are stored by element id, so renaming someone keeps their place.
   // Automated, Unassigned and No app have no element and go by name.
   const laneIdOf = useCallback((lane: string) => laneTargets.get(lane)?.id ?? lane, [laneTargets]);
+
+  // One colour per role or person, handed out in name order so the same
+  // process always looks the same and neighbours rarely match.
+  const lanePalette = useMemo(() => {
+    const m = new Map<string, (typeof LANE_PALETTE)[number]>();
+    [...stepsByLane.keys()]
+      .filter((l) => l !== AUTOMATED_LANE && l !== 'Unassigned')
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((l, i) => m.set(l, LANE_PALETTE[i % LANE_PALETTE.length]));
+    return m;
+  }, [stepsByLane]);
 
   // A saved order wins; a lane it doesn't mention yet (someone new to the
   // process) keeps its automatic spot after the ones that were placed.
@@ -1365,6 +1396,7 @@ export default function SwimlaneDiagram({
             // the app's logo up front, then the people and roles doing steps
             // in it. A step no app touches reads as work done by hand.
             const appLane = grouping !== 'people';
+            const palette = grouping === 'people' ? lanePalette.get(lane) : undefined;
             const isNoApp = appLane && lane === 'No app';
             const laneUsers = appLane
               ? [
@@ -1409,6 +1441,12 @@ export default function SwimlaneDiagram({
                     onReorderLanes ? 'cursor-pointer active:cursor-grabbing hover:bg-muted' : ''
                   } ${focusLane === lane ? 'shadow-[inset_3px_0_0_hsl(var(--primary))]' : ''}`}
                 >
+                  {palette && (
+                    <span
+                      className="pointer-events-none absolute inset-y-0 left-0 w-1"
+                      style={{ backgroundColor: palette.fg, opacity: 0.55 }}
+                    />
+                  )}
                   {appLane ? (
                   <div style={{ zoom: textScale }}>
                     <div className="flex items-center gap-2.5">
@@ -1473,30 +1511,38 @@ export default function SwimlaneDiagram({
                   </div>
                   ) : (
                   <div style={{ zoom: textScale }}>
-                  <div className="flex items-center gap-1.5">
-                    {onReorderLanes && (
-                      <GripVertical className="h-3 w-3 -ml-3 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
-                    )}
-                    {isAutomated && <Zap className="h-3 w-3 shrink-0 text-muted-foreground" />}
-                    {laneColor && (
+                    <div className="flex items-center gap-2.5">
+                      {onReorderLanes && (
+                        <GripVertical className="h-3 w-3 -ml-3.5 -mr-1 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
+                      )}
                       <span
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: laneColor }}
-                      />
-                    )}
-                    <span className="text-xs font-semibold truncate">{lane}</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {laneType ? `${laneType} · ` : ''}
-                    {personName ? `${personName} · ` : ''}
-                    {laneSteps.length} step{laneSteps.length !== 1 ? 's' : ''}
-                    {isExternal ? ' · external' : ''}
-                  </p>
-                  {laneApps.length > 0 && (
-                    <div className="mt-2">
-                      <IconStack items={laneApps} max={6} size={14} />
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-[13px] font-semibold shadow-sm"
+                        style={{
+                          backgroundColor: palette?.bg ?? 'hsl(var(--muted))',
+                          borderColor: palette?.ring ?? 'hsl(var(--border))',
+                          color: palette?.fg ?? 'hsl(var(--muted-foreground))',
+                        }}
+                      >
+                        {isAutomated ? <Zap className="h-[18px] w-[18px]" /> : initialsOf(personName || lane)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold leading-tight">{lane}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {laneType ? `${laneType} · ` : ''}
+                          {personName ? `${personName} · ` : ''}
+                          {laneSteps.length} step{laneSteps.length !== 1 ? 's' : ''}
+                          {isExternal ? ' · external' : ''}
+                        </p>
+                      </div>
                     </div>
-                  )}
+                    {laneApps.length > 0 && (
+                      <div className="mt-3">
+                        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                          {isAutomated ? 'Runs on' : 'Uses'}
+                        </p>
+                        <IconStack items={laneApps} max={6} size={16} />
+                      </div>
+                    )}
                   </div>
                   )}
                   {onOpenLane && (
