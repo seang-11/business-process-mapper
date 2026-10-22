@@ -17,6 +17,7 @@ import ProcessesTable from './ProcessesTable';
 import VersionFooter from './VersionFooter';
 import ProcessCards from './ProcessCards';
 import Welcome from './Welcome';
+import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
@@ -116,6 +117,9 @@ export default function WorkspaceList() {
             <Network className="h-5 w-5" />
           </span>
           <h1 className="text-lg font-semibold tracking-tight">Business Process Mapper</h1>
+          <div className="ml-auto">
+            <PreviewSwitcher />
+          </div>
         </div>
       </header>
 

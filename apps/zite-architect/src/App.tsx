@@ -6,7 +6,6 @@ import WorkspaceList from '@/components/WorkspaceList';
 import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
 import { MeProvider } from '@/lib/me';
-import PreviewSwitcher from '@/components/PreviewSwitcher';
 
 export default function App() {
   const { user, isLoading } = useAuth();
@@ -32,7 +31,6 @@ export default function App() {
           <Route path="/process/:id" element={<ProcessCanvas />} />
           <Route path="/element/:id" element={<ElementDetail />} />
         </Routes>
-        <PreviewSwitcher />
       </BrowserRouter>
     </MeProvider>
   );

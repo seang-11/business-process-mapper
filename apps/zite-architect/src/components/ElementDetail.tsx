@@ -11,6 +11,7 @@ import ElementIcon from './ElementIcon';
 import { TokenBadge } from './TokenBadge';
 import ElementDialog from './ElementDialog';
 import DeleteElementDialog from './DeleteElementDialog';
+import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
 type Detail = GetElementDetailOutputType;
@@ -174,6 +175,7 @@ export default function ElementDetail() {
           <span className="truncate font-medium">{el.name}</span>
 
           <div className="ml-auto flex items-center gap-2">
+            <PreviewSwitcher />
             {canEdit && (
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
                 <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit

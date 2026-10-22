@@ -55,6 +55,7 @@ import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
 import Train from './Train';
+import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -475,6 +476,7 @@ export default function ProcessCanvas() {
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <PreviewSwitcher />
           {/* One version is the normal case, and a picker with one option is noise */}
           {process && process.versions.length > 1 && (
             <Select
