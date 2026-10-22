@@ -382,19 +382,19 @@ const DRAG_THRESHOLD = 5;
 const EDGE_COLOR = 'hsl(var(--muted-foreground) / 0.45)';
 const EDGE_COLOR_HI = 'hsl(var(--primary))';
 
-// Zoomed out, cards show less but their titles shrink more slowly than the
-// map, so the whole process stays readable at fit-to-screen. Hovering a card
-// always brings back everything.
+// Zooming out shrinks the map, not the words: text in cards and lane names
+// is scaled back up by however much the map is zoomed out, so it stays the
+// same size on screen while cards get narrower and closer together. Cards
+// show less as they shrink; hovering one always brings back everything.
 type CardDetail = 'full' | 'medium' | 'compact';
 /** At or above this zoom, cards look exactly as they do at 100%. */
 const DETAIL_FULL_AT = 0.75;
 /** Below this, cards drop to a colour bar and a title. */
 const DETAIL_COMPACT_BELOW = 0.5;
-const TITLE_BASE_PX = 12;
-/** On-screen size titles try to hold as you zoom out. */
-const TITLE_MIN_PX = 11;
-/** How far a title may grow inside its card to hold that size. */
-const TITLE_MAX_BOOST = 2.6;
+/** How far text may grow inside a card to hold its size; past this it shrinks. */
+const TEXT_MAX_BOOST = 2.2;
+/** How far the lane name column may widen to make room for its text. */
+const LANE_LABEL_MAX_GROW = 1.6;
 /** Softest bend a cross-lane edge is allowed, in px of control-point reach. */
 const EDGE_MIN_BEND = 48;
 /** Flowing dots: px per second, clamped so nothing crawls or races. */
@@ -755,17 +755,23 @@ export default function SwimlaneDiagram({
 
   // Fit shows the whole process at once, but never blows a small one up past
   // its real size.
-  const fitToScreen = useCallback(() => {
+  // Fit fills the screen top to bottom rather than squeezing the whole width
+  // in: processes run long and short, so fitting the width shrinks everything
+  // and leaves the bottom half empty. You drag sideways to follow the process.
+  // A second pass settles it, since text holds its size and so the height
+  // shifts a little with the zoom.
+  const fitToScreen = useCallback((settle = true) => {
     const el = containerRef.current;
     const inner = contentRef.current;
     if (!el || !inner) return;
     const z = zoomRef.current;
     const height = inner.getBoundingClientRect().height / z;
-    const next = clampZoom(Math.min(el.clientWidth / gridMinWidth, el.clientHeight / height, 1));
+    const next = clampZoom(Math.min(el.clientHeight / height, 1));
     zoomAnchor.current = { cx: 0, cy: 0, mx: 0, my: 0 };
     zoomRef.current = next;
     setZoom(next);
-  }, [gridMinWidth]);
+    if (settle) setTimeout(() => fitRef.current(false), 180);
+  }, []);
 
   // Listened for by hand: React's onWheel is passive, so it can't stop the page
   // from zooming itself instead.
@@ -804,7 +810,8 @@ export default function SwimlaneDiagram({
 
   const detail: CardDetail =
     zoom >= DETAIL_FULL_AT ? 'full' : zoom >= DETAIL_COMPACT_BELOW ? 'medium' : 'compact';
-  const titleScale = Math.min(TITLE_MAX_BOOST, Math.max(1, TITLE_MIN_PX / (TITLE_BASE_PX * zoom)));
+  const textScale = Math.min(TEXT_MAX_BOOST, Math.max(1, 1 / zoom));
+  const laneLabelW = LANE_LABEL_W * Math.min(textScale, LANE_LABEL_MAX_GROW);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1379,10 +1386,12 @@ export default function SwimlaneDiagram({
                   data-lane-handle
                   data-lane={lane}
                   title={onReorderLanes ? 'Click for details, drag to reorder' : undefined}
-                  className={`group w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15] transition-shadow ${
+                  style={{ width: laneLabelW }}
+                  className={`group shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15] transition-shadow ${
                     onReorderLanes ? 'cursor-pointer active:cursor-grabbing hover:bg-muted' : ''
                   } ${focusLane === lane ? 'shadow-[inset_3px_0_0_hsl(var(--primary))]' : ''}`}
                 >
+                  <div style={{ zoom: textScale }}>
                   <div className="flex items-center gap-1.5">
                     {onReorderLanes && (
                       <GripVertical className="h-3 w-3 -ml-3 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
@@ -1396,15 +1405,6 @@ export default function SwimlaneDiagram({
                     )}
                     <span className="text-xs font-semibold truncate">{lane}</span>
                   </div>
-                  {onOpenLane && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenLane(lane)}
-                      className="absolute right-2.5 top-3 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      View
-                    </button>
-                  )}
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     {laneType ? `${laneType} · ` : ''}
                     {personName ? `${personName} · ` : ''}
@@ -1415,6 +1415,17 @@ export default function SwimlaneDiagram({
                     <div className="mt-2">
                       <IconStack items={laneApps} max={6} size={14} />
                     </div>
+                  )}
+                  </div>
+                  {onOpenLane && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLane(lane)}
+                      style={{ zoom: textScale }}
+                      className="absolute right-2.5 top-3 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      View
+                    </button>
                   )}
                 </div>
 
@@ -1466,7 +1477,7 @@ export default function SwimlaneDiagram({
                             )}
                             isDragSource={cardDragView?.stepId === step.id}
                             detail={detail}
-                            titleScale={titleScale}
+                            textScale={textScale}
                             panelScale={1 / zoom}
                             draggable={!!onMoveStep}
                             ref={(el) => setCardRef(step.id, el)}
@@ -1549,7 +1560,7 @@ export default function SwimlaneDiagram({
       <button
         type="button"
         className={ZOOM_BTN}
-        onClick={fitToScreen}
+        onClick={() => fitToScreen()}
         aria-label="Fit to screen"
         title="Fit to screen"
       >
@@ -1576,8 +1587,8 @@ interface StepCardProps {
   hasCrossLaneDep: boolean;
   /** How much the card shows at the current zoom. */
   detail: CardDetail;
-  /** Title size multiplier, so titles stay readable zoomed out. */
-  titleScale: number;
+  /** Undoes the zoom on the card's text, so it stays readable zoomed out. */
+  textScale: number;
   /** Undoes the zoom on the hover panel, so its details are always full size. */
   panelScale: number;
   /** This card is the one being dragged; the ghost stands in for it. */
@@ -1603,7 +1614,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       isStart,
       isEnd,
       detail,
-      titleScale,
+      textScale,
       panelScale,
       hasCrossLaneDep,
       isDragSource,
@@ -1685,13 +1696,17 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         onMouseEnter={() => { onHover(step.id); if (hasDetail) openDetail(); }}
         onMouseLeave={() => { onHover(null); scheduleCloseDetail(); }}
       >
-        {detail === 'compact' ? (
+        {detail === 'compact' && (
           // Too small for the badge to read, so who does it becomes a colour.
           <div
             className="absolute inset-x-0 top-0 h-1.5 rounded-t-lg"
             style={{ backgroundColor: color || 'hsl(var(--border))' }}
           />
-        ) : (
+        )}
+        {/* Everything inside grows back by the zoom-out, so it keeps its size
+            on screen and wraps to the narrower card instead. */}
+        <div style={{ zoom: textScale }}>
+        {detail !== 'compact' && (
         <div className="flex items-center justify-between gap-1.5 mb-1.5">
           <span
             className="text-[10px] font-medium px-1.5 py-0.5 rounded truncate max-w-[110px]"
@@ -1738,10 +1753,9 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         )}
 
         <p
-          className={`${detail === 'compact' ? 'font-semibold mt-1' : 'font-medium'} ${
-            titleScale > 1 ? 'line-clamp-2 leading-tight' : 'line-clamp-1 leading-4'
+          className={`text-xs ${detail === 'compact' ? 'font-semibold mt-1' : 'font-medium'} ${
+            textScale > 1.4 ? 'line-clamp-3 leading-snug' : textScale > 1 ? 'line-clamp-2 leading-snug' : 'line-clamp-1 leading-4'
           }`}
-          style={{ fontSize: TITLE_BASE_PX * titleScale }}
         >
           {step.title}
         </p>
@@ -1836,6 +1850,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             <ArrowRight className="h-3.5 w-3.5 shrink-0" />
           </button>
         )}
+        </div>
 
         {/* Hover detail panel — kept mounted so it can fade out as well as in */}
         {hasDetail && (
