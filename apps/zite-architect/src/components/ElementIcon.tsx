@@ -45,6 +45,12 @@ const LOGO_ALIASES: Record<string, string> = {
   'docu sign': 'esignatures',
   linkedin: 'linkedin',
   'linked in': 'linkedin',
+  'monday.com': 'monday',
+  monday: 'monday',
+  apollo: 'apollographql',
+  'apollo graphql': 'apollographql',
+  'text request': 'textrequest',
+  youtube: 'youtube',
 };
 
 function stemFromPath(path: string): string {
