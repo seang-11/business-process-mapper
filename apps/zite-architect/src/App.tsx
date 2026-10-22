@@ -7,6 +7,7 @@ import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
 import People from '@/components/People';
 import { MeProvider } from '@/lib/me';
+import PreviewSwitcher from '@/components/PreviewSwitcher';
 
 export default function App() {
   const { user, isLoading } = useAuth();
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/element/:id" element={<ElementDetail />} />
           <Route path="/people" element={<People />} />
         </Routes>
+        <PreviewSwitcher />
       </BrowserRouter>
     </MeProvider>
   );

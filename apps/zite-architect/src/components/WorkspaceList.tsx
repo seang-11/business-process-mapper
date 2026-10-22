@@ -49,7 +49,7 @@ const greetingFor = (date: Date) => {
 
 export default function WorkspaceList() {
   const navigate = useNavigate();
-  const { canEdit, isAdmin, me } = useMe();
+  const { canEdit, isAdmin, me, welcomeSeen, markWelcomeSeen } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'elements' ? 'elements' : 'processes';
 
@@ -66,7 +66,6 @@ export default function WorkspaceList() {
   /** Cards are the friendly front door; the table is still one click away. */
   const [view, setView] = useState<'cards' | 'table'>(() => (storedFlag('bpm_home_view') === 'table' ? 'table' : 'cards'));
   const [query, setQuery] = useState('');
-  const [welcomeSeen, setWelcomeSeen] = useState(() => storedFlag('bpm_welcome_seen') === '1');
   const [checklistHidden, setChecklistHidden] = useState(() => storedFlag('bpm_setup_hidden') === '1');
   const [editorCount, setEditorCount] = useState<number | null>(null);
 
@@ -342,10 +341,7 @@ export default function WorkspaceList() {
       {me && !isAdmin && !welcomeSeen && (
         <Welcome
           firstName={me.firstName}
-          onDone={() => {
-            setWelcomeSeen(true);
-            storeFlag('bpm_welcome_seen', '1');
-          }}
+          onDone={markWelcomeSeen}
         />
       )}
       <footer className="fixed bottom-3 left-4">
