@@ -51,6 +51,8 @@ const LOGO_ALIASES: Record<string, string> = {
   'apollo graphql': 'apollographql',
   'text request': 'textrequest',
   youtube: 'youtube',
+  '1password': '1password',
+  '1 password': '1password',
 };
 
 function stemFromPath(path: string): string {
