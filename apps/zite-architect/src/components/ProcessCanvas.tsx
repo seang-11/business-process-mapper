@@ -12,7 +12,8 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GraduationCap, Radio } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, Layers, Trash2, Settings, Play, GraduationCap, Radio, ChevronDown, ChevronRight, HelpCircle, Check, Columns2, Eye } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { Input } from '@project/components/ui/input';
 import {
   Dialog,
@@ -43,6 +44,24 @@ import type { ElementRef, ElementSummary, ElementType, ProcessConnection, Proces
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 
+// A process opens on the view you used last, so you aren't sent back to By person every time.
+const VIEW_KEY = 'bpm_last_process_view';
+const storedView = (): 'people' | 'app' | 'overview' | null => {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === 'people' || v === 'app' || v === 'overview' ? v : null;
+  } catch {
+    return null;
+  }
+};
+const rememberView = (v: 'people' | 'app' | 'overview') => {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* it just opens on By person next time */
+  }
+};
+
 // Segmented switches: a soft track with a raised white pill on the active option.
 const SEG_TRACK = 'flex shrink-0 rounded-lg bg-muted p-0.5 text-xs';
 const segBtn = (active: boolean) =>
@@ -69,7 +88,7 @@ export default function ProcessCanvas() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   // Viewers can look at everything, but nothing in here changes the process for them.
-  const { canEdit } = useMe();
+  const { canEdit, isRealAdmin, viewAs, setViewAs } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const versionParam = searchParams.get('version');
 
@@ -80,9 +99,10 @@ export default function ProcessCanvas() {
   const [loading, setLoading] = useState(true);
   const [editStep, setEditStep] = useState<ProcessStep | null>(null);
   const [addingStep, setAddingStep] = useState(false);
-  const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>('people');
+  const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>(() => (storedView() === 'app' ? 'app' : 'people'));
   /** The whole process as one scrolling timeline instead of the map. */
-  const [showOverview, setShowOverview] = useState(false);
+  const [showOverview, setShowOverview] = useState(() => storedView() === 'overview');
+  const [allProcesses, setAllProcesses] = useState<ProcessRow[]>([]);
   /** Inside the Overview: one version, or Current and Future side by side. */
   const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('side');
   const [managingVersions, setManagingVersions] = useState(false);
@@ -159,6 +179,7 @@ export default function ProcessCanvas() {
         return;
       }
       setProcess(p);
+      setAllProcesses(processRes.processes);
       setElements(taxonomy.elements);
       setTypes(taxonomy.types);
       setGraph(graphRes);
@@ -432,22 +453,38 @@ export default function ProcessCanvas() {
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      <header className="border-b border-border px-6 py-3 flex items-center gap-3 shrink-0">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-6 py-3">
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
           onClick={() => navigate('/')}
+          aria-label="Back to home"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        {/* Fixed width so the controls beside it don't move with the name. */}
-        <h1 className="font-semibold text-sm truncate w-[220px] shrink-0">
-          {graph?.version?.processName || process?.name || 'Untitled'}
-        </h1>
-
-        <span className="h-5 w-px bg-border shrink-0" aria-hidden="true" />
+        {/* The name doubles as a switcher, so you can hop to another process without going home. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 max-w-[260px] items-center gap-1 rounded-md px-1.5 py-1 text-[15px] font-semibold transition-colors hover:bg-muted"
+              aria-label="Switch process"
+            >
+              <span className="truncate">{graph?.version?.processName || process?.name || 'Untitled'}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+            {allProcesses.map((p) => (
+              <DropdownMenuItem key={p.id} onClick={() => p.id !== id && navigate(`/process/${p.id}`)} className="gap-2">
+                <Check className={`h-4 w-4 ${p.id === id ? '' : 'opacity-0'}`} />
+                <span className="truncate">{p.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className={SEG_TRACK}>
           {(['people', 'app'] as LaneGrouping[]).map((mode) => (
@@ -457,6 +494,7 @@ export default function ProcessCanvas() {
               onClick={() => {
                 setShowOverview(false);
                 setLaneGrouping(mode);
+                rememberView(mode);
                 // Lanes mean something else in the other view.
                 setOpenLane(null);
               }}
@@ -468,6 +506,7 @@ export default function ProcessCanvas() {
             className={segBtn(showOverview)}
             onClick={() => {
               setShowOverview(true);
+              rememberView('overview');
               setOpenLane(null);
             }}
           >
@@ -475,91 +514,119 @@ export default function ProcessCanvas() {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          <PreviewSwitcher />
-          {/* One version is the normal case, and a picker with one option is noise */}
-          {process && process.versions.length > 1 && (
-            <Select
-              value={graph?.version?.id ?? ''}
-              onValueChange={(v) => setSearchParams({ version: v })}
-            >
-              <SelectTrigger className="h-8 w-[180px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {process.versions.map((v) => (
-                  <SelectItem key={v.id} value={v.id} className="text-xs">
-                    {v.name} · {v.state === 'Current' ? 'Live' : v.state === 'Future' ? 'Not live yet' : 'Retired'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
 
-          {canEdit && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditingProcess(true)}>
-                <Settings className="h-4 w-4 mr-2" /> Process settings…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleCreateVersion('duplicate')}>
-                <Copy className="h-4 w-4 mr-2" /> Duplicate version
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateVersion('blank')}>
-                <FilePlus className="h-4 w-4 mr-2" /> Create blank version
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setManagingVersions(true)}>
-                <Layers className="h-4 w-4 mr-2" /> Manage versions…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setDeletingProcess(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete process…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          )}
+        {/* Which version you are looking at, right beside how you are looking at it. */}
+        {graph?.version && (
+          <VersionPill
+            state={graph.version.state}
+            name={graph.version.name}
+            versions={process?.versions ?? []}
+            currentId={graph.version.id}
+            onPick={(versionId) => setSearchParams({ version: versionId })}
+          />
+        )}
 
-          {steps.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setTrainOpen(true)}>
-              <GraduationCap className="h-3.5 w-3.5 mr-1.5" /> Train
-            </Button>
-          )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {viewAs && <PreviewSwitcher />}
 
-          {steps.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setWalkthroughOpen(true)}>
-              <Play className="h-3.5 w-3.5 mr-1.5" /> Play walkthrough
+          {canEdit && graph?.version?.state === 'Future' && (
+            <Button size="sm" variant="outline" className="h-8" onClick={openMakeLive}>
+              <Radio className="mr-1.5 h-3.5 w-3.5" /> Make live
             </Button>
           )}
 
           {canEdit && (
-            <Button size="sm" onClick={openNewStep}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8">
+                  Manage <ChevronDown className="ml-1.5 h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditingProcess(true)}>
+                  <Settings className="h-4 w-4 mr-2" /> Process settings…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleCreateVersion('duplicate')}>
+                  <Copy className="h-4 w-4 mr-2" /> Duplicate version
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleCreateVersion('blank')}>
+                  <FilePlus className="h-4 w-4 mr-2" /> Create blank version
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setManagingVersions(true)}>
+                  <Layers className="h-4 w-4 mr-2" /> Manage versions…
+                </DropdownMenuItem>
+                {isRealAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setViewAs({ access: 'viewer', label: 'Viewer' })}>
+                      <Eye className="h-4 w-4 mr-2" /> Preview as viewer
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setDeletingProcess(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete process…
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {canEdit && (
+            <Button size="sm" className="h-8" onClick={openNewStep}>
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Add step
             </Button>
           )}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="How this works"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 text-sm leading-relaxed">
+              <p className="mb-1.5 font-semibold">How this works</p>
+              <p>
+                <b className="font-semibold">By person</b> shows who does each step. <b className="font-semibold">By app</b>{' '}
+                shows which tool. <b className="font-semibold">Overview</b> is the whole process as a simple list.
+              </p>
+              <p className="mt-2 text-muted-foreground">
+                Switch to another process with the name at the top left. Start training teaches the whole process, then
+                your part.
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
       </header>
 
-      {/* A version that isn't live yet says so, wherever you are, with the way to change that. */}
-      {graph?.version?.state === 'Future' && (
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <span className="font-semibold">{graph.version.name} isn't live yet.</span>
-          <span className="text-xs opacity-90">
-            {replacedVersion
-              ? `${replacedVersion.name} is still how the work is done today.`
-              : 'No version is live yet.'}
-          </span>
-          {canEdit && (
-            <Button size="sm" className="ml-auto h-7 text-xs" onClick={openMakeLive}>
-              <Radio className="mr-1.5 h-3 w-3" /> Make live
+      {/* The things most people come here to do, in one quiet row. */}
+      {steps.length > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-6 py-2.5">
+          <Button size="sm" className="h-8 rounded-full px-4" onClick={() => setTrainOpen(true)}>
+            <GraduationCap className="mr-1.5 h-4 w-4" /> Start training
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-full px-4" onClick={() => setWalkthroughOpen(true)}>
+            <Play className="mr-1.5 h-3.5 w-3.5" /> Walkthrough
+          </Button>
+          {process && process.versions.length > 1 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-full px-4"
+              onClick={() => {
+                setShowOverview(true);
+                rememberView('overview');
+                setOverviewMode('side');
+              }}
+            >
+              <Columns2 className="mr-1.5 h-3.5 w-3.5" /> Compare versions
             </Button>
           )}
         </div>
@@ -799,5 +866,54 @@ export default function ProcessCanvas() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Which version is on screen: green when it's live, amber when it isn't yet.
+ * With more than one version it opens a list to switch between them.
+ */
+function VersionPill({ state, name, versions, currentId, onPick }: {
+  state: string;
+  name: string;
+  versions: { id: string; name: string; state: string }[];
+  currentId: string;
+  onPick: (versionId: string) => void;
+}) {
+  const tone =
+    state === 'Current'
+      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+      : state === 'Future'
+      ? 'bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
+      : 'bg-muted text-muted-foreground';
+  const label = state === 'Current' ? 'Live' : state === 'Future' ? `${name}: not live` : `${name}: retired`;
+  const pill = (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${tone}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+      {versions.length > 1 && <ChevronDown className="h-3.5 w-3.5 opacity-70" />}
+    </span>
+  );
+  if (versions.length <= 1) return pill;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="rounded-full" aria-label="Switch version">
+          {pill}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {versions.map((v) => (
+          <DropdownMenuItem key={v.id} onClick={() => v.id !== currentId && onPick(v.id)} className="gap-2">
+            <Check className={`h-4 w-4 ${v.id === currentId ? '' : 'opacity-0'}`} />
+            <span className="min-w-0 flex-1 truncate">{v.name}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {v.state === 'Current' ? 'Live' : v.state === 'Future' ? 'Not live yet' : 'Retired'}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
