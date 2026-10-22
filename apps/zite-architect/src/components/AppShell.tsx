@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
@@ -9,6 +10,7 @@ import { useMe } from '@/lib/me';
 import CommandMenu from './CommandMenu';
 import ShortcutsDialog from './ShortcutsDialog';
 import VersionFooter from './VersionFooter';
+import { PageError } from './PageState';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
 
@@ -270,7 +272,20 @@ export default function AppShell() {
       </aside>
 
       <main className="min-w-0 flex-1">
-        <Outlet />
+        {/* A crash on one page shows a calm message here instead of a blank screen. */}
+        <ErrorBoundary
+          key={location.pathname}
+          fallbackRender={({ resetErrorBoundary }) => (
+            <div className="mx-auto max-w-xl px-8 py-16">
+              <PageError
+                message="This page hit a problem. Your work is safe. Try again, or go back Home."
+                onRetry={resetErrorBoundary}
+              />
+            </div>
+          )}
+        >
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <CommandMenu

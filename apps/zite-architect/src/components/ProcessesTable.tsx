@@ -127,7 +127,14 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
       ownerName: {
         render: (value, record) => {
           const label = value ? String(value) : 'Unassigned';
-          if (!onEdit) return <span className={value ? '' : 'text-muted-foreground'}>{label}</span>;
+          const backup = record.backupOwnerName ? String(record.backupOwnerName) : '';
+          const cell = (
+            <>
+              <span className={value ? '' : 'text-muted-foreground'}>{label}</span>
+              {backup && <span className="block text-[11px] text-muted-foreground">Backup: {backup}</span>}
+            </>
+          );
+          if (!onEdit) return <span>{cell}</span>;
           return (
             <button
               type="button"
@@ -138,7 +145,7 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
                 if (match) onEdit(match);
               }}
             >
-              <span className={value ? '' : 'text-muted-foreground'}>{label}</span>
+              {cell}
             </button>
           );
         },

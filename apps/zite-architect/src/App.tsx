@@ -10,9 +10,29 @@ import Overview from '@/components/Overview';
 import TrainingHome from '@/components/TrainingHome';
 import TeamAccess from '@/components/TeamAccess';
 import Handoffs from '@/components/Handoffs';
+import NotFound from '@/components/NotFound';
+import SharedProcess from '@/components/SharedProcess';
 import { MeProvider } from '@/lib/me';
 
+/**
+ * A share link opens without signing in, so it is decided before anything that
+ * checks who you are. It renders one page and nothing else from the app.
+ */
 export default function App() {
+  if (window.location.pathname.startsWith('/share/')) {
+    return (
+      <BrowserRouter>
+        <Toaster />
+        <Routes>
+          <Route path="/share/:token" element={<SharedProcess />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+  return <MemberApp />;
+}
+
+function MemberApp() {
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
@@ -40,6 +60,7 @@ export default function App() {
             <Route path="/team" element={<TeamAccess />} />
             <Route path="/process/:id" element={<ProcessCanvas />} />
             <Route path="/element/:id" element={<ElementDetail />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </BrowserRouter>

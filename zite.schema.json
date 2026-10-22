@@ -548,6 +548,27 @@
               "disableColors": false
             }
           }
+        },
+        {
+          "id": "fi9jCkXTvQg",
+          "sdkName": "backupOwner",
+          "definition": {
+            "name": "Backup Owner",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "allowMultiple": false
+            }
+          }
+        },
+        {
+          "id": "fioxw84DvCW",
+          "sdkName": "shareToken",
+          "definition": {
+            "name": "Share Token",
+            "type": "single_line_text",
+            "template": {}
+          }
         }
       ]
     },

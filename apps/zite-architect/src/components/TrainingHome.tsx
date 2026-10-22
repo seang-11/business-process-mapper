@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
-import { Skeleton } from '@project/components/ui/skeleton';
+import { GraduationCap } from 'lucide-react';
+import { PageEmpty, PageError, PageLoading } from './PageState';
 import ProcessCards from './ProcessCards';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
@@ -10,12 +11,17 @@ type ProcessRow = GetProcessesOutputType['processes'][number];
 export default function TrainingHome() {
   const navigate = useNavigate();
   const [processes, setProcesses] = useState<ProcessRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
     getProcesses({})
       .then((r) => setProcesses(r.processes))
-      .catch(() => setProcesses([]));
+      .catch(() => setFailed(true));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Training teaches the live version, so only live processes with steps are offered.
   const learnable = useMemo(
@@ -31,16 +37,16 @@ export default function TrainingHome() {
         Pick a process to learn how it works today, then pick your role to see exactly what you do.
       </p>
       <div className="mt-7">
-        {processes === null ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-56 rounded-2xl" />
-            ))}
-          </div>
+        {failed ? (
+          <PageError onRetry={load} />
+        ) : processes === null ? (
+          <PageLoading blocks={2} height="h-48" />
         ) : learnable.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-border bg-card/60 px-6 py-14 text-center text-sm text-muted-foreground">
-            Nothing to train on yet. Training appears once a process is live.
-          </p>
+          <PageEmpty
+            icon={<GraduationCap className="h-6 w-6" />}
+            title="Nothing to train on yet"
+            text="Training appears here once a process is live. Ask an editor to make a version live."
+          />
         ) : (
           <ProcessCards processes={learnable} onOpen={train} onTrain={train} />
         )}

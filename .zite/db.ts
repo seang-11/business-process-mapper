@@ -161,6 +161,9 @@ export type ElementsRecordType = {
   /** Links to mapLayouts ("Map Layouts"). Single record only. "Map Layouts" */
   mapLayouts?: string | string[];
   category?: "Communication" | "Customer support" | "CRM" | "Sales outreach" | "Database" | "Forms" | "Documents & storage" | "Contracts & e-signature" | "Finance & payments" | "HR & people" | "Meetings & scheduling" | "Project management" | "Security & access" | "Social media" | "Marketing" | "Websites & hosting" | "E-commerce" | "Video & audio" | "Design" | "AI" | "Voice agents" | "Automation" | "Web data & scraping" | "Building & dev" | string;
+  /** Links to elements ("Elements"). Single record only. "Backup Owner" */
+  backupOwner?: string | string[];
+  shareToken?: string;
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -183,6 +186,8 @@ export type ElementsRecordInput = {
   phases: string | string[] | null;
   mapLayouts: string | string[] | null;
   category: "Communication" | "Customer support" | "CRM" | "Sales outreach" | "Database" | "Forms" | "Documents & storage" | "Contracts & e-signature" | "Finance & payments" | "HR & people" | "Meetings & scheduling" | "Project management" | "Security & access" | "Social media" | "Marketing" | "Websites & hosting" | "E-commerce" | "Video & audio" | "Design" | "AI" | "Voice agents" | "Automation" | "Web data & scraping" | "Building & dev" | string | null;
+  backupOwner: string | string[] | null;
+  shareToken: string | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */

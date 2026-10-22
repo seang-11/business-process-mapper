@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOverview, GetOverviewOutputType } from 'zitejs/api';
-import { ArrowRight, Hand, Scale, Zap } from 'lucide-react';
-import { Skeleton } from '@project/components/ui/skeleton';
+import { ArrowRight, BarChart3, Hand, Scale, Zap } from 'lucide-react';
+import { PageEmpty, PageError, PageLoading } from './PageState';
 
 type Row = GetOverviewOutputType['processes'][number];
 type Mix = Row['current'];
@@ -58,12 +58,17 @@ function Tile({ Icon, color, value, label, hint }: {
 export default function Overview() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
     getOverview({})
       .then((r) => setRows(r.processes))
-      .catch(() => setRows([]));
+      .catch(() => setFailed(true));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totals = useMemo(() => {
     const t = { automated: 0, review: 0, manual: 0, waiting: 0, versionName: '' };
@@ -90,15 +95,22 @@ export default function Overview() {
         points are where a person should stay in the loop.
       </p>
 
-      {rows === null ? (
-        <div className="mt-8 space-y-4">
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-64 rounded-2xl" />
+      {failed ? (
+        <div className="mt-8">
+          <PageError onRetry={load} />
+        </div>
+      ) : rows === null ? (
+        <div className="mt-8">
+          <PageLoading blocks={2} height="h-40" />
         </div>
       ) : total === 0 ? (
-        <p className="mt-10 rounded-2xl border border-dashed border-border bg-card/60 px-6 py-14 text-center text-sm text-muted-foreground">
-          Nothing to show yet. Map a process and this page fills in.
-        </p>
+        <div className="mt-8">
+          <PageEmpty
+            icon={<BarChart3 className="h-6 w-6" />}
+            title="Nothing to measure yet"
+            text="Map a process with a few steps and this page shows where the time goes."
+          />
+        </div>
       ) : (
         <>
           <div className="mt-7 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">

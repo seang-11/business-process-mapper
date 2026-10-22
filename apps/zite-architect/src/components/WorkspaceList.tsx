@@ -18,6 +18,7 @@ import ProcessCards from './ProcessCards';
 import ProcessBoard from './ProcessBoard';
 import ProcessGrid from './ProcessGrid';
 import Welcome from './Welcome';
+import { PageError } from './PageState';
 import TalkItThrough from './TalkItThrough';
 import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
@@ -90,12 +91,19 @@ export default function WorkspaceList() {
   };
 
 
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
-    const [processRes, taxonomy] = await Promise.all([getProcesses({}), getTaxonomy({})]);
-    setProcesses(processRes.processes);
-    setElements(taxonomy.elements);
-    setTypes(taxonomy.types);
-    setLoading(false);
+    try {
+      const [processRes, taxonomy] = await Promise.all([getProcesses({}), getTaxonomy({})]);
+      setProcesses(processRes.processes);
+      setElements(taxonomy.elements);
+      setTypes(taxonomy.types);
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -115,6 +123,19 @@ export default function WorkspaceList() {
     () => elements.filter((e) => e.typeKey !== TYPE_KEYS.process).length,
     [elements],
   );
+
+  if (loadFailed && processes.length === 0) {
+    return (
+      <div className="min-h-screen p-8">
+        <PageError
+          onRetry={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -331,6 +352,7 @@ export default function WorkspaceList() {
             id: editProcessTarget.id,
             name: editProcessTarget.name,
             ownerId: editProcessTarget.ownerId,
+            backupOwnerId: editProcessTarget.backupOwnerId,
           }}
           elements={elements}
           types={types}

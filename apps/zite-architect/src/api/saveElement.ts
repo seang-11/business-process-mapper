@@ -20,13 +20,14 @@ export default createEndpoint({
     icon: z.string().optional(),
     image: z.string().optional(),
     ownerId: z.string().nullable().optional(),
+    backupOwnerId: z.string().nullable().optional(),
     effectiveFrom: z.string().nullable().optional(),
     effectiveTo: z.string().nullable().optional(),
   }),
   outputSchema: z.object({ id: z.string() }),
   execute: async ({ input, context }) => {
     await requireEditor(context);
-    if (input.id && input.ownerId === input.id) {
+    if (input.id && (input.ownerId === input.id || input.backupOwnerId === input.id)) {
       throw new Error('An element cannot own itself.');
     }
 
@@ -41,6 +42,7 @@ export default createEndpoint({
       if (input.icon !== undefined) patch.icon = input.icon;
       if (input.image !== undefined) patch.image = input.image;
       if (input.ownerId !== undefined) patch.owner = input.ownerId ? [input.ownerId] : [];
+      if (input.backupOwnerId !== undefined) patch.backupOwner = input.backupOwnerId ? [input.backupOwnerId] : [];
       if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom;
       if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo;
 

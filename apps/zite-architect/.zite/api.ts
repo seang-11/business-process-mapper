@@ -12,10 +12,13 @@ import type { default as _DeleteStepEp } from '../src/api/deleteStep';
 import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
+import type { default as _GetHandoffsEp } from '../src/api/getHandoffs';
 import type { default as _GetMeEp } from '../src/api/getMe';
 import type { default as _GetOverviewEp } from '../src/api/getOverview';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
+import type { default as _GetShareLinkEp } from '../src/api/getShareLink';
+import type { default as _GetSharedProcessEp } from '../src/api/getSharedProcess';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
 import type { default as _GetWorkspaceLinkEp } from '../src/api/getWorkspaceLink';
 import type { default as _GoLiveEp } from '../src/api/goLive';
@@ -30,6 +33,7 @@ import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
+import type { default as _SetShareLinkEp } from '../src/api/setShareLink';
 import type { default as _SetStepMatchEp } from '../src/api/setStepMatch';
 
 type _CreateProcessCfg = typeof _CreateProcessEp;
@@ -82,6 +86,11 @@ export type GetElementDetailInputType = NonNullable<_GetElementDetailCfg['inputS
 export type GetElementDetailOutputType = Awaited<ReturnType<_GetElementDetailCfg['execute']>>;
 export const getElementDetail = createCaller<GetElementDetailInputType, GetElementDetailOutputType>('getElementDetail');
 
+type _GetHandoffsCfg = typeof _GetHandoffsEp;
+export type GetHandoffsInputType = NonNullable<_GetHandoffsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetHandoffsCfg['execute']>[0]['input'];
+export type GetHandoffsOutputType = Awaited<ReturnType<_GetHandoffsCfg['execute']>>;
+export const getHandoffs = createCaller<GetHandoffsInputType, GetHandoffsOutputType>('getHandoffs');
+
 type _GetMeCfg = typeof _GetMeEp;
 export type GetMeInputType = NonNullable<_GetMeCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetMeCfg['execute']>[0]['input'];
 export type GetMeOutputType = Awaited<ReturnType<_GetMeCfg['execute']>>;
@@ -101,6 +110,16 @@ type _GetProcessesCfg = typeof _GetProcessesEp;
 export type GetProcessesInputType = NonNullable<_GetProcessesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetProcessesCfg['execute']>[0]['input'];
 export type GetProcessesOutputType = Awaited<ReturnType<_GetProcessesCfg['execute']>>;
 export const getProcesses = createCaller<GetProcessesInputType, GetProcessesOutputType>('getProcesses');
+
+type _GetShareLinkCfg = typeof _GetShareLinkEp;
+export type GetShareLinkInputType = NonNullable<_GetShareLinkCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetShareLinkCfg['execute']>[0]['input'];
+export type GetShareLinkOutputType = Awaited<ReturnType<_GetShareLinkCfg['execute']>>;
+export const getShareLink = createCaller<GetShareLinkInputType, GetShareLinkOutputType>('getShareLink');
+
+type _GetSharedProcessCfg = typeof _GetSharedProcessEp;
+export type GetSharedProcessInputType = NonNullable<_GetSharedProcessCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetSharedProcessCfg['execute']>[0]['input'];
+export type GetSharedProcessOutputType = Awaited<ReturnType<_GetSharedProcessCfg['execute']>>;
+export const getSharedProcess = createCaller<GetSharedProcessInputType, GetSharedProcessOutputType>('getSharedProcess');
 
 type _GetTaxonomyCfg = typeof _GetTaxonomyEp;
 export type GetTaxonomyInputType = NonNullable<_GetTaxonomyCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetTaxonomyCfg['execute']>[0]['input'];
@@ -172,6 +191,11 @@ export type SaveVersionInputType = NonNullable<_SaveVersionCfg['inputSchema']> e
 export type SaveVersionOutputType = Awaited<ReturnType<_SaveVersionCfg['execute']>>;
 export const saveVersion = createCaller<SaveVersionInputType, SaveVersionOutputType>('saveVersion');
 
+type _SetShareLinkCfg = typeof _SetShareLinkEp;
+export type SetShareLinkInputType = NonNullable<_SetShareLinkCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetShareLinkCfg['execute']>[0]['input'];
+export type SetShareLinkOutputType = Awaited<ReturnType<_SetShareLinkCfg['execute']>>;
+export const setShareLink = createCaller<SetShareLinkInputType, SetShareLinkOutputType>('setShareLink');
+
 type _SetStepMatchCfg = typeof _SetStepMatchEp;
 export type SetStepMatchInputType = NonNullable<_SetStepMatchCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetStepMatchCfg['execute']>[0]['input'];
 export type SetStepMatchOutputType = Awaited<ReturnType<_SetStepMatchCfg['execute']>>;
@@ -189,10 +213,13 @@ export const api = {
   deleteVersion,
   ensureCoreTypes,
   getElementDetail,
+  getHandoffs,
   getMe,
   getOverview,
   getProcessGraph,
   getProcesses,
+  getShareLink,
+  getSharedProcess,
   getTaxonomy,
   getWorkspaceLink,
   goLive,
@@ -207,5 +234,6 @@ export const api = {
   saveLaneOrder,
   saveStep,
   saveVersion,
+  setShareLink,
   setStepMatch,
 };

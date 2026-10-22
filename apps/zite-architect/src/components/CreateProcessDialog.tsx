@@ -31,6 +31,7 @@ export default function CreateProcessDialog({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [ownerId, setOwnerId] = useState<string>('');
+  const [backupOwnerId, setBackupOwnerId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   const handleCreate = async () => {
@@ -44,6 +45,7 @@ export default function CreateProcessDialog({
         name: name.trim(),
         description,
         ownerId: ownerId || null,
+        backupOwnerId: backupOwnerId || null,
       });
       toast.success('Process created');
       onCreated(res.processId);
@@ -90,6 +92,20 @@ export default function CreateProcessDialog({
               onChange={(ids) => setOwnerId(ids[0] ?? '')}
               clearable
               placeholder="Who is accountable?"
+              excludeIds={backupOwnerId ? [backupOwnerId] : []}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Backup owner</Label>
+            <ElementPicker
+              elements={elements}
+              types={types}
+              category="Actor"
+              value={backupOwnerId ? [backupOwnerId] : []}
+              onChange={(ids) => setBackupOwnerId(ids[0] ?? '')}
+              clearable
+              placeholder="Who covers when the owner is away?"
+              excludeIds={ownerId ? [ownerId] : []}
             />
           </div>
         </div>

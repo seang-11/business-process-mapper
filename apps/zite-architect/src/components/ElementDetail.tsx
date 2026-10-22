@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Boxes, ChevronRight, Pencil, Trash2, Workflow } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Skeleton } from '@project/components/ui/skeleton';
+import { PageError } from './PageState';
 import type { ElementSummary, ElementType } from '@/types';
 import { ownerPhrase, partyToken, statusToken } from '@/lib/elementTokens';
 import ElementIcon from './ElementIcon';
@@ -57,17 +58,24 @@ export default function ElementDetail() {
   const [elements, setElements] = useState<ElementSummary[]>([]);
   const [types, setTypes] = useState<ElementType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     // The taxonomy comes along for the edit dialog's type and owner pickers.
-    const [res, taxonomy] = await Promise.all([getElementDetail({ id }), getTaxonomy({})]);
-    setDetail(res);
-    setElements(taxonomy.elements);
-    setTypes(taxonomy.types);
-    setLoading(false);
+    try {
+      const [res, taxonomy] = await Promise.all([getElementDetail({ id }), getTaxonomy({})]);
+      setDetail(res);
+      setElements(taxonomy.elements);
+      setTypes(taxonomy.types);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => {
@@ -126,6 +134,19 @@ export default function ElementDetail() {
       <div className="min-h-screen bg-[hsl(220_20%_98.5%)] p-8">
         <Skeleton className="mb-6 h-8 w-64" />
         <Skeleton className="h-40 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="min-h-screen bg-[hsl(220_20%_98.5%)] p-8">
+        <PageError
+          onRetry={() => {
+            setLoading(true);
+            load();
+          }}
+        />
       </div>
     );
   }

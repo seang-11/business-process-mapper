@@ -18,6 +18,7 @@ interface ProcessInfo {
   id: string;
   name: string;
   ownerId: string | null;
+  backupOwnerId?: string | null;
 }
 
 interface Props {
@@ -37,10 +38,13 @@ export default function EditProcessDialog({
 }: Props) {
   const [name, setName] = useState(process.name);
   const [ownerId, setOwnerId] = useState<string | null>(process.ownerId);
+  const [backupOwnerId, setBackupOwnerId] = useState<string | null>(process.backupOwnerId ?? null);
   const [saving, setSaving] = useState(false);
 
   const dirty =
-    name.trim() !== process.name || ownerId !== process.ownerId;
+    name.trim() !== process.name ||
+    ownerId !== process.ownerId ||
+    backupOwnerId !== (process.backupOwnerId ?? null);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -52,6 +56,7 @@ export default function EditProcessDialog({
       const patch: Record<string, unknown> = { id: process.id };
       if (name.trim() !== process.name) (patch as any).name = name.trim();
       if (ownerId !== process.ownerId) (patch as any).ownerId = ownerId;
+      if (backupOwnerId !== (process.backupOwnerId ?? null)) (patch as any).backupOwnerId = backupOwnerId;
       await saveElement(patch as any);
       toast.success('Process updated');
       onSaved();
@@ -91,7 +96,20 @@ export default function EditProcessDialog({
               onChange={(ids) => setOwnerId(ids[0] ?? null)}
               clearable
               placeholder="Who is accountable?"
-              excludeIds={[process.id]}
+              excludeIds={[process.id, ...(backupOwnerId ? [backupOwnerId] : [])]}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Backup owner</Label>
+            <ElementPicker
+              elements={elements}
+              types={types}
+              category="Actor"
+              value={backupOwnerId ? [backupOwnerId] : []}
+              onChange={(ids) => setBackupOwnerId(ids[0] ?? null)}
+              clearable
+              placeholder="Who covers when the owner is away?"
+              excludeIds={[process.id, ...(ownerId ? [ownerId] : [])]}
             />
           </div>
         </div>

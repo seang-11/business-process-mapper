@@ -16,7 +16,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, Layers, Trash2, Settings, Play, GraduationCap, Radio, ChevronDown, ChevronRight, HelpCircle, Check, Columns2, Eye } from 'lucide-react';
+import { ArrowLeft, Share2, Plus, Copy, FilePlus, Layers, Trash2, Settings, Play, GraduationCap, Radio, ChevronDown, ChevronRight, HelpCircle, Check, Columns2, Eye } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { Input } from '@project/components/ui/input';
 import {
@@ -82,6 +82,7 @@ import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
 import Train from './Train';
 import PreviewSwitcher from './PreviewSwitcher';
+import ShareDialog from './ShareDialog';
 import { useMe } from '@/lib/me';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -113,6 +114,7 @@ export default function ProcessCanvas() {
   /** Inside the Overview: one version, or Current and Future side by side. */
   const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('side');
   const [managingVersions, setManagingVersions] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
   /** The lane whose panel is open, in the current view. */
@@ -784,6 +786,12 @@ export default function ProcessCanvas() {
           )}
 
           {canEdit && (
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setSharing(true)}>
+              <Share2 className="mr-1.5 h-3.5 w-3.5" /> Share
+            </Button>
+          )}
+
+          {canEdit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="h-8">
@@ -878,6 +886,15 @@ export default function ProcessCanvas() {
             </Button>
           )}
         </div>
+      )}
+
+      {sharing && process && (
+        <ShareDialog
+          processId={process.id}
+          processName={process.name}
+          hasLive={process.versions.some((v) => v.state === 'Current')}
+          onClose={() => setSharing(false)}
+        />
       )}
 
       {pendingMove && (
@@ -1073,7 +1090,7 @@ export default function ProcessCanvas() {
 
       {editingProcess && process && (
         <EditProcessDialog
-          process={{ id: process.id, name: process.name, ownerId: process.ownerId }}
+          process={{ id: process.id, name: process.name, ownerId: process.ownerId, backupOwnerId: process.backupOwnerId }}
           elements={elements}
           types={types}
           onClose={() => setEditingProcess(false)}

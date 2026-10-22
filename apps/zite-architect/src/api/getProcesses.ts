@@ -31,6 +31,8 @@ export default createEndpoint({
         description: z.string(),
         ownerId: z.string().nullable(),
         ownerName: z.string(),
+        backupOwnerId: z.string().nullable(),
+        backupOwnerName: z.string(),
         currentVersionId: z.string().nullable(),
         versions: z.array(
           z.object({
@@ -151,12 +153,15 @@ export default createEndpoint({
         }
 
         const ownerId = one(e.owner);
+        const backupOwnerId = one(e.backupOwner);
         return {
           id: e.id,
           name: e.name ?? '',
           description: e.description ?? '',
           ownerId,
           ownerName: ownerId ? elementById.get(ownerId)?.name ?? '' : '',
+          backupOwnerId,
+          backupOwnerName: backupOwnerId ? elementById.get(backupOwnerId)?.name ?? '' : '',
           currentVersionId: current?.id ?? null,
           versions: versions.map((v) => ({
             id: v.id,

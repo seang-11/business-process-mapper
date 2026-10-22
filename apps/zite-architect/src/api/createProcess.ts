@@ -11,6 +11,7 @@ export default createEndpoint({
     name: z.string().min(1),
     description: z.string().default(''),
     ownerId: z.string().nullable().default(null),
+    backupOwnerId: z.string().nullable().default(null),
   }),
   outputSchema: z.object({ processId: z.string(), versionId: z.string() }),
   execute: async ({ input, context }) => {
@@ -31,6 +32,7 @@ export default createEndpoint({
         party: 'Internal',
         status: 'Active',
         owner: input.ownerId ? [input.ownerId] : [],
+        backupOwner: input.backupOwnerId ? [input.backupOwnerId] : [],
       },
     });
 

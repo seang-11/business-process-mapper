@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getWorkspaceLink, listEditors, ListEditorsOutputType } from 'zitejs/api';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
-import { Skeleton } from '@project/components/ui/skeleton';
+import { PageError, PageLoading } from './PageState';
 import { useMe } from '@/lib/me';
 
 type Person = ListEditorsOutputType['people'][number];
@@ -19,16 +19,20 @@ export default function TeamAccess() {
   const { isRealAdmin } = useMe();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [workspaceUrl, setWorkspaceUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    if (!isRealAdmin) return;
+  const load = useCallback(() => {
+    setFailed(false);
     listEditors({})
       .then((r) => setPeople(r.people))
-      .catch(() => setPeople([]));
+      .catch(() => setFailed(true));
     getWorkspaceLink({})
       .then((l) => setWorkspaceUrl(l.workspaceHomeUrl))
       .catch(() => setWorkspaceUrl(null));
-  }, [isRealAdmin]);
+  }, []);
+  useEffect(() => {
+    if (isRealAdmin) load();
+  }, [isRealAdmin, load]);
 
   if (!isRealAdmin) {
     return (
@@ -58,8 +62,10 @@ export default function TeamAccess() {
       </div>
 
       <div className="mt-7">
-        {people === null ? (
-          <Skeleton className="h-48 rounded-2xl" />
+        {failed ? (
+          <PageError onRetry={load} />
+        ) : people === null ? (
+          <PageLoading blocks={1} height="h-48" />
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             {people.map((p) => (
