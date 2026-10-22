@@ -2,5 +2,16 @@
   "accessMode": "internal",
   "id": "ouwxsottkm",
   "brandKitId": "bk_9XB8kUaS7r",
-  "brandKitThemeHash": "1lxz6lg"
+  "brandKitThemeHash": "1lxz6lg",
+  "authentication": {
+    "signup": "domain-restricted",
+    "authenticationMethods": {
+      "sso": false,
+      "magicLink": true,
+      "googleSignIn": true
+    },
+    "domains": [
+      "prospectautomations.com"
+    ]
+  }
 }
