@@ -456,6 +456,7 @@ export default function ProcessCanvas() {
             onEditPhases={() => setEditingPhases(true)}
             laneOrder={laneOrder[laneGrouping]}
             onReorderLanes={handleReorderLanes}
+            viewKey={graph?.version?.id ?? id}
           />
         </div>
 
