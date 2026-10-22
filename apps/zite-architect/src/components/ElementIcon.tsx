@@ -59,6 +59,13 @@ const LOGO_ALIASES: Record<string, string> = {
   'meta ads': 'metaads',
   'facebook ads': 'metaads',
   meta: 'metaads',
+  'chat gpt': 'chatgpt',
+  openai: 'chatgpt',
+  'open ai': 'chatgpt',
+  anthropic: 'claude',
+  'claude ai': 'claude',
+  'wispr flow': 'wisprflow',
+  wispr: 'wisprflow',
 };
 
 function stemFromPath(path: string): string {
