@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useEffect, useCallback, forwardRef } from 'react';
-import { Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow } from 'lucide-react';
+import { Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap } from 'lucide-react';
 import type {
   ElementSummary,
   ProcessStep,
@@ -279,8 +279,16 @@ function assignColumns(steps: ProcessStep[], connections: ProcessConnection[], l
   return col;
 }
 
+/**
+ * The people view only has lanes for people. A step an app runs on its own
+ * (Zapier creating a record, Stripe clearing a payment) shares one lane, so
+ * the view still answers "who does what" without apps posing as teammates.
+ */
+const AUTOMATED_LANE = 'Automated';
+
 function getLaneKey(step: ProcessStep, grouping: LaneGrouping): string {
   if (grouping === 'people') {
+    if (step.performedBy?.actorClass === 'System') return AUTOMATED_LANE;
     return step.performedBy?.name || 'Unassigned';
   }
 
@@ -306,7 +314,6 @@ const DRAG_THRESHOLD = 5;
 // loop-backs only, so a dashed line always means "this goes back a step".
 const EDGE_COLOR = 'hsl(var(--muted-foreground) / 0.45)';
 const EDGE_COLOR_HI = 'hsl(var(--primary))';
-const EDGE_DOT_COLOR = 'hsl(var(--muted-foreground) / 0.8)';
 /** Softest bend a cross-lane edge is allowed, in px of control-point reach. */
 const EDGE_MIN_BEND = 48;
 /** Flowing dots: px per second, clamped so nothing crawls or races. */
@@ -412,6 +419,12 @@ export default function SwimlaneDiagram({
         map.set(key, []);
       }
       map.get(key)!.push(s);
+    }
+    // The automated lane sits under the people, as support rather than cast.
+    const automatedAt = laneOrder.indexOf(AUTOMATED_LANE);
+    if (grouping === 'people' && automatedAt >= 0) {
+      laneOrder.splice(automatedAt, 1);
+      laneOrder.push(AUTOMATED_LANE);
     }
     return { lanes: laneOrder, stepsByLane: map };
   }, [steps, grouping]);
@@ -766,13 +779,15 @@ export default function SwimlaneDiagram({
                 />
                 {/* Where the work leaves the card. */}
                 <circle className="pointer-events-none" cx={x1} cy={y1} r={2.5} fill={color} />
-                {!reduceMotion && !dimmed &&
+                {/* Dots only run on the paths of the hovered step: motion is an
+                    answer to "where does this go?", not wallpaper. */}
+                {!reduceMotion && highlighted &&
                   Array.from({ length: dotCount }, (_, i) => (
                     <circle
                       key={i}
                       className="pointer-events-none"
-                      r={highlighted ? 3 : 2.5}
-                      fill={highlighted ? EDGE_COLOR_HI : EDGE_DOT_COLOR}
+                      r={3}
+                      fill={EDGE_COLOR_HI}
                     >
                       <animateMotion
                         path={path}
@@ -860,14 +875,20 @@ export default function SwimlaneDiagram({
             // Whichever element the lane is named after — the performer in the
             // people view, the app in the app view.
             const first = laneSteps[0];
-            const laneRef =
-              grouping === 'people'
-                ? first?.performedBy
-                : first?.performedBy?.actorClass === 'System'
-                ? first.performedBy
-                : first?.uses.find((u) => u.actorClass === 'System') ?? null;
+            const isAutomated = grouping === 'people' && lane === AUTOMATED_LANE;
+            const laneRef = isAutomated
+              ? null
+              : grouping === 'people'
+              ? first?.performedBy
+              : first?.performedBy?.actorClass === 'System'
+              ? first.performedBy
+              : first?.uses.find((u) => u.actorClass === 'System') ?? null;
 
-            const laneType = grouping === 'people' ? laneRef?.typeName || '' : '';
+            const laneType = isAutomated
+              ? 'Run by apps'
+              : grouping === 'people'
+              ? laneRef?.typeName || ''
+              : '';
             const laneColor = laneRef?.color || '';
             const isExternal = laneRef?.party === 'External';
 
@@ -884,6 +905,7 @@ export default function SwimlaneDiagram({
               <div key={lane} className="border-b border-border flex">
                 <div className="w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15]">
                   <div className="flex items-center gap-1.5">
+                    {isAutomated && <Zap className="h-3 w-3 shrink-0 text-muted-foreground" />}
                     {laneColor && (
                       <span
                         className="h-2 w-2 rounded-full shrink-0"
@@ -976,6 +998,8 @@ interface StepCardProps {
 }
 
 const PANEL_W = 256;
+/** Logos shown beside a step's main app before the rest fold into "+N". */
+const MAX_USE_BADGES = 3;
 const PANEL_FADE_MS = 150;
 
 const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
@@ -1045,7 +1069,9 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
     const performer = step.performedBy;
     const color = performer?.color || '';
     const primaryUse = step.uses[0];
-    const extraUses = step.uses.length - 1;
+    const extraUses = step.uses.slice(1);
+    const shownExtras = extraUses.slice(0, MAX_USE_BADGES);
+    const hiddenExtras = extraUses.length - shownExtras.length;
     const hasDetail = checklistItems.length > 0 || step.uses.length > 1 || step.produces.length > 0;
 
     return (
@@ -1117,7 +1143,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         {/* empty:hidden so a step with nothing to show leaves no gap behind */}
         <div className="mt-2 flex items-center gap-2 text-muted-foreground empty:hidden">
           {primaryUse && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium truncate max-w-[128px]">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium min-w-0">
               <ElementIcon
                 name={primaryUse.name}
                 image={primaryUse.image}
@@ -1126,10 +1152,41 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
                 color={primaryUse.color}
                 size={12}
               />
-              <span className="truncate">
+              <span className={`truncate ${shownExtras.length ? 'max-w-[72px]' : 'max-w-[128px]'}`}>
                 {primaryUse.name}
-                {extraUses > 0 ? ` +${extraUses}` : ''}
               </span>
+            </span>
+          )}
+          {/* The other apps as overlapping logos: you can tell what's involved
+              at a glance, and the card keeps one line however many there are. */}
+          {shownExtras.length > 0 && (
+            <span className="inline-flex items-center shrink-0">
+              <span className="flex -space-x-1">
+                {shownExtras.map((u) => (
+                  <span
+                    key={u.id}
+                    title={u.name}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background ring-[1.5px] ring-card border border-border"
+                  >
+                    <ElementIcon
+                      name={u.name}
+                      image={u.image}
+                      icon={u.icon}
+                      typeIcon={u.typeIcon}
+                      color={u.color}
+                      size={10}
+                    />
+                  </span>
+                ))}
+              </span>
+              {hiddenExtras > 0 && (
+                <span
+                  className="ml-1 text-[10px] font-medium"
+                  title={extraUses.slice(MAX_USE_BADGES).map((u) => u.name).join(', ')}
+                >
+                  +{hiddenExtras}
+                </span>
+              )}
             </span>
           )}
           {step.produces.length > 0 && (

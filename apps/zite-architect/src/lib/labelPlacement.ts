@@ -83,7 +83,7 @@ export const LABEL_LINE_H = 13;
 export const LABEL_PAD_X = 7;
 export const LABEL_PAD_Y = 4;
 
-const LABEL_FONT = `${LABEL_FONT_WEIGHT} ${LABEL_FONT_SIZE}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
+const LABEL_FONT = `${LABEL_FONT_WEIGHT} ${LABEL_FONT_SIZE}px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif`;
 
 /**
  * Widest a chip is allowed to get. Every pixel here is a pixel of gutter the
