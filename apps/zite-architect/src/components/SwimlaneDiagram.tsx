@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, forwardRef } from 'react';
 import {
-  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil, GripVertical, Repeat2,
+  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil, GripVertical,
 } from 'lucide-react';
 import type {
   ElementRef,
@@ -182,20 +182,14 @@ function deriveLoops(steps: ProcessStep[], connections: ProcessConnection[]): Pr
   return loops;
 }
 
-// Topological sort, then each step takes the leftmost column its predecessors
-// allow. Connections that are backward paths of loops OR back-edges in cycles
+// Topological sort, then each step takes the column after its furthest
+// predecessor, so the map always reads left to right, start to finish.
+// Connections that are backward paths of loops OR back-edges in cycles
 // are excluded so the layout always proceeds left-to-right.
-//
-// A step after one in the same lane goes one column right. A step after one in
-// a different lane can sit in the same column, straight below or above: a
-// handoff reads fine as a drop, and a chain that crosses lanes at every step no
-// longer turns into a staircase as long as the steps. If that spot in its lane
-// is already taken, it falls back to the next column over.
 function assignColumns(
   steps: ProcessStep[],
   connections: ProcessConnection[],
   loops: ProcessLoop[] = [],
-  laneOf: (stepId: string) => string = () => '',
 ): Map<string, number> {
   const backwardPairs = getLoopBackwardPairs(loops);
   const stepIds = new Set(steps.map(s => s.id));
@@ -242,25 +236,10 @@ function assignColumns(
   }
   for (const s of steps) if (!order.includes(s.id)) order.push(s.id);
 
-  const taken = new Set<string>();
-  const cell = (lane: string, c: number) => `${lane}|${c}`;
   for (const id of order) {
-    const lane = laneOf(id);
-    let sameLaneMin = 0;
-    let handoffMin = 0;
-    for (const prev of inEdges.get(id) || []) {
-      const pc = col.get(prev) ?? 0;
-      if (laneOf(prev) === lane) sameLaneMin = Math.max(sameLaneMin, pc + 1);
-      else handoffMin = Math.max(handoffMin, pc);
-    }
-    let c = Math.max(sameLaneMin, handoffMin);
-    // Only a stacked handoff steps aside. Two steps that genuinely sit at the
-    // same depth in one lane (two starts, a decision's branches) still share
-    // the column and stack into sub-rows, rather than faking a sequence.
-    const stacked = handoffMin > sameLaneMin;
-    if (stacked && taken.has(cell(lane, c))) c += 1;
+    let c = 0;
+    for (const prev of inEdges.get(id) || []) c = Math.max(c, (col.get(prev) ?? 0) + 1);
     col.set(id, c);
-    taken.add(cell(lane, c));
   }
 
   // Second pass: push non-loop exit paths to the right of loop boxes
@@ -307,9 +286,8 @@ function assignColumns(
           for (const next of outEdges.get(id) || []) {
             if (!loopMemberIds.has(next)) {
               const nextCol = col.get(next) ?? 0;
-              const minCol = myCol + (laneOf(next) === laneOf(id) ? 1 : 0);
-              if (nextCol < minCol) {
-                col.set(next, minCol);
+              if (nextCol <= myCol) {
+                col.set(next, myCol + 1);
               }
               toPush.push(next);
             }
@@ -389,27 +367,6 @@ function edgePath({ x1, y1, x2, y2, vertical }: EdgeEnds): string {
   return `M ${x1} ${y1} C ${x1 + cp} ${y1}, ${x2 - cp} ${y2}, ${x2} ${y2}`;
 }
 
-/** A path through the given corners, with each corner rounded off. */
-function roundedPath(points: [number, number][], radius: number): string {
-  let d = `M ${points[0][0]} ${points[0][1]}`;
-  for (let i = 1; i < points.length - 1; i += 1) {
-    const [px, py] = points[i - 1];
-    const [cx, cy] = points[i];
-    const [nx, ny] = points[i + 1];
-    const inLen = Math.hypot(cx - px, cy - py);
-    const outLen = Math.hypot(nx - cx, ny - cy);
-    if (!inLen || !outLen) continue;
-    const r = Math.min(radius, inLen / 2, outLen / 2);
-    const ax = cx - ((cx - px) / inLen) * r;
-    const ay = cy - ((cy - py) / inLen) * r;
-    const bx = cx + ((nx - cx) / outLen) * r;
-    const by = cy + ((ny - cy) / outLen) * r;
-    d += ` L ${ax} ${ay} Q ${cx} ${cy} ${bx} ${by}`;
-  }
-  const [lx, ly] = points[points.length - 1];
-  return `${d} L ${lx} ${ly}`;
-}
-
 // Layout constants
 const LANE_LABEL_W = 176;
 const CARD_W = 208;
@@ -424,15 +381,6 @@ const DRAG_THRESHOLD = 5;
 // loop-backs only, so a dashed line always means "this goes back a step".
 const EDGE_COLOR = 'hsl(var(--muted-foreground) / 0.45)';
 const EDGE_COLOR_HI = 'hsl(var(--primary))';
-// Loops: one dashed arrow from the step that closes the loop back to where it
-// starts, routed through the gaps between columns and across the top of the
-// loop's highest lane, which gets extra room above its cards for it.
-const LOOP_COLOR = 'hsl(var(--primary) / 0.55)';
-/** How far below the top of that lane the arrow runs (its padding is pt-14). */
-const LOOP_ARC_Y = 28;
-/** Offset into the column gap, so the arrow never runs behind a card. */
-const LOOP_GUTTER = 8;
-const LOOP_PILL_W = 260;
 
 // Zoomed out, cards show less but their titles shrink more slowly than the
 // map, so the whole process stays readable at fit-to-screen. Hovering a card
@@ -514,8 +462,6 @@ export default function SwimlaneDiagram({
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [positions, setPositions] = useState<Map<string, DOMRect>>(new Map());
-  /** Top edge of each lane, in the same unzoomed space as the cards. */
-  const [laneTops, setLaneTops] = useState<Map<string, number>>(new Map());
 
   // Click-and-drag panning state
   const [isDragging, setIsDragging] = useState(false);
@@ -581,10 +527,10 @@ export default function SwimlaneDiagram({
 
   const loops = useMemo(() => deriveLoops(steps, connections), [steps, connections]);
 
-  const columnMap = useMemo(() => {
-    const laneById = new Map(steps.map((s) => [s.id, getLaneKey(s, grouping)]));
-    return assignColumns(steps, connections, loops, (id) => laneById.get(id) ?? '');
-  }, [steps, connections, loops, grouping]);
+  const columnMap = useMemo(
+    () => assignColumns(steps, connections, loops),
+    [steps, connections, loops],
+  );
 
   const totalColumns = useMemo(() => {
     if (steps.length === 0) return 0;
@@ -798,11 +744,6 @@ export default function SwimlaneDiagram({
       );
     });
     setPositions(next);
-    const tops = new Map<string, number>();
-    laneEls.current.forEach((el, lane) => {
-      tops.set(lane, (el.getBoundingClientRect().y - cr.y + st) / zoomRef.current);
-    });
-    setLaneTops(tops);
   }, []);
 
   useEffect(() => {
@@ -882,12 +823,10 @@ export default function SwimlaneDiagram({
   // the midpoint of the line, which is frequently on top of an unrelated card.
   // Highlighted edges go first so the ones the reader is looking at get the
   // best spots, and the rest arrange themselves around those.
-  // The edge that closes each loop is drawn as the loop's own arrow, with its
-  // label on the pill, so the ordinary edge drawing skips it.
-  const loopEdgeKeys = useMemo(() => new Set(loops.map((l) => l.id)), [loops]);
-  const loopMemberIds = useMemo(() => new Set(loops.flatMap((l) => l.stepIds)), [loops]);
-
-  /** Lanes that hold the top of a loop, and so need room above their cards. */
+  /**
+   * Lanes that hold the top of a loop box. They get extra room above their
+   * cards so the box and its label always sit inside the map, never cut off.
+   */
   const loopTopLanes = useMemo(() => {
     const set = new Set<string>();
     for (const loop of loops) {
@@ -900,40 +839,9 @@ export default function SwimlaneDiagram({
     return set;
   }, [loops, stepLaneMap, orderedLanes]);
 
-  const loopArcs = useMemo(() => {
-    const titleById = new Map(steps.map((s) => [s.id, s.title]));
-    return loops.flatMap((loop) => {
-      const [closingId, reentryId] = loop.id.split('->');
-      const a = positions.get(closingId);
-      const b = positions.get(reentryId);
-      const topLane = [...loopTopLanes].find((lane) =>
-        loop.stepIds.some((id) => stepLaneMap.get(id) === lane),
-      );
-      const laneTop = topLane ? laneTops.get(topLane) : undefined;
-      if (!a || !b || laneTop == null) return [];
-      const y = laneTop + LOOP_ARC_Y;
-      const xs = a.right + LOOP_GUTTER;
-      const xe = b.left - LOOP_GUTTER;
-      const ay = a.y + a.height / 2;
-      const by = b.y + b.height / 2;
-      const conn = connections.find((c) => c.fromStepId === closingId && c.toStepId === reentryId);
-      const back = `Loops back to ${titleById.get(reentryId) ?? 'an earlier step'}`;
-      return [{
-        key: loop.id,
-        path: roundedPath([[a.right, ay], [xs, ay], [xs, y], [xe, y], [xe, by], [b.left, by]], 12),
-        start: [a.right, ay] as const,
-        pillX: (xs + xe) / 2,
-        pillY: y,
-        pillW: Math.max(160, Math.min(LOOP_PILL_W, Math.abs(xs - xe) - 16)),
-        label: conn?.label || back,
-        title: conn?.label ? `${conn.label} · ${back}` : back,
-      }];
-    });
-  }, [loops, positions, laneTops, loopTopLanes, stepLaneMap, connections, steps]);
-
   const labelPlacements = useMemo(() => {
     const withGeometry = connections
-      .filter((c) => c.label && !loopEdgeKeys.has(`${c.fromStepId}->${c.toStepId}`))
+      .filter((c) => c.label)
       .map((c) => {
         const fromRect = positions.get(c.fromStepId);
         const toRect = positions.get(c.toStepId);
@@ -959,7 +867,7 @@ export default function SwimlaneDiagram({
     }));
 
     return placeEdgeLabels(withGeometry, cards);
-  }, [connections, positions, highlightedConnections, loopEdgeKeys]);
+  }, [connections, positions, highlightedConnections]);
 
   // --- Click-and-drag panning handlers ---
   // Pointer capture is deferred until the drag threshold is crossed so that
@@ -1209,36 +1117,62 @@ export default function SwimlaneDiagram({
             </marker>
           </defs>
 
-          {loopArcs.map((arc) => {
-            const highlighted = highlightedConnections.has(arc.key);
-            const dimmed = isEdgeDimmed(arc.key, highlighted);
+          {loops.map(loop => {
+            if (loop.stepIds.length < 2) return null;
+            const rects = loop.stepIds.map(sid => positions.get(sid)).filter(Boolean) as DOMRect[];
+            if (rects.length < 2) return null;
+            const pad = 12;
+            const minX = Math.min(...rects.map(r => r.x)) - pad;
+            const minY = Math.min(...rects.map(r => r.y)) - pad - 24;
+            const maxX = Math.max(...rects.map(r => r.x + r.width)) + pad;
+            const maxY = Math.max(...rects.map(r => r.y + r.height)) + pad;
+            const w = maxX - minX;
+            const h = maxY - minY;
+
+            const lastStepId = loop.stepIds[loop.stepIds.length - 1];
+            const lastRect = positions.get(lastStepId);
+            const reentryRect = positions.get(loop.reentryStepId);
+
             return (
-              <g
-                key={arc.key}
-                className="pointer-events-none transition-opacity duration-200"
-                opacity={dimmed ? 0.12 : 1}
-              >
-                <path
+              <g key={loop.id} className="pointer-events-none">
+                <rect
                   className="pointer-events-none"
-                  d={arc.path}
-                  fill="none"
-                  stroke={highlighted ? EDGE_COLOR_HI : LOOP_COLOR}
-                  strokeWidth={highlighted ? 2 : 1.5}
-                  strokeDasharray="6 4"
-                  strokeLinecap="round"
-                  markerEnd={highlighted ? 'url(#flow-arrow-hi)' : 'url(#loop-arrow)'}
+                  x={minX} y={minY} width={w} height={h}
+                  rx={12} ry={12}
+                  fill="hsl(var(--primary) / 0.04)"
+                  stroke="hsl(var(--primary) / 0.25)"
+                  strokeWidth={2}
+                  strokeDasharray="8 4"
                 />
-                <circle
+                <text
                   className="pointer-events-none"
-                  cx={arc.start[0]}
-                  cy={arc.start[1]}
-                  r={2.5}
-                  fill={highlighted ? EDGE_COLOR_HI : LOOP_COLOR}
-                />
-                {!reduceMotion && highlighted && (
-                  <circle className="pointer-events-none" r={3} fill={EDGE_COLOR_HI}>
-                    <animateMotion path={arc.path} dur="3s" repeatCount="indefinite" />
-                  </circle>
+                  x={minX + 14} y={minY + 16}
+                  fill="hsl(var(--primary) / 0.7)"
+                  fontSize={11} fontWeight={600}
+                >
+                  {loop.name}
+                </text>
+
+                {lastRect && reentryRect && (
+                  (() => {
+                    const x1 = lastRect.x + lastRect.width / 2;
+                    const y1 = maxY;
+                    const x2 = reentryRect.x + reentryRect.width / 2;
+                    const y2 = maxY;
+                    const drop = 24;
+                    const path = `M ${x1} ${y1 - pad} L ${x1} ${y1 + drop} C ${x1} ${y1 + drop + 12}, ${x2} ${y1 + drop + 12}, ${x2} ${y2 + drop} L ${x2} ${y2 - pad}`;
+                    return (
+                      <path
+                        className="pointer-events-none"
+                        d={path}
+                        fill="none"
+                        stroke="hsl(var(--primary) / 0.4)"
+                        strokeWidth={2}
+                        strokeDasharray="6 4"
+                        markerEnd="url(#loop-arrow)"
+                      />
+                    );
+                  })()
                 )}
               </g>
             );
@@ -1250,7 +1184,6 @@ export default function SwimlaneDiagram({
             if (!fromRect || !toRect) return null;
 
             const key = `${c.fromStepId}->${c.toStepId}`;
-            if (loopEdgeKeys.has(key)) return null;
             const highlighted = highlightedConnections.has(key);
             const dimmed = isEdgeDimmed(key, highlighted);
 
@@ -1314,34 +1247,6 @@ export default function SwimlaneDiagram({
           className="absolute inset-0 pointer-events-none z-[1]"
           style={{ width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
         >
-          {loopArcs.map((arc) => {
-            const highlighted = highlightedConnections.has(arc.key);
-            const dimmed = isEdgeDimmed(arc.key, highlighted);
-            return (
-              <foreignObject
-                key={arc.key}
-                x={arc.pillX - arc.pillW / 2}
-                y={arc.pillY - 12}
-                width={arc.pillW}
-                height={24}
-                opacity={dimmed ? 0.12 : 1}
-                className="pointer-events-none overflow-visible transition-opacity duration-200"
-              >
-                <div className="flex h-full items-center justify-center">
-                  <span
-                    title={arc.title}
-                    className={`inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2.5 py-0.5 text-[11px] font-medium shadow-sm ${
-                      highlighted ? 'border-primary text-primary' : 'border-primary/30 text-primary/80'
-                    }`}
-                  >
-                    <Repeat2 className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{arc.label}</span>
-                  </span>
-                </div>
-              </foreignObject>
-            );
-          })}
-
           {labelPlacements.map((l) => {
             const highlighted = highlightedConnections.has(l.key);
             const dimmed = isEdgeDimmed(l.key, highlighted);
@@ -1547,7 +1452,6 @@ export default function SwimlaneDiagram({
                             }
                             isStart={startStepIds.has(step.id)}
                             isEnd={endStepIds.has(step.id)}
-                            inLoop={loopMemberIds.has(step.id)}
                             hasCrossLaneDep={connections.some(
                               c => isCrossLane(c) && (c.fromStepId === step.id || c.toStepId === step.id)
                             )}
@@ -1660,8 +1564,6 @@ interface StepCardProps {
   isDimmed: boolean;
   isStart: boolean;
   isEnd: boolean;
-  /** Part of a loop; the card gets a small repeat mark. */
-  inLoop: boolean;
   hasCrossLaneDep: boolean;
   /** How much the card shows at the current zoom. */
   detail: CardDetail;
@@ -1691,7 +1593,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       isDimmed,
       isStart,
       isEnd,
-      inLoop,
       detail,
       titleScale,
       panelScale,
@@ -1794,11 +1695,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             {performer?.name || 'Unassigned'}
           </span>
           <div className="flex items-center gap-1 shrink-0">
-            {inLoop && (
-              <span title="Part of a loop" className="text-primary/70">
-                <Repeat2 className="h-3 w-3" />
-              </span>
-            )}
             {isDecision ? (
               // BPMN draws a gateway as a diamond; a rotated square is the
               // honest version of that at badge size.
