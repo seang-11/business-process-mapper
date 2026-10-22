@@ -11,6 +11,7 @@ const one = (v?: string | string[] | null): string | null =>
  * rather than going anywhere a person didn't put them.
  */
 export default createEndpoint({
+  authenticated: true,
   description: "Save a process's phases in order — rename, reorder, add and remove in one go",
   inputSchema: z.object({
     processId: z.string(),

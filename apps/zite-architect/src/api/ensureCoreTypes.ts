@@ -3,6 +3,7 @@ import { createEndpoint } from 'zitejs/backend';
 import { ensureCoreTypes } from '../lib/ensureCoreTypes';
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Ensure all core element types exist — creates any that are missing, never overwrites existing ones',
   inputSchema: z.object({}),
   outputSchema: z.object({

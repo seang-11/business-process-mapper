@@ -8,6 +8,7 @@ const many = (v?: string | string[]): string[] =>
   Array.isArray(v) ? v : v ? [v] : [];
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Delete an element, refusing when steps or other elements still reference it',
   inputSchema: z.object({ id: z.string(), cascadeProcess: z.boolean().default(false) }),
   outputSchema: z.object({ success: z.boolean(), blockedBy: z.array(z.string()) }),

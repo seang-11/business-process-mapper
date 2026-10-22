@@ -5,6 +5,7 @@ import { ensureCoreTypes } from '../lib/ensureCoreTypes';
 import { createDefaultPhases } from '../lib/defaultPhases';
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Create a process — an element of type Process, plus its first current-state version',
   inputSchema: z.object({
     name: z.string().min(1),

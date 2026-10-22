@@ -20,6 +20,7 @@ const participant = z.object({
 });
 
 export default createEndpoint({
+  authenticated: true,
   description: 'List every process (elements of type Process) with its versions, automation mix, and who and what it runs on',
   inputSchema: z.object({}),
   outputSchema: z.object({

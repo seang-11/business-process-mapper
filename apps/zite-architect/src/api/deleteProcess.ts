@@ -8,6 +8,7 @@ const many = (v?: string | string[]): string[] =>
   Array.isArray(v) ? v : v ? [v] : [];
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Delete a process along with all of its versions, steps and connections',
   inputSchema: z.object({ id: z.string() }),
   outputSchema: z.object({

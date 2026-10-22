@@ -8,6 +8,7 @@ const many = (v?: string | string[]): string[] =>
   Array.isArray(v) ? v : v ? [v] : [];
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Create a process version — empty, or copied from another so a future state can diverge from it',
   inputSchema: z.object({
     /** Which process the version belongs to. Taken from the source when copying. */

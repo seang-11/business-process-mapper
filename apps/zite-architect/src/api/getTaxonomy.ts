@@ -60,6 +60,7 @@ const elementSchema = z.object({
 });
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Element types and elements — the taxonomy every picker, list and lane reads from',
   inputSchema: z.object({}),
   outputSchema: z.object({

@@ -6,6 +6,7 @@ const one = (v?: string | string[]): string | null =>
   (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default createEndpoint({
+  authenticated: true,
   description:
     'Delete a custom element type. Built-ins are never deletable, and a type in use has to be reassigned first.',
   inputSchema: z.object({

@@ -10,6 +10,7 @@ const HUMAN_KINDS = ['Individual', 'Position', 'Group'] as const;
 const LOCKED = ['key', 'categories', 'actorClass', 'humanKind'] as const;
 
 export default createEndpoint({
+  authenticated: true,
   description:
     'Create or update an element type. Built-ins keep their key and capabilities; everything cosmetic stays editable.',
   inputSchema: z.object({

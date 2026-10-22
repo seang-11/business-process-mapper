@@ -6,6 +6,7 @@ const one = (v?: string | string[]): string | null =>
   (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Delete a step along with any connections touching it, then resync the version step count',
   inputSchema: z.object({ id: z.string(), versionId: z.string() }),
   outputSchema: z.object({ success: z.boolean(), connectionsRemoved: z.number() }),

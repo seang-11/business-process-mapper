@@ -3,6 +3,7 @@ import { createEndpoint } from 'zitejs/backend';
 import { zite, type ProcessVersionsRecordInput } from 'zitejs/db';
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Rename a process version, or change its state or notes',
   inputSchema: z.object({
     id: z.string(),

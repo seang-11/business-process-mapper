@@ -3,6 +3,7 @@ import { createEndpoint } from 'zitejs/backend';
 import { zite, type ElementsRecordInput } from 'zitejs/db';
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Create an element, or patch only the fields the caller actually sent',
   // Every field is optional so an update is a genuine patch: a form that shows
   // five fields can never blank the five it doesn't show. Create validates the

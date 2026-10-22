@@ -6,6 +6,7 @@ const one = (v?: string | string[]): string | null =>
   (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default createEndpoint({
+  authenticated: true,
   description: 'Create or update a step, then resync the version step count',
   inputSchema: z.object({
     id: z.string().optional(),

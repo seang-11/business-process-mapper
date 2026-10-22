@@ -11,6 +11,7 @@ const one = (v?: string | string[]): string | null =>
  * alone, which saveStep can't promise since it rewrites the whole record.
  */
 export default createEndpoint({
+  authenticated: true,
   description: 'Move a step on the map: change who performs it, which app leads it, or its phase',
   inputSchema: z.object({
     id: z.string(),
