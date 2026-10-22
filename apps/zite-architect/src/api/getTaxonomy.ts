@@ -51,6 +51,7 @@ const elementSchema = z.object({
   actorClass: z.string(),
   party: z.string(),
   status: z.string(),
+  category: z.string(),
   ownerId: z.string().nullable(),
   ownerName: z.string(),
   /** How many steps touch this element, in any capacity. */
@@ -136,6 +137,7 @@ export default createEndpoint({
           actorClass: t?.actorClass ?? 'Not an actor',
           party: e.party ?? '',
           status: e.status ?? '',
+          category: e.category ?? '',
           ownerId,
           ownerName: ownerId ? nameById.get(ownerId) ?? '' : '',
           usageCount: usage.get(e.id) ?? 0,

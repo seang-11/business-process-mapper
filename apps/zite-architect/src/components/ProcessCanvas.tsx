@@ -283,6 +283,7 @@ export default function ProcessCanvas() {
           actorClass: type?.actorClass ?? 'Not an actor',
           party: '',
           status: 'Active',
+          category: '',
           ownerId: null,
           ownerName: '',
           usageCount: 0,

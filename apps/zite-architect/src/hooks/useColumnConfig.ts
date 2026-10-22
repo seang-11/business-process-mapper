@@ -38,6 +38,7 @@ const TABLE_SCHEMAS: Record<string, FieldDef[]> = {
   Elements: [
     { key: 'name', label: 'Name', type: 'single_line_text' },
     { key: 'typeName', label: 'Type', type: 'single_select' },
+    { key: 'category', label: 'Category', type: 'single_select' },
     { key: 'party', label: 'Party', type: 'single_select' },
     { key: 'status', label: 'Status', type: 'single_select' },
     { key: 'ownerName', label: 'Owner', type: 'single_line_text' },

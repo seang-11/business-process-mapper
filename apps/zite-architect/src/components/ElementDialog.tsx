@@ -1,3 +1,4 @@
+import { CATEGORY_NAMES, categoryStyle } from '@/lib/categories';
 import { useMemo, useState } from 'react';
 import { saveElement, SaveElementInputType } from 'zitejs/api';
 import { toast } from 'sonner';
@@ -46,6 +47,8 @@ export interface EditableElement {
   typeId: string | null;
   party: string;
   status: string;
+  /** Optional: what kind of tool this is. */
+  category?: string;
   ownerId: string | null;
 }
 
@@ -84,6 +87,7 @@ export default function ElementDialog({
   const [typeId, setTypeId] = useState<string>(element?.typeId ?? '');
   const [party, setParty] = useState<string>(element?.party || NONE);
   const [status, setStatus] = useState(element?.status || 'Active');
+  const [category, setCategory] = useState<string>(element?.category || NONE);
   const [ownerId, setOwnerId] = useState<string | null>(element?.ownerId ?? null);
   const [saving, setSaving] = useState(false);
 
@@ -107,6 +111,7 @@ export default function ElementDialog({
       typeId,
       party: party === NONE ? null : party,
       status,
+      category: category === NONE ? null : category,
       ownerId,
     };
 
@@ -125,6 +130,7 @@ export default function ElementDialog({
         if (next.typeId !== element.typeId) changed.typeId = next.typeId;
         if (next.party !== (element.party || null)) changed.party = next.party;
         if (next.status !== element.status) changed.status = next.status;
+        if (next.category !== (element.category || null)) changed.category = next.category;
         if (next.ownerId !== element.ownerId) changed.ownerId = next.ownerId;
 
         if (Object.keys(changed).length === 1) {
@@ -203,6 +209,29 @@ export default function ElementDialog({
               placeholder="What it is, and where it fits."
               rows={2}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE} className="text-xs">
+                  <span className="text-muted-foreground">Not set</span>
+                </SelectItem>
+                {CATEGORY_NAMES.map((c) => (
+                  <SelectItem key={c} value={c} className="text-xs">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryStyle(c).dot }} />
+                      {c}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">Groups tools together, like Communication or Finance.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

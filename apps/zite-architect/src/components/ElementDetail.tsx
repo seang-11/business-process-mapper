@@ -322,6 +322,7 @@ export default function ElementDetail() {
                 <Row label="Type">{el.typeName || '—'}</Row>
                 <Row label="Party">{el.party || '—'}</Row>
                 <Row label="Status">{el.status || '—'}</Row>
+                {el.typeName === 'App' && <Row label="Category">{el.category || '—'}</Row>}
                 <Row label={el.actorClass === 'Human' ? 'Reports to' : 'Owner'}>
                   {el.ownerId ? (
                     <button
@@ -403,6 +404,7 @@ export default function ElementDetail() {
             typeId: el.typeId,
             party: el.party,
             status: el.status,
+            category: el.category,
             ownerId: el.ownerId,
           }}
           onClose={() => setEditing(false)}

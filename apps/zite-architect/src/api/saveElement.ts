@@ -16,6 +16,7 @@ export default createEndpoint({
     typeId: z.string().optional(),
     party: z.string().nullable().optional(),
     status: z.string().optional(),
+    category: z.string().nullable().optional(),
     icon: z.string().optional(),
     image: z.string().optional(),
     ownerId: z.string().nullable().optional(),
@@ -36,6 +37,7 @@ export default createEndpoint({
       if (input.typeId !== undefined) patch.type = [input.typeId];
       if (input.party !== undefined) patch.party = input.party;
       if (input.status !== undefined) patch.status = input.status;
+      if (input.category !== undefined) patch.category = input.category || null;
       if (input.icon !== undefined) patch.icon = input.icon;
       if (input.image !== undefined) patch.image = input.image;
       if (input.ownerId !== undefined) patch.owner = input.ownerId ? [input.ownerId] : [];
@@ -62,6 +64,7 @@ export default createEndpoint({
         type: [input.typeId],
         party: input.party ?? null,
         status: input.status ?? 'Active',
+        category: input.category || null,
         icon: input.icon ?? '',
         image: input.image ?? '',
         owner: input.ownerId ? [input.ownerId] : [],

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Boxes, Search, X, Rows3, Group, ArrowDownAZ } from 'lucide-react';
+import { Boxes, Search, X, ArrowDownAZ } from 'lucide-react';
+import { categoryStyle } from '@/lib/categories';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import {
@@ -44,6 +45,9 @@ interface Props {
   onDelete?: (element: ElementSummary) => void;
 }
 
+/** A tool's category, or a plain label for the ones without: "Uncategorized" for a tool, "Not a tool" for people, roles and documents. */
+const categoryOf = (e: ElementSummary) => e.category || (e.typeKey === 'app' ? 'Uncategorized' : 'Not a tool');
+
 export default function ElementsTable({
   elements,
   types,
@@ -56,7 +60,9 @@ export default function ElementsTable({
   const [partyFilter, setPartyFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string>(ANY);
   const [usageFilter, setUsageFilter] = useState<string>(ANY);
-  const [grouped, setGrouped] = useState(true);
+  // How the list is grouped: by what it is, what kind of tool it is, who owns it, or not at all.
+  const [groupBy, setGroupBy] = useState<'type' | 'category' | 'owner' | 'none'>('type');
+  const [categoryFilter, setCategoryFilter] = useState<string>(ANY);
   // Alphabetical by default; clicking a column header or using the Sort menu changes it.
   const [sort, setSort] = useState<{ key: string | null; dir: SortDir }>({ key: 'name', dir: 'asc' });
   const sortValue = sort.key && sort.dir ? `${sort.key}:${sort.dir}` : '';
@@ -83,13 +89,14 @@ export default function ElementsTable({
         return false;
       }
       if (typeFilter !== ANY && e.typeName !== typeFilter) return false;
+      if (categoryFilter !== ANY && categoryOf(e) !== categoryFilter) return false;
       if (partyFilter !== ANY && (e.party || '—') !== partyFilter) return false;
       if (statusFilter !== ANY && (e.status || '—') !== statusFilter) return false;
       if (usageFilter === 'used' && e.usageCount === 0) return false;
       if (usageFilter === 'unused' && e.usageCount > 0) return false;
       return true;
     });
-  }, [pool, query, typeFilter, partyFilter, statusFilter, usageFilter]);
+  }, [pool, query, typeFilter, categoryFilter, partyFilter, statusFilter, usageFilter]);
 
   const overrides = useMemo<Record<string, ColumnOverride>>(
     () => ({
@@ -117,6 +124,20 @@ export default function ElementsTable({
             <span>{n}</span>
           );
         },
+      },
+      category: {
+        render: (value) =>
+          value ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: categoryStyle(String(value)).bg, color: categoryStyle(String(value)).fg }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: categoryStyle(String(value)).dot }} />
+              {String(value)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       // The list mixes people and things, so neither "Owner" nor "Reports to"
       // fits — this word works whichever way a row's relationship reads.
@@ -146,7 +167,7 @@ export default function ElementsTable({
     resetToDefault,
   } = useColumnConfig({
     tableName: 'Elements',
-    defaultVisible: ['name', 'typeName', 'party', 'ownerName', 'usageCount'],
+    defaultVisible: ['name', 'typeName', 'category', 'party', 'ownerName', 'usageCount'],
     overrides,
   });
 
@@ -156,12 +177,44 @@ export default function ElementsTable({
     () =>
       new Map([
         ['ElementTypes', new Map(types.map((t) => [t.name, t.name] as const))],
+        ['Category', new Map([...new Set(pool.map((e) => categoryOf(e)))].map((c) => [c, c] as const))],
+        ['Owner', new Map([...new Set(pool.map((e) => e.ownerName || 'No owner'))].map((o) => [o, o] as const))],
       ]),
-    [types],
+    [types, pool],
   );
+
+  // Records carry a group label for each way of grouping, so an empty one still gets a tidy heading.
+  const rows = useMemo(
+    () => filtered.map((e) => ({ ...e, categoryGroup: categoryOf(e), ownerGroup: e.ownerName || 'No owner' })),
+    [filtered],
+  );
+
+  // The column that a grouping already says is left out of the table.
+  const shownColumns = useMemo(
+    () =>
+      visibleColumns.filter(
+        (c) => !(groupBy === 'category' && c.key === 'category') && !(groupBy === 'owner' && c.key === 'ownerName'),
+      ),
+    [visibleColumns, groupBy],
+  );
+
+  // Category chips: one tap to see just Communication, or just Finance. Only categories in use show.
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    // Only tools are sorted into categories, so people, roles and documents don't get a chip.
+    for (const e of pool) {
+      if (e.typeKey !== 'app' && !e.category) continue;
+      counts.set(categoryOf(e), (counts.get(categoryOf(e)) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort(
+      (a, b) => (a[0] === 'Uncategorized' ? 1 : 0) - (b[0] === 'Uncategorized' ? 1 : 0) || b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
+  }, [pool]);
+  const hasCategories = categoryCounts.some(([name]) => name !== 'Uncategorized');
 
   const activeFilters =
     (typeFilter !== ANY ? 1 : 0) +
+    (categoryFilter !== ANY ? 1 : 0) +
     (partyFilter !== ANY ? 1 : 0) +
     (statusFilter !== ANY ? 1 : 0) +
     (usageFilter !== ANY ? 1 : 0) +
@@ -170,6 +223,7 @@ export default function ElementsTable({
   const clearAll = () => {
     setQuery('');
     setTypeFilter(ANY);
+    setCategoryFilter(ANY);
     setPartyFilter(ANY);
     setStatusFilter(ANY);
     setUsageFilter(ANY);
@@ -272,15 +326,32 @@ export default function ElementsTable({
           </SelectContent>
         </Select>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => setGrouped((g) => !g)}
-        >
-          {grouped ? <Rows3 className="h-3.5 w-3.5 mr-1.5" /> : <Group className="h-3.5 w-3.5 mr-1.5" />}
-          {grouped ? 'Flat list' : 'Group by type'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Group by</span>
+          <div className="flex rounded-lg bg-muted p-0.5 text-xs">
+            {(
+              [
+                ['type', 'Type'],
+                ['category', 'Category'],
+                ['owner', 'Owner'],
+                ['none', 'None'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setGroupBy(key)}
+                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                  groupBy === key
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {activeFilters > 0 && (
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearAll}>
@@ -297,13 +368,50 @@ export default function ElementsTable({
 
   return (
     <div>
+      {hasCategories && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by category">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter(ANY)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              categoryFilter === ANY
+                ? 'border-foreground/20 bg-foreground text-background'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All <span className="ml-1 tabular-nums opacity-70">{pool.length}</span>
+          </button>
+          {categoryCounts.map(([name, count]) => {
+            const style = categoryStyle(name);
+            const active = categoryFilter === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setCategoryFilter(active ? ANY : name)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all hover:-translate-y-px"
+                style={
+                  active
+                    ? { backgroundColor: style.bg, borderColor: style.dot, color: style.fg }
+                    : { backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }
+                }
+                aria-pressed={active}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
+                {name}
+                <span className="tabular-nums opacity-60">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <DataTable
         toolbar={toolbar}
         columns={columns}
-        visibleColumns={visibleColumns}
+        visibleColumns={shownColumns}
         sort={sort}
         onSortChange={(key, dir) => setSort({ key, dir })}
-        records={filtered as unknown as Record<string, unknown>[]}
+        records={rows as unknown as Record<string, unknown>[]}
         onRowClick={(record) => onOpen(String(record.id))}
         onEdit={onEdit ? (record) => onEdit(record as unknown as ElementSummary) : undefined}
         onDelete={onDelete ? (record) => onDelete(record as unknown as ElementSummary) : undefined}
@@ -318,8 +426,16 @@ export default function ElementsTable({
             ? 'No elements match those filters'
             : 'No elements yet — add your team, roles and apps to get started'
         }
-        groupBy={grouped ? { key: 'typeName', linkedTable: 'ElementTypes' } : undefined}
-        groupStorageKey="elements-by-type"
+        groupBy={
+          groupBy === 'type'
+            ? { key: 'typeName', linkedTable: 'ElementTypes' }
+            : groupBy === 'category'
+            ? { key: 'categoryGroup', linkedTable: 'Category' }
+            : groupBy === 'owner'
+            ? { key: 'ownerGroup', linkedTable: 'Owner' }
+            : undefined
+        }
+        groupStorageKey={`elements-by-${groupBy}`}
       />
     </div>
   );

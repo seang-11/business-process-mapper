@@ -93,6 +93,8 @@ export interface ElementSummary {
   actorClass: string;
   party: string;
   status: string;
+  /** What kind of tool it is: Communication, Finance, and so on. Empty when not set. */
+  category: string;
   ownerId: string | null;
   ownerName: string;
   /** Steps that touch this element in any capacity. */
