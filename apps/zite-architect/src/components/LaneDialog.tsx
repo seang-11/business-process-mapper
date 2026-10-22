@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
-import { ArrowRight, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, Link2, Zap } from 'lucide-react';
+import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
+import { buildOutline, type OutlineItem } from '@/lib/walkthrough';
 import { AUTOMATED_LANE, getLaneKey, type LaneGrouping } from './SwimlaneDiagram';
 import ElementIcon from './ElementIcon';
 
@@ -12,195 +14,314 @@ interface Props {
   connections: ProcessConnection[];
   onClose: () => void;
   onOpenStep: (step: ProcessStep) => void;
+  onCopyLink: () => void;
 }
 
-interface Handoff {
-  key: string;
-  /** Who's on the other end: a person, or the app itself, never "Automated". */
-  who: string;
-  whoRef: ElementRef | null;
-  from: string;
-  to: string;
+const isApp = (e: ElementRef | null | undefined): boolean => e?.actorClass === 'System';
+const titleOf = (s: ProcessStep) => s.walkthroughLine.trim() || s.title;
+
+/** A step someone else does, as one line of the timeline. */
+interface Other {
+  item: OutlineItem;
+  label: string;
 }
 
-interface StepGroup {
-  /** The app running these steps, in the automated lane; null otherwise. */
-  app: ElementRef | null;
-  steps: ProcessStep[];
+interface Entry {
+  item: OutlineItem;
+  /** What has to happen first; empty when it starts the process. */
+  startsAfter: Other[];
+  /** The step just before is also theirs and leads straight into this one. */
+  rightAfter: boolean;
+  /** Apps this step sets off by itself. */
+  triggers: Other[];
+  /** Everything others do between this step and their next one. */
+  meanwhile: OutlineItem[];
 }
-
-const isApp = (e: ElementRef | null | undefined): e is ElementRef => e?.actorClass === 'System';
 
 /**
- * One lane at a glance, in the middle of the screen: what this person (or
- * app) does here, in order, who they get work from and pass it to, and the
- * tools involved. Automated work is always named by the app doing it.
+ * One person's part in a process, top to bottom: what starts each of their
+ * steps, what they do (grouped by the app they do it in), what their step
+ * sets off automatically, and what everyone else does in between. Written
+ * for someone opening the process to see just their part.
  */
-export default function LaneDialog({ lane, grouping, steps, connections, onClose, onOpenStep }: Props) {
+export default function LaneDialog({ lane, grouping, steps, connections, onClose, onOpenStep, onCopyLink }: Props) {
   const isAutomated = grouping === 'people' && lane === AUTOMATED_LANE;
 
-  const { mine, groups, incoming, outgoing, tally } = useMemo(() => {
+  const { outline, entries, after, remaining } = useMemo(() => {
+    const outline = buildOutline(steps, connections);
+    const items = outline.items;
     const laneOf = (s: ProcessStep) => getLaneKey(s, grouping);
-    // The automated lane is a shared home; for a handoff, name the app.
-    const whoOf = (s: ProcessStep) =>
-      laneOf(s) === AUTOMATED_LANE && s.performedBy ? s.performedBy.name : laneOf(s);
-    const whoRefOf = (s: ProcessStep) => (laneOf(s) === AUTOMATED_LANE || grouping === 'people' ? s.performedBy : null);
+    const mine = items.map((it, i) => (laneOf(it.step) === lane ? i : -1)).filter((i) => i >= 0);
+    const mineIds = new Set(mine.map((i) => items[i].step.id));
 
-    const byId = new Map(steps.map((s) => [s.id, s]));
-    const mine = steps.filter((s) => laneOf(s) === lane);
-    const mineIds = new Set(mine.map((s) => s.id));
-
-    const groups: StepGroup[] = [];
-    if (isAutomated) {
-      for (const s of mine) {
-        const app = s.performedBy;
-        const group = groups.find((g) => g.app?.id === app?.id);
-        if (group) group.steps.push(s);
-        else groups.push({ app, steps: [s] });
-      }
-    } else {
-      groups.push({ app: null, steps: mine });
-    }
-
-    const incoming: Handoff[] = [];
-    const outgoing: Handoff[] = [];
+    const ins = new Map<string, ProcessConnection[]>();
+    const outs = new Map<string, ProcessConnection[]>();
     for (const c of connections) {
-      const from = byId.get(c.fromStepId);
-      const to = byId.get(c.toStepId);
-      if (!from || !to) continue;
-      const key = c.id || `${from.id}->${to.id}`;
-      if (mineIds.has(to.id) && !mineIds.has(from.id)) {
-        incoming.push({ key, who: whoOf(from), whoRef: whoRefOf(from), from: from.title, to: to.title });
-      } else if (mineIds.has(from.id) && !mineIds.has(to.id)) {
-        outgoing.push({ key, who: whoOf(to), whoRef: whoRefOf(to), from: from.title, to: to.title });
-      }
+      if (!outline.byId.has(c.fromStepId) || !outline.byId.has(c.toStepId)) continue;
+      ins.set(c.toStepId, [...(ins.get(c.toStepId) ?? []), c]);
+      outs.set(c.fromStepId, [...(outs.get(c.fromStepId) ?? []), c]);
     }
+    const other = (id: string, label: string): Other => ({ item: outline.byId.get(id)!, label });
 
-    // A person's apps, or in an app lane, the people who use it.
-    const counts = new Map<string, { ref: ElementRef; count: number }>();
-    for (const s of mine) {
-      const refs =
-        grouping === 'app'
-          ? s.performedBy && !isApp(s.performedBy) ? [s.performedBy] : []
-          : s.uses.filter((u) => isApp(u) && u.id !== (isAutomated ? s.performedBy?.id : undefined));
-      for (const ref of new Map(refs.map((r) => [r.id, r])).values()) {
-        const entry = counts.get(ref.id) ?? { ref, count: 0 };
-        entry.count += 1;
-        counts.set(ref.id, entry);
-      }
-    }
-    const tally = [...counts.values()].sort((a, b) => b.count - a.count);
+    const entries: Entry[] = mine.map((i, k) => {
+      const item = items[i];
+      const id = item.step.id;
+      const incoming = ins.get(id) ?? [];
+      const prevMine = k > 0 ? items[mine[k - 1]].step.id : null;
+      const triggers = (outs.get(id) ?? [])
+        .filter((c) => !mineIds.has(c.toStepId) && isApp(outline.byId.get(c.toStepId)!.step.performedBy))
+        .map((c) => other(c.toStepId, c.label));
+      const shown = new Set(triggers.map((t) => t.item.step.id));
+      const nextMine = k < mine.length - 1 ? mine[k + 1] : null;
+      return {
+        item,
+        startsAfter: incoming.filter((c) => !mineIds.has(c.fromStepId)).map((c) => other(c.fromStepId, c.label)),
+        rightAfter: !!prevMine && incoming.some((c) => c.fromStepId === prevMine),
+        triggers,
+        meanwhile: nextMine == null ? [] : items.slice(i + 1, nextMine).filter((it) => !shown.has(it.step.id)),
+      };
+    });
 
-    return { mine, groups, incoming, outgoing, tally };
-  }, [lane, grouping, steps, connections, isAutomated]);
+    // After their last step: who picks the work up next (people only; apps
+    // it sets off are already listed under the step).
+    const last = mine[mine.length - 1];
+    const after =
+      last == null
+        ? []
+        : (outs.get(items[last].step.id) ?? [])
+            .filter((c) => !mineIds.has(c.toStepId) && !isApp(outline.byId.get(c.toStepId)!.step.performedBy))
+            .map((c) => other(c.toStepId, c.label));
+    const remaining = last == null ? 0 : items.length - last - 1;
 
-  const first = mine[0]?.performedBy ?? null;
-  const subtitle = isAutomated
-    ? `Run by ${groups.map((g) => g.app?.name).filter(Boolean).join(', ')}`
-    : grouping === 'app'
-    ? 'App'
-    : first?.typeName || '';
+    return { outline, entries, after, remaining };
+  }, [lane, grouping, steps, connections]);
 
-  let number = 0;
+  const total = outline.items.length;
+  const mineSet = new Set(entries.map((e) => e.item.step.id));
+  const first = entries[0]?.item.step.performedBy ?? null;
+  const appNames = isAutomated
+    ? [...new Set(entries.map((e) => e.item.step.performedBy?.name).filter(Boolean))].join(', ')
+    : '';
+  const subtitle = isAutomated ? `Run by ${appNames}` : grouping === 'app' ? 'App' : first?.typeName || '';
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="space-y-0 border-b border-border px-6 py-5 text-left">
-          <div className="flex items-center gap-3">
+      <DialogContent className="max-h-[88vh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="space-y-0 border-b border-border px-6 pb-4 pt-5 text-left">
+          <div className="flex items-center gap-3 pr-8">
             <Badge who={isAutomated ? null : first} automated={isAutomated} name={lane} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <DialogTitle className="truncate text-lg">{lane}</DialogTitle>
               <DialogDescription className="mt-0.5 text-sm">
                 {subtitle ? `${subtitle} · ` : ''}
-                {mine.length} step{mine.length === 1 ? '' : 's'}
+                {entries.length} of {total} steps
               </DialogDescription>
             </div>
+            <Button variant="outline" size="sm" onClick={onCopyLink} className="shrink-0">
+              <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy link
+            </Button>
           </div>
+
+          {/* Where their steps sit in the whole process. */}
+          <div className="mt-4 flex gap-[3px]" aria-hidden="true">
+            {outline.items.map((it) => (
+              <span
+                key={it.step.id}
+                title={`${it.number}. ${titleOf(it.step)}`}
+                className="h-1.5 flex-1 rounded-full"
+                style={{
+                  backgroundColor: mineSet.has(it.step.id)
+                    ? first?.color || 'hsl(var(--primary))'
+                    : 'hsl(var(--border))',
+                }}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">Their steps within the whole process</p>
         </DialogHeader>
 
-        <div className="max-h-[calc(85vh-5.5rem)] space-y-7 overflow-y-auto px-6 py-5">
-          <section>
-            <SectionTitle>Steps</SectionTitle>
-            <div className="space-y-4">
-              {groups.map((g) => (
-                <div key={g.app?.id ?? 'all'}>
-                  {g.app && (
-                    <p className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-                      <ElementIcon name={g.app.name} image={g.app.image} icon={g.app.icon} typeIcon={g.app.typeIcon} color={g.app.color} size={16} />
-                      {g.app.name}
-                      <span className="font-normal text-muted-foreground">
-                        · {g.steps.length} step{g.steps.length === 1 ? '' : 's'}
-                      </span>
-                    </p>
-                  )}
-                  <ol>
-                    {g.steps.map((s) => {
-                      number += 1;
-                      const apps = s.uses.filter((u) => isApp(u) && u.id !== s.performedBy?.id);
-                      return (
-                        <li key={s.id}>
-                          <button
-                            type="button"
-                            onClick={() => onOpenStep(s)}
-                            className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
-                          >
-                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
-                              {number}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.title}</span>
-                            {apps.length > 0 && (
-                              <span className="flex shrink-0 items-center gap-1.5">
-                                {apps.slice(0, 3).map((a) => (
-                                  <span key={a.id} title={a.name}>
-                                    <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.color} size={14} />
-                                  </span>
-                                ))}
-                              </span>
-                            )}
-                            {s.stepType === 'Decision' && (
-                              <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                                Decision
-                              </span>
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="grid gap-7 sm:grid-cols-2">
-            <section>
-              <SectionTitle>Gets work from</SectionTitle>
-              <HandoffList items={incoming} direction="in" empty="Starts its own work" />
-            </section>
-            <section>
-              <SectionTitle>Passes work to</SectionTitle>
-              <HandoffList items={outgoing} direction="out" empty="Where the work ends" />
-            </section>
-          </div>
-
-          {tally.length > 0 && (
-            <section>
-              <SectionTitle>{grouping === 'app' ? 'People using it' : isAutomated ? 'Also connects to' : 'Apps used'}</SectionTitle>
-              <div className="flex flex-wrap gap-2">
-                {tally.map(({ ref, count }) => (
-                  <span key={ref.id} className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm">
-                    <ElementIcon name={ref.name} image={ref.image} icon={ref.icon} typeIcon={ref.typeIcon} color={ref.color} size={14} />
-                    {ref.name}
-                    <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
-                  </span>
+        <div className="max-h-[calc(88vh-9rem)] overflow-y-auto px-6 py-5">
+          <ol className="relative ml-2 border-l-2 border-border pl-6">
+            {entries.map((e, k) => (
+              <li key={e.item.step.id}>
+                <StartsWhen entry={e} isFirst={k === 0} />
+                <StepCard item={e.item} total={total} color={first?.color} onOpen={() => onOpenStep(e.item.step)} />
+                {e.triggers.map((t) => (
+                  <Event key={t.item.step.id} auto>
+                    <Zap className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+                    Then automatically · <b className="font-semibold">{t.item.step.performedBy?.name}</b> · {titleOf(t.item.step)}{' '}
+                    <span className="text-muted-foreground">(step {t.item.number})</span>
+                  </Event>
                 ))}
-              </div>
-            </section>
-          )}
+                {e.meanwhile.length > 0 && <Meanwhile items={e.meanwhile} />}
+              </li>
+            ))}
+
+            {after.map((a) => (
+              <Event key={a.item.step.id}>
+                Then <b className="font-semibold text-foreground">{a.item.step.performedBy?.name ?? 'Unassigned'}</b> ·{' '}
+                {titleOf(a.item.step)} <span className="text-muted-foreground/70">(step {a.item.number}{a.label ? ` · ${a.label}` : ''})</span>
+              </Event>
+            ))}
+            <Event muted>
+              {remaining > 0
+                ? `Their part ends here · ${remaining} more step${remaining === 1 ? '' : 's'} by others`
+                : 'Their part ends the process'}
+            </Event>
+          </ol>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// --- Timeline pieces ---
+
+/** A line on the timeline between cards, with a dot on the rail. */
+function Event({ auto, muted, children }: { auto?: boolean; muted?: boolean; children: React.ReactNode }) {
+  return (
+    <p
+      className={`relative my-3 text-sm before:absolute before:-left-[31px] before:top-1.5 before:h-2.5 before:w-2.5 before:rounded-full before:border-2 before:bg-background ${
+        auto
+          ? 'text-emerald-700 before:border-emerald-500 dark:text-emerald-400'
+          : muted
+          ? 'text-muted-foreground/70 before:border-border'
+          : 'text-muted-foreground before:border-muted-foreground/50'
+      }`}
+    >
+      {children}
+    </p>
+  );
+}
+
+function StartsWhen({ entry, isFirst }: { entry: Entry; isFirst: boolean }) {
+  if (entry.rightAfter && entry.startsAfter.length === 0) return <Event>Right after</Event>;
+  if (entry.startsAfter.length === 0) {
+    return <Event>{entry.item.number === 1 ? 'Starts the process' : isFirst ? 'Starts on its own' : 'Then'}</Event>;
+  }
+  return (
+    <>
+      {entry.startsAfter.map((s) => {
+        const auto = isApp(s.item.step.performedBy);
+        return (
+          <Event key={s.item.step.id} auto={auto}>
+            Starts when {auto && <Zap className="inline h-3.5 w-3.5 align-[-2px]" />}{' '}
+            <b className="font-semibold text-foreground">{s.item.step.performedBy?.name ?? 'Unassigned'}</b> · {titleOf(s.item.step)}{' '}
+            <span className="text-muted-foreground/70">
+              (step {s.item.number}
+              {s.label ? ` · ${s.label}` : ''})
+            </span>
+          </Event>
+        );
+      })}
+    </>
+  );
+}
+
+function StepCard({ item, total, color, onOpen }: {
+  item: OutlineItem;
+  total: number;
+  color?: string;
+  onOpen: () => void;
+}) {
+  const { step } = item;
+  const apps = [step.performedBy, ...step.uses].filter((e): e is ElementRef => !!e && isApp(e));
+  const appById = new Map(apps.map((a) => [a.id, a]));
+
+  // Checklist grouped by the app each item is done in; untagged items first.
+  const groups: { app: ElementRef | null; items: string[] }[] = [];
+  for (const c of step.checklist) {
+    const app = (c.appId && appById.get(c.appId)) || null;
+    const group = groups.find((g) => g.app?.id === app?.id);
+    if (group) group.items.push(c.text);
+    else groups.push({ app, items: [c.text] });
+  }
+  groups.sort((a, b) => (a.app ? 1 : 0) - (b.app ? 1 : 0));
+  const usedApps = apps.filter((a) => a.id !== step.performedBy?.id);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="relative my-3 block w-full rounded-xl border border-border bg-card px-4 py-3.5 text-left shadow-sm transition-colors hover:border-primary/50"
+    >
+      <span
+        className="absolute -left-[33px] top-4 h-3.5 w-3.5 rounded-full ring-4 ring-background"
+        style={{ backgroundColor: color || 'hsl(var(--primary))' }}
+        aria-hidden="true"
+      />
+      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="tabular-nums">Step {item.number} of {total}</span>
+        {item.branch && <span className="truncate rounded-full bg-muted px-2 py-0.5">{item.branch.label}</span>}
+        {step.stepType === 'Decision' && (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700">Decision</span>
+        )}
+      </span>
+      <span className="mt-1 block text-base font-semibold">{titleOf(step)}</span>
+
+      {groups.length > 0 ? (
+        <span className="mt-2 block space-y-2">
+          {groups.map((g) => (
+            <span key={g.app?.id ?? 'none'} className="block">
+              {g.app && (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <ElementIcon name={g.app.name} image={g.app.image} icon={g.app.icon} typeIcon={g.app.typeIcon} color={g.app.color} size={13} />
+                  In {g.app.name}
+                </span>
+              )}
+              {g.items.map((text, i) => (
+                <span key={i} className={`block text-sm ${g.app ? 'pl-5' : ''}`}>
+                  · {text}
+                </span>
+              ))}
+            </span>
+          ))}
+        </span>
+      ) : (
+        usedApps.length > 0 && (
+          <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {usedApps.map((a) => (
+              <span key={a.id} className="inline-flex items-center gap-1.5">
+                <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.color} size={13} />
+                {a.name}
+              </span>
+            ))}
+          </span>
+        )
+      )}
+    </button>
+  );
+}
+
+function Meanwhile({ items }: { items: OutlineItem[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative my-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between rounded-lg border border-dashed border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+        aria-expanded={open}
+      >
+        <span>
+          Meanwhile · {items.length} step{items.length === 1 ? '' : 's'} by others
+        </span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1.5 pl-3">
+          {items.map((it) => {
+            const auto = isApp(it.step.performedBy);
+            return (
+              <li key={it.step.id} className={`text-xs ${auto ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                <span className="tabular-nums">{it.number}</span> · {auto && <Zap className="inline h-3 w-3 align-[-2px]" />}{' '}
+                <span className="font-medium">{it.step.performedBy?.name ?? 'Unassigned'}</span> · {titleOf(it.step)}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -227,32 +348,5 @@ function Badge({ who, automated, name }: { who: ElementRef | null; automated: bo
     >
       {initials}
     </span>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</h3>;
-}
-
-function HandoffList({ items, direction, empty }: { items: Handoff[]; direction: 'in' | 'out'; empty: string }) {
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
-  return (
-    <ul className="space-y-3">
-      {items.map((h) => (
-        <li key={h.key}>
-          <p className="flex items-center gap-1.5 text-sm font-semibold">
-            {isApp(h.whoRef) && (
-              <ElementIcon name={h.whoRef.name} image={h.whoRef.image} icon={h.whoRef.icon} typeIcon={h.whoRef.typeIcon} color={h.whoRef.color} size={14} />
-            )}
-            {h.who}
-          </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {h.from}
-            <ArrowRight className="mx-1 inline h-3 w-3 align-[-2px]" />
-            {h.to}
-          </p>
-        </li>
-      ))}
-    </ul>
   );
 }

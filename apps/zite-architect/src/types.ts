@@ -17,6 +17,8 @@ export interface ElementRef {
 export interface ChecklistItem {
   id: string;
   text: string;
+  /** The app this item is done in, if any: one of the step's apps. */
+  appId?: string;
 }
 
 export interface ProcessStep {

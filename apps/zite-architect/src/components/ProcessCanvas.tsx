@@ -149,6 +149,38 @@ export default function ProcessCanvas() {
     load();
   }, [load]);
 
+  // A shared link can open the process straight to one person's view.
+  const laneParam = searchParams.get('lane');
+  const byParam = searchParams.get('by');
+  useEffect(() => {
+    if (!laneParam) return;
+    setLaneGrouping(byParam === 'app' ? 'app' : 'people');
+    setOpenLane(laneParam);
+  }, [laneParam, byParam]);
+
+  const closeLane = useCallback(() => {
+    setOpenLane(null);
+    // Drop the link's lane so a reload doesn't reopen it.
+    if (searchParams.has('lane')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('lane');
+      next.delete('by');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const copyLaneLink = useCallback(() => {
+    if (!openLane) return;
+    const params = new URLSearchParams(searchParams);
+    params.set('lane', openLane);
+    params.set('by', laneGrouping);
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    navigator.clipboard.writeText(url).then(
+      () => toast.success('Link copied'),
+      () => toast.error('Could not copy the link'),
+    );
+  }, [openLane, laneGrouping, searchParams]);
+
   const handleCreateElement = useCallback(
     async (name: string, typeId: string) => {
       try {
@@ -518,8 +550,9 @@ export default function ProcessCanvas() {
             grouping={laneGrouping}
             steps={steps}
             connections={connections}
-            onClose={() => setOpenLane(null)}
+            onClose={closeLane}
             onOpenStep={openStep}
+            onCopyLink={copyLaneLink}
           />
         )}
 

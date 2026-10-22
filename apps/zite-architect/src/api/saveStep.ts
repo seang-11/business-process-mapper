@@ -19,7 +19,9 @@ export default createEndpoint({
     produceIds: z.array(z.string()).default([]),
     subProcessId: z.string().nullable().default(null),
     sequence: z.number().default(0),
-    checklist: z.array(z.object({ id: z.string(), text: z.string() })).default([]),
+    checklist: z
+      .array(z.object({ id: z.string(), text: z.string(), appId: z.string().optional() }))
+      .default([]),
     walkthroughLine: z.string().default(''),
   }),
   outputSchema: z.object({ id: z.string() }),

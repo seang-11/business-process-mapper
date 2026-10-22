@@ -62,7 +62,7 @@ export default createEndpoint({
         produces: z.array(elementRef),
         subProcessId: z.string().nullable(),
         subProcessName: z.string(),
-        checklist: z.array(z.object({ id: z.string(), text: z.string() })),
+        checklist: z.array(z.object({ id: z.string(), text: z.string(), appId: z.string().optional() })),
         walkthroughLine: z.string(),
       }),
     ),
@@ -144,7 +144,7 @@ export default createEndpoint({
 
     const steps = versionSteps
       .map((s) => {
-        let checklist: { id: string; text: string }[] = [];
+        let checklist: { id: string; text: string; appId?: string }[] = [];
         if (s.checklist) {
           try {
             const parsed = JSON.parse(s.checklist);

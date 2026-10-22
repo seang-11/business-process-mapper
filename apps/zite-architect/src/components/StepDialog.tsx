@@ -48,6 +48,7 @@ import type {
 } from '@/types';
 import { TYPE_KEYS } from '@/lib/typeKeys';
 import ElementPicker from './ElementPicker';
+import ElementIcon from './ElementIcon';
 
 /**
  * What kind of thing happens here: work, a branch, elapsed time, or another
@@ -212,18 +213,30 @@ function PathList({
   );
 }
 
-/** A checklist row: drag by the handle, edit in place, remove on the right. */
+/** No app picked for a checklist item. Select values can't be empty. */
+const NO_APP = '__none';
+
+/**
+ * A checklist row: drag by the handle, edit in place, say which app it's done
+ * in, remove on the right.
+ */
 function ChecklistRow({
   item,
   index,
+  apps,
   onChange,
+  onAppChange,
   onRemove,
 }: {
   item: ChecklistItem;
   index: number;
+  /** The step's apps; the picker only shows when there is one. */
+  apps: ElementSummary[];
   onChange: (text: string) => void;
+  onAppChange: (appId: string | undefined) => void;
   onRemove: () => void;
 }) {
+  const app = apps.find((a) => a.id === item.appId);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
 
@@ -254,6 +267,34 @@ function ChecklistRow({
         onChange={(e) => onChange(e.target.value)}
         className="h-8 text-xs"
       />
+      {apps.length > 0 && (
+        <Select
+          value={app ? app.id : NO_APP}
+          onValueChange={(v) => onAppChange(v === NO_APP ? undefined : v)}
+        >
+          <SelectTrigger className="h-8 w-[110px] shrink-0 text-xs" aria-label="Done in which app">
+            {app ? (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <ElementIcon name={app.name} image={app.image} icon={app.icon} typeIcon={app.typeIcon} color={app.typeColor} size={12} />
+                <span className="truncate">{app.name}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">App</span>
+            )}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_APP} className="text-xs">No app</SelectItem>
+            {apps.map((a) => (
+              <SelectItem key={a.id} value={a.id} className="text-xs">
+                <span className="flex items-center gap-1.5">
+                  <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.typeColor} size={12} />
+                  {a.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Button
         type="button"
         variant="ghost"
@@ -305,6 +346,14 @@ export default function StepDialog({
     step?.performedBy ? [step.performedBy.id] : [],
   );
   const [uses, setUses] = useState<string[]>(step?.uses.map((u) => u.id) ?? []);
+  // A checklist item can say which of the step's apps it's done in.
+  const checklistApps = useMemo(
+    () =>
+      elements.filter(
+        (e) => e.actorClass === 'System' && (uses.includes(e.id) || performedBy.includes(e.id)),
+      ),
+    [elements, uses, performedBy],
+  );
   const [produces, setProduces] = useState<string[]>(step?.produces.map((p) => p.id) ?? []);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(step?.checklist ?? []);
   const [subProcessId, setSubProcessId] = useState<string | null>(
@@ -677,9 +726,15 @@ export default function StepDialog({
                       key={item.id}
                       item={item}
                       index={idx}
+                      apps={checklistApps}
                       onChange={(text) =>
                         setChecklist((prev) =>
                           prev.map((c) => (c.id === item.id ? { ...c, text } : c)),
+                        )
+                      }
+                      onAppChange={(appId) =>
+                        setChecklist((prev) =>
+                          prev.map((c) => (c.id === item.id ? { ...c, appId } : c)),
                         )
                       }
                       onRemove={() =>
