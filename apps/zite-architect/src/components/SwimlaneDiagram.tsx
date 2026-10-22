@@ -1157,7 +1157,10 @@ export default function SwimlaneDiagram({
                     const x2 = reentryRect.x + reentryRect.width / 2;
                     const y2 = maxY;
                     const drop = 24;
-                    const path = `M ${x1} ${y1 - pad} L ${x1} ${y1 + drop} C ${x1} ${y1 + drop + 12}, ${x2} ${y1 + drop + 12}, ${x2} ${y2 + drop} L ${x2} ${y2 - pad}`;
+                    // The arrow ends on the bottom edge of the step the loop returns to, however
+                    // many lanes up that is, so it always points at one step and never at empty space.
+                    const endY = reentryRect.y + reentryRect.height + 3;
+                    const path = `M ${x1} ${y1 - pad} L ${x1} ${y1 + drop} C ${x1} ${y1 + drop + 12}, ${x2} ${y1 + drop + 12}, ${x2} ${y2 + drop} L ${x2} ${endY}`;
                     const midX = (x1 + x2) / 2;
                     const midY = y1 + drop + 9;
                     const chipW = Math.max(36, returnLabel.length * 6.2 + 16);
