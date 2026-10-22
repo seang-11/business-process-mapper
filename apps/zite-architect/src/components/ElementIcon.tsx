@@ -95,6 +95,10 @@ const LOGO_ALIASES: Record<string, string> = {
   'square pos': 'square',
   'ashby hq': 'ashby',
   ashbyhq: 'ashby',
+  word: 'microsoftword',
+  'microsoft word': 'microsoftword',
+  sharepoint: 'microsoftsharepoint',
+  'microsoft sharepoint': 'microsoftsharepoint',
 };
 
 function stemFromPath(path: string): string {
