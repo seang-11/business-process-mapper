@@ -1,5 +1,7 @@
-import { useMemo, useState, useRef, useEffect, useCallback, forwardRef } from 'react';
-import { Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap } from 'lucide-react';
+import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, forwardRef } from 'react';
+import {
+  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2,
+} from 'lucide-react';
 import type {
   ElementSummary,
   ProcessStep,
@@ -323,6 +325,19 @@ const EDGE_DOT_MAX_S = 6;
 /** Past this length an edge gets a second dot so it never looks empty. */
 const EDGE_SECOND_DOT_PX = 220;
 
+// Zoom. Each button press is one step; Cmd/Ctrl + scroll (and trackpad pinch,
+// which browsers report the same way) zooms smoothly around the cursor.
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 1.2;
+/** Scroll-wheel sensitivity, and a cap so one mouse notch isn't a leap. */
+const ZOOM_WHEEL_RATE = 0.01;
+const ZOOM_WHEEL_MAX_DELTA = 30;
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+
+const ZOOM_BTN =
+  'h-7 w-7 inline-flex items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent';
+
 /** Follows the OS "reduce motion" setting, live. */
 function usePrefersReducedMotion(): boolean {
   const query = '(prefers-reduced-motion: reduce)';
@@ -367,6 +382,44 @@ export default function SwimlaneDiagram({
   const [isDragging, setIsDragging] = useState(false);
   const dragState = useRef<{ active: boolean; startX: number; startY: number; scrollX: number; scrollY: number; moved: boolean } | null>(null);
   const didDragRef = useRef(false);
+
+  // The ref leads the state: wheel events arrive faster than React renders, and
+  // each one has to build on the zoom the last one asked for.
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const contentRef = useRef<HTMLDivElement>(null);
+  /**
+   * The content point that should stay put on screen through a zoom, and where
+   * on screen it sits. Applied once the new size has been laid out.
+   */
+  const zoomAnchor = useRef<{ cx: number; cy: number; mx: number; my: number } | null>(null);
+
+  const zoomTo = useCallback((next: number, at?: { x: number; y: number }) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const z = zoomRef.current;
+    const target = clampZoom(next);
+    if (target === z) return;
+    const mx = at?.x ?? el.clientWidth / 2;
+    const my = at?.y ?? el.clientHeight / 2;
+    // A burst of wheel events can land before the last zoom was laid out, when
+    // scrollLeft is still stale. Keep the point already being held instead.
+    const pending = zoomAnchor.current;
+    zoomAnchor.current = pending
+      ? { ...pending, mx, my }
+      : { cx: (el.scrollLeft + mx) / z, cy: (el.scrollTop + my) / z, mx, my };
+    zoomRef.current = target;
+    setZoom(target);
+  }, []);
+
+  useLayoutEffect(() => {
+    const a = zoomAnchor.current;
+    const el = containerRef.current;
+    if (!a || !el) return;
+    zoomAnchor.current = null;
+    el.scrollLeft = a.cx * zoom - a.mx;
+    el.scrollTop = a.cy * zoom - a.my;
+  }, [zoom]);
 
   const loops = useMemo(() => deriveLoops(steps, connections), [steps, connections]);
 
@@ -490,7 +543,13 @@ export default function SwimlaneDiagram({
     const next = new Map<string, DOMRect>();
     cardRefs.current.forEach((el, id) => {
       const r = el.getBoundingClientRect();
-      next.set(id, new DOMRect(r.x - cr.x + sl, r.y - cr.y + st, r.width, r.height));
+      // The arrows are drawn inside the zoomed content, so they want unzoomed
+      // coordinates; the browser reports everything at its on-screen size.
+      const z = zoomRef.current;
+      next.set(
+        id,
+        new DOMRect((r.x - cr.x + sl) / z, (r.y - cr.y + st) / z, r.width / z, r.height / z),
+      );
     });
     setPositions(next);
   }, []);
@@ -500,7 +559,41 @@ export default function SwimlaneDiagram({
     const obs = new ResizeObserver(measure);
     if (containerRef.current) obs.observe(containerRef.current);
     return () => { clearTimeout(t); obs.disconnect(); };
-  }, [measure, steps, connections, grouping, totalColumns]);
+  }, [measure, steps, connections, grouping, totalColumns, zoom]);
+
+  // Fit shows the whole process at once, but never blows a small one up past
+  // its real size.
+  const fitToScreen = useCallback(() => {
+    const el = containerRef.current;
+    const inner = contentRef.current;
+    if (!el || !inner) return;
+    const z = zoomRef.current;
+    const height = inner.getBoundingClientRect().height / z;
+    const next = clampZoom(Math.min(el.clientWidth / gridMinWidth, el.clientHeight / height, 1));
+    zoomAnchor.current = { cx: 0, cy: 0, mx: 0, my: 0 };
+    zoomRef.current = next;
+    setZoom(next);
+  }, [gridMinWidth]);
+
+  // Listened for by hand: React's onWheel is passive, so it can't stop the page
+  // from zooming itself instead.
+  const hasSteps = steps.length > 0;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const delta = Math.max(-ZOOM_WHEEL_MAX_DELTA, Math.min(ZOOM_WHEEL_MAX_DELTA, e.deltaY));
+      const rect = el.getBoundingClientRect();
+      zoomTo(zoomRef.current * Math.exp(-delta * ZOOM_WHEEL_RATE), {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomTo, hasSteps]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -641,6 +734,8 @@ export default function SwimlaneDiagram({
   }
 
   return (
+    // The controls live outside the scroller so they stay pinned to the corner.
+    <div className="relative h-full">
     <div
       ref={containerRef}
       className={`h-full overflow-auto relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
@@ -650,7 +745,9 @@ export default function SwimlaneDiagram({
       onPointerCancel={handlePointerCancel}
       onLostPointerCapture={handleLostPointerCapture}
     >
-      <div style={{ minWidth: gridMinWidth }} className="relative">
+      {/* CSS zoom rather than a transform: it changes layout size, so the
+          scrollbars, sticky lane labels and panning all keep working. */}
+      <div ref={contentRef} style={{ minWidth: gridMinWidth, zoom }} className="relative">
         {/* SVG overlay for arrows + loop boxes — BEHIND all lane content (z-0)
             so it can never intercept pointer events on the cards. */}
         <svg
@@ -977,6 +1074,48 @@ export default function SwimlaneDiagram({
           <div className="h-2" />
         </div>
       </div>
+    </div>
+
+    <div className="absolute bottom-4 right-4 z-30 flex items-center gap-0.5 rounded-full border border-border bg-card/95 p-1 shadow-md backdrop-blur">
+      <button
+        type="button"
+        className={ZOOM_BTN}
+        onClick={() => zoomTo(zoomRef.current / ZOOM_STEP)}
+        disabled={zoom <= ZOOM_MIN}
+        aria-label="Zoom out"
+        title="Zoom out"
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        className="h-7 min-w-[48px] rounded-full px-2 text-xs font-medium tabular-nums text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => zoomTo(1)}
+        title="Reset to 100%"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+      <button
+        type="button"
+        className={ZOOM_BTN}
+        onClick={() => zoomTo(zoomRef.current * ZOOM_STEP)}
+        disabled={zoom >= ZOOM_MAX}
+        aria-label="Zoom in"
+        title="Zoom in"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+      <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+      <button
+        type="button"
+        className={ZOOM_BTN}
+        onClick={fitToScreen}
+        aria-label="Fit to screen"
+        title="Fit to screen"
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
     </div>
   );
 }
