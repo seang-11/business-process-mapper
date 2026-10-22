@@ -25,6 +25,8 @@ interface Props {
   onClose?: () => void;
   /** Sit inside the Overview instead of covering the screen. */
   embedded?: boolean;
+  /** Viewers can read the comparison but not change it. */
+  readOnly?: boolean;
 }
 
 interface Side {
@@ -113,7 +115,7 @@ const matchesFilter = (r: Row, f: Filter) =>
  * added, or handed to someone else. Numbers up top, then every step in order;
  * click a step to open its full detail.
  */
-export default function CompareVersions({ processName, versions, onClose, embedded }: Props) {
+export default function CompareVersions({ processName, versions, onClose, embedded, readOnly }: Props) {
   const defaults = useMemo(() => {
     const current = versions.find((v) => v.state === 'Current') ?? versions[0];
     const future =
@@ -361,7 +363,7 @@ export default function CompareVersions({ processName, versions, onClose, embedd
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
                     What changes
                   </p>
-                  {notesDraft === null && (
+                  {notesDraft === null && !readOnly && (
                     <button
                       type="button"
                       onClick={() => setNotesDraft(rightNotes)}
@@ -475,7 +477,7 @@ export default function CompareVersions({ processName, versions, onClose, embedd
                           branch={branchOf.get(row.left.id)}
                         >
                           {!row.right && <Tag tone="removed">Removed</Tag>}
-                          {!row.right && unmatchedRight.length > 0 && (
+                          {!readOnly && !row.right && unmatchedRight.length > 0 && (
                             <MatchPicker options={unmatchedRight} onPick={(rid) => fixMatch(rid, row.left!.id)} />
                           )}
                         </StepBox>
@@ -502,10 +504,10 @@ export default function CompareVersions({ processName, versions, onClose, embedd
                           {row.changes.includes('reassigned') && <Tag tone="moved">Reassigned</Tag>}
                           {row.changes.includes('apps') && <Tag tone="plain">Apps changed</Tag>}
                           {row.changes.includes('renamed') && <Tag tone="plain">Renamed</Tag>}
-                          {!row.left && unmatchedLeft.length > 0 && (
+                          {!readOnly && !row.left && unmatchedLeft.length > 0 && (
                             <MatchPicker options={unmatchedLeft} onPick={(lid) => fixMatch(row.right!.id, lid)} />
                           )}
-                          {row.left && (
+                          {!readOnly && row.left && (
                             <button
                               type="button"
                               onClick={() => fixMatch(row.right!.id, null, row.left!.id)}

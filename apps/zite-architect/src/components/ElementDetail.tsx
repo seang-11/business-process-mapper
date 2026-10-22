@@ -11,6 +11,7 @@ import ElementIcon from './ElementIcon';
 import { TokenBadge } from './TokenBadge';
 import ElementDialog from './ElementDialog';
 import DeleteElementDialog from './DeleteElementDialog';
+import { useMe } from '@/lib/me';
 
 type Detail = GetElementDetailOutputType;
 type StepRow = Detail['steps'][number];
@@ -50,6 +51,7 @@ interface UsedProcess {
 export default function ElementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { canEdit } = useMe();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [elements, setElements] = useState<ElementSummary[]>([]);
   const [types, setTypes] = useState<ElementType[]>([]);
@@ -172,10 +174,12 @@ export default function ElementDetail() {
           <span className="truncate font-medium">{el.name}</span>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
-              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
-            </Button>
-            {summary && (
+            {canEdit && (
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+              </Button>
+            )}
+            {canEdit && summary && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -220,7 +224,7 @@ export default function ElementDetail() {
             </div>
             {el.description ? (
               <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">{el.description}</p>
-            ) : (
+            ) : canEdit ? (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
@@ -228,7 +232,7 @@ export default function ElementDetail() {
               >
                 Add a description
               </button>
-            )}
+            ) : null}
           </div>
         </section>
 

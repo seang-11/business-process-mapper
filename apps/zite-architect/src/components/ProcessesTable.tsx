@@ -79,8 +79,9 @@ function PeopleStack({ people }: { people: { id: string; name: string }[] }) {
 interface Props {
   processes: ProcessRow[];
   onOpen: (id: string) => void;
-  onEdit: (process: ProcessRow) => void;
-  onDelete: (process: ProcessRow) => void;
+  /** Leave out for read-only viewers: no Edit or Delete, and the owner is plain text. */
+  onEdit?: (process: ProcessRow) => void;
+  onDelete?: (process: ProcessRow) => void;
 }
 
 export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: Props) {
@@ -126,6 +127,7 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
       ownerName: {
         render: (value, record) => {
           const label = value ? String(value) : 'Unassigned';
+          if (!onEdit) return <span className={value ? '' : 'text-muted-foreground'}>{label}</span>;
           return (
             <button
               type="button"
@@ -199,14 +201,22 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
       visibleColumns={visibleColumns}
       records={filtered as unknown as Record<string, unknown>[]}
       onRowClick={(record) => onOpen(String(record.id))}
-      onEdit={(record) => {
-        const match = processes.find((p) => p.id === String(record.id));
-        if (match) onEdit(match);
-      }}
-      onDelete={(record) => {
-        const match = processes.find((p) => p.id === String(record.id));
-        if (match) onDelete(match);
-      }}
+      onEdit={
+        onEdit
+          ? (record) => {
+              const match = processes.find((p) => p.id === String(record.id));
+              if (match) onEdit(match);
+            }
+          : undefined
+      }
+      onDelete={
+        onDelete
+          ? (record) => {
+              const match = processes.find((p) => p.id === String(record.id));
+              if (match) onDelete(match);
+            }
+          : undefined
+      }
       overrides={overrides}
       onToggleColumn={toggleColumn}
       onReorderColumns={reorderColumns}

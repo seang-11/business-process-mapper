@@ -14,7 +14,8 @@ interface Props {
   steps: ProcessStep[];
   connections: ProcessConnection[];
   onClose: () => void;
-  onEditStep: (step: ProcessStep) => void;
+  /** Leave out for read-only viewers: the Edit step button then isn't shown. */
+  onEditStep?: (step: ProcessStep) => void;
   /** The step editor, docked beside the walkthrough while a step is edited. */
   editor: React.ReactNode;
 }
@@ -101,7 +102,7 @@ export default function Walkthrough({
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-2xl px-8 py-10">
             {item ? (
-              <StepDetail item={item} outline={outline} onGo={go} onEdit={() => onEditStep(item.step)} />
+              <StepDetail item={item} outline={outline} onGo={go} onEdit={onEditStep ? () => onEditStep(item.step) : undefined} />
             ) : (
               <Overview
                 processName={processName}
@@ -310,7 +311,7 @@ function StepDetail({ item, outline, onGo, onEdit }: {
   item: OutlineItem;
   outline: ReturnType<typeof buildOutline>;
   onGo: (id: string) => void;
-  onEdit: () => void;
+  onEdit?: () => void;
 }) {
   const { step } = item;
   const who = step.performedBy;
@@ -327,9 +328,11 @@ function StepDetail({ item, outline, onGo, onEdit }: {
             <span className="truncate rounded-full bg-muted px-2 py-0.5 text-xs">{item.branch.label}</span>
           )}
         </p>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit step
-        </Button>
+        {onEdit && (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit step
+          </Button>
+        )}
       </div>
 
       {/* Hard to miss, so nobody reads an automated step as a job to do. */}

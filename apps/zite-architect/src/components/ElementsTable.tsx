@@ -39,8 +39,9 @@ interface Props {
   elements: ElementSummary[];
   types: ElementType[];
   onOpen: (id: string) => void;
-  onEdit: (element: ElementSummary) => void;
-  onDelete: (element: ElementSummary) => void;
+  /** Leave out for read-only viewers: no Edit or Delete in the row menu. */
+  onEdit?: (element: ElementSummary) => void;
+  onDelete?: (element: ElementSummary) => void;
 }
 
 export default function ElementsTable({
@@ -304,8 +305,8 @@ export default function ElementsTable({
         onSortChange={(key, dir) => setSort({ key, dir })}
         records={filtered as unknown as Record<string, unknown>[]}
         onRowClick={(record) => onOpen(String(record.id))}
-        onEdit={(record) => onEdit(record as unknown as ElementSummary)}
-        onDelete={(record) => onDelete(record as unknown as ElementSummary)}
+        onEdit={onEdit ? (record) => onEdit(record as unknown as ElementSummary) : undefined}
+        onDelete={onDelete ? (record) => onDelete(record as unknown as ElementSummary) : undefined}
         overrides={overrides}
         linkedNames={linkedNames}
         onToggleColumn={toggleColumn}

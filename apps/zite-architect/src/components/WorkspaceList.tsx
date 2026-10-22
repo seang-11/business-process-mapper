@@ -14,11 +14,13 @@ import EditProcessDialog from './EditProcessDialog';
 import ElementsTable from './ElementsTable';
 import ProcessesTable from './ProcessesTable';
 import VersionFooter from './VersionFooter';
+import { useMe } from '@/lib/me';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
 
 export default function WorkspaceList() {
   const navigate = useNavigate();
+  const { canEdit } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'elements' ? 'elements' : 'processes';
 
@@ -103,30 +105,32 @@ export default function WorkspaceList() {
           </nav>
 
           {/* The primary action sits in the same place on both tabs. */}
-          <Button
-            size="sm"
-            className="mb-2 h-8 shrink-0"
-            onClick={() => (tab === 'processes' ? setCreating(true) : setCreatingElement(true))}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {tab === 'processes' ? 'New process' : 'New element'}
-          </Button>
+          {canEdit && (
+            <Button
+              size="sm"
+              className="mb-2 h-8 shrink-0"
+              onClick={() => (tab === 'processes' ? setCreating(true) : setCreatingElement(true))}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              {tab === 'processes' ? 'New process' : 'New element'}
+            </Button>
+          )}
         </div>
 
         {tab === 'processes' ? (
           <ProcessesTable
             processes={processes}
             onOpen={(processId) => navigate(`/process/${processId}`)}
-            onEdit={(p) => setEditProcessTarget(p)}
-            onDelete={(p) => setDeleteProcessTarget(p)}
+            onEdit={canEdit ? (p) => setEditProcessTarget(p) : undefined}
+            onDelete={canEdit ? (p) => setDeleteProcessTarget(p) : undefined}
           />
         ) : (
           <ElementsTable
             elements={elements}
             types={types}
             onOpen={(id) => navigate(`/element/${id}`)}
-            onEdit={(el) => setEditTarget(el)}
-            onDelete={(el) => setDeleteTarget(el)}
+            onEdit={canEdit ? (el) => setEditTarget(el) : undefined}
+            onDelete={canEdit ? (el) => setDeleteTarget(el) : undefined}
           />
         )}
       </div>

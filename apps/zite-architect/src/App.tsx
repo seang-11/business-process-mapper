@@ -5,6 +5,8 @@ import { Toaster } from '@project/components/ui/sonner';
 import WorkspaceList from '@/components/WorkspaceList';
 import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
+import People from '@/components/People';
+import { MeProvider } from '@/lib/me';
 
 export default function App() {
   const { user, isLoading } = useAuth();
@@ -22,13 +24,16 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Toaster />
-      <Routes>
-        <Route path="/" element={<WorkspaceList />} />
-        <Route path="/process/:id" element={<ProcessCanvas />} />
-        <Route path="/element/:id" element={<ElementDetail />} />
-      </Routes>
-    </BrowserRouter>
+    <MeProvider>
+      <BrowserRouter>
+        <Toaster />
+        <Routes>
+          <Route path="/" element={<WorkspaceList />} />
+          <Route path="/process/:id" element={<ProcessCanvas />} />
+          <Route path="/element/:id" element={<ElementDetail />} />
+          <Route path="/people" element={<People />} />
+        </Routes>
+      </BrowserRouter>
+    </MeProvider>
   );
 }

@@ -55,6 +55,7 @@ import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
 import Train from './Train';
+import { useMe } from '@/lib/me';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -66,6 +67,8 @@ type ProcessRow = GetProcessesOutputType['processes'][number];
 export default function ProcessCanvas() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Viewers can look at everything, but nothing in here changes the process for them.
+  const { canEdit } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const versionParam = searchParams.get('version');
 
@@ -101,16 +104,18 @@ export default function ProcessCanvas() {
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
   const openNewStep = useCallback(() => {
+    if (!canEdit) return;
     setEditStep(null);
     setOpenLane(null);
     setAddingStep(true);
-  }, []);
+  }, [canEdit]);
 
   const openStep = useCallback((s: ProcessStep) => {
+    if (!canEdit) return;
     setAddingStep(false);
     setOpenLane(null);
     setEditStep(s);
-  }, []);
+  }, [canEdit]);
 
   const closeEditor = useCallback(() => {
     setEditStep(null);
@@ -489,6 +494,7 @@ export default function ProcessCanvas() {
             </Select>
           )}
 
+          {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More">
@@ -518,6 +524,7 @@ export default function ProcessCanvas() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {steps.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setTrainOpen(true)}>
@@ -531,9 +538,11 @@ export default function ProcessCanvas() {
             </Button>
           )}
 
-          <Button size="sm" onClick={openNewStep}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add step
-          </Button>
+          {canEdit && (
+            <Button size="sm" onClick={openNewStep}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add step
+            </Button>
+          )}
         </div>
       </header>
 
@@ -546,9 +555,11 @@ export default function ProcessCanvas() {
               ? `${replacedVersion.name} is still how the work is done today.`
               : 'No version is live yet.'}
           </span>
-          <Button size="sm" className="ml-auto h-7 text-xs" onClick={openMakeLive}>
-            <Radio className="mr-1.5 h-3 w-3" /> Make live
-          </Button>
+          {canEdit && (
+            <Button size="sm" className="ml-auto h-7 text-xs" onClick={openMakeLive}>
+              <Radio className="mr-1.5 h-3 w-3" /> Make live
+            </Button>
+          )}
         </div>
       )}
 
@@ -666,7 +677,7 @@ export default function ProcessCanvas() {
               )}
               <div className="min-h-0 flex-1">
                 {overviewMode === 'side' && process && process.versions.length > 1 ? (
-                  <CompareVersions embedded processName={process.name} versions={process.versions} />
+                  <CompareVersions embedded readOnly={!canEdit} processName={process.name} versions={process.versions} />
                 ) : (
                   <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
                 )}
@@ -680,9 +691,9 @@ export default function ProcessCanvas() {
             elements={elements}
             onClickStep={openStep}
             onOpenSubProcess={(processId) => navigate(`/process/${processId}`)}
-            onMoveStep={handleMoveStep}
+            onMoveStep={canEdit ? handleMoveStep : undefined}
             laneOrder={laneOrder[laneGrouping]}
-            onReorderLanes={handleReorderLanes}
+            onReorderLanes={canEdit ? handleReorderLanes : undefined}
             viewKey={graph?.version?.id ?? id}
             onOpenLane={(lane) => {
               setEditStep(null);
@@ -731,7 +742,7 @@ export default function ProcessCanvas() {
               setWalkthroughOpen(false);
               setWalkthroughEditId(null);
             }}
-            onEditStep={(s) => setWalkthroughEditId(s.id)}
+            onEditStep={canEdit ? (s) => setWalkthroughEditId(s.id) : undefined}
             editor={
               walkthroughEditId && steps.some((s) => s.id === walkthroughEditId) ? (
                 <StepDialog
