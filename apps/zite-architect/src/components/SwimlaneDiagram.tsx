@@ -1396,6 +1396,15 @@ export default function SwimlaneDiagram({
                     )}
                     <span className="text-xs font-semibold truncate">{lane}</span>
                   </div>
+                  {onOpenLane && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLane(lane)}
+                      className="absolute right-2.5 top-3 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      View
+                    </button>
+                  )}
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     {laneType ? `${laneType} · ` : ''}
                     {personName ? `${personName} · ` : ''}

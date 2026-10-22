@@ -33,7 +33,7 @@ import type { ElementRef, ElementSummary, ElementType, ProcessConnection, Proces
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
-import LanePanel from './LanePanel';
+import LaneDialog from './LaneDialog';
 import Walkthrough from './Walkthrough';
 import WalkthroughPicker from './WalkthroughPicker';
 import StepDialog from './StepDialog';
@@ -506,7 +506,6 @@ export default function ProcessCanvas() {
             laneOrder={laneOrder[laneGrouping]}
             onReorderLanes={handleReorderLanes}
             viewKey={graph?.version?.id ?? id}
-            focusLane={openLane}
             onOpenLane={(lane) => {
               setEditStep(null);
               setAddingStep(false);
@@ -536,7 +535,7 @@ export default function ProcessCanvas() {
         )}
 
         {openLane && !addingStep && !editStep && (
-          <LanePanel
+          <LaneDialog
             lane={openLane}
             grouping={laneGrouping}
             steps={steps}
