@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
 import {
-  ArrowLeftRight, BarChart3, GraduationCap, Home, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Users,
+  ArrowLeftRight, BarChart3, GraduationCap, Home, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Search, Users,
 } from 'lucide-react';
 import { useMe } from '@/lib/me';
 import CommandMenu from './CommandMenu';
@@ -30,7 +30,7 @@ export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { me, canEdit, isRealAdmin } = useMe();
+  const { me, isRealAdmin } = useMe();
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -186,22 +186,6 @@ export default function AppShell() {
             </NavLink>
           )}
         </nav>
-
-        {canEdit && (
-          <div className="px-3 pt-3">
-            <button
-              type="button"
-              onClick={() => navigate('/?new=process')}
-              title="New process"
-              className={`flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 ${
-                collapsed ? 'px-0' : ''
-              }`}
-            >
-              <Plus className="h-4 w-4 shrink-0" />
-              {!collapsed && 'New process'}
-            </button>
-          </div>
-        )}
 
         <div className="flex-1" />
 
