@@ -19,6 +19,7 @@ import ProcessCards from './ProcessCards';
 import ProcessBoard from './ProcessBoard';
 import ProcessGrid from './ProcessGrid';
 import Welcome from './Welcome';
+import TalkItThrough from './TalkItThrough';
 import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
@@ -148,6 +149,8 @@ export default function WorkspaceList() {
               : 'What do you want to learn today?'}
           </p>
         </section>
+
+        {canEdit && <TalkItThrough />}
 
         <div className="mb-5 flex items-end justify-between gap-3 border-b border-border">
           <nav className="flex gap-6">
