@@ -31,10 +31,20 @@ const LOGO_ALIASES: Record<string, string> = {
   'google drive': 'googledrive',
   'google calendar': 'googlecalendar',
   'google sheets': 'googlesheets',
+  'google meet': 'googlemeet',
   'frame.io': 'frameio',
   'adobe premiere pro': 'premierepro',
   'premiere pro': 'premierepro',
   'mail chimp': 'mailchimp',
+  'cal.com': 'calcom',
+  cal: 'calcom',
+  'e-signatures': 'esignatures',
+  'e signatures': 'esignatures',
+  esignatures: 'esignatures',
+  docusign: 'esignatures',
+  'docu sign': 'esignatures',
+  linkedin: 'linkedin',
+  'linked in': 'linkedin',
 };
 
 function stemFromPath(path: string): string {
