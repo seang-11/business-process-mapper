@@ -12,14 +12,12 @@ const one = (v?: string | string[]): string | null =>
  */
 export default createEndpoint({
   authenticated: true,
-  description: 'Move a step on the map: change who performs it, which app leads it, or its phase',
+  description: 'Move a step to another lane: change who performs it and which app leads it',
   inputSchema: z.object({
     id: z.string(),
     versionId: z.string(),
     performedById: z.string().min(1),
     useIds: z.array(z.string()),
-    /** The phase it lands in; null is Unsorted, absent leaves it where it was. */
-    phaseId: z.string().nullable().optional(),
   }),
   outputSchema: z.object({ id: z.string() }),
   execute: async ({ input }) => {
@@ -33,7 +31,6 @@ export default createEndpoint({
       record: {
         performedBy: [input.performedById],
         uses: input.useIds,
-        ...(input.phaseId !== undefined ? { phase: input.phaseId ? [input.phaseId] : [] } : {}),
       },
     });
     await zite.processVersions.update({

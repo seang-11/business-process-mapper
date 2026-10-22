@@ -63,10 +63,8 @@ export default createEndpoint({
         subProcessId: z.string().nullable(),
         subProcessName: z.string(),
         checklist: z.array(z.object({ id: z.string(), text: z.string() })),
-        phaseId: z.string().nullable(),
       }),
     ),
-    phases: z.array(z.object({ id: z.string(), name: z.string(), sortOrder: z.number() })),
     /** Lane order someone dragged into place, per view, as lane ids. Empty = automatic. */
     laneOrder: z.object({ people: z.array(z.string()), app: z.array(z.string()) }),
     connections: z.array(
@@ -81,7 +79,7 @@ export default createEndpoint({
   }),
   execute: async ({ input }) => {
     if (!input.versionId && !input.processId) {
-      return { version: null, steps: [], connections: [], phases: [], laneOrder: NO_ORDER };
+      return { version: null, steps: [], connections: [], laneOrder: NO_ORDER };
     }
 
     const [typeRes, elementRes, versionRes] = await Promise.all([
@@ -101,7 +99,7 @@ export default createEndpoint({
       version = forProcess.find((v) => v.state === 'Current') ?? forProcess[0];
     }
 
-    if (!version) return { version: null, steps: [], connections: [], phases: [], laneOrder: NO_ORDER };
+    if (!version) return { version: null, steps: [], connections: [], laneOrder: NO_ORDER };
 
     const typeById = new Map(typeRes.records.map((t) => [t.id, t]));
     const elementById = new Map(elementRes.records.map((e) => [e.id, e]));
@@ -127,10 +125,9 @@ export default createEndpoint({
 
     const processId = one(version.process);
 
-    const [stepRes, connRes, phaseRes, layoutRes] = await Promise.all([
+    const [stepRes, connRes, layoutRes] = await Promise.all([
       zite.steps.findAll({ limit: 2000 }),
       zite.stepConnections.findAll({ limit: 2000 }),
-      zite.phases.findAll({ limit: 2000 }),
       zite.mapLayouts.findAll({ limit: 2000 }),
     ]);
 
@@ -140,11 +137,6 @@ export default createEndpoint({
       app: parseOrder(layout?.appLaneOrder),
     };
 
-    const phases = phaseRes.records
-      .filter((p) => one(p.process) === processId)
-      .map((p) => ({ id: p.id, name: p.name ?? '', sortOrder: p.sortOrder ?? 0 }))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    const phaseIds = new Set(phases.map((p) => p.id));
 
     const versionSteps = stepRes.records.filter((s) => one(s.version) === version!.id);
     const stepIds = new Set(versionSteps.map((s) => s.id));
@@ -173,8 +165,6 @@ export default createEndpoint({
           subProcessId,
           subProcessName: subProcessId ? elementById.get(subProcessId)?.name ?? '' : '',
           checklist,
-          // A phase from somewhere else (or since removed) counts as Unsorted.
-          phaseId: phaseIds.has(one(s.phase) ?? '') ? one(s.phase) : null,
         };
       })
       .sort((a, b) => a.sequence - b.sequence);
@@ -201,7 +191,6 @@ export default createEndpoint({
       },
       steps,
       connections,
-      phases,
       laneOrder,
     };
   },

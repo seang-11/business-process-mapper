@@ -5,7 +5,6 @@ import {
 import type {
   ElementRef,
   ElementSummary,
-  Phase,
   ProcessStep,
   ProcessConnection,
   ProcessLoop,
@@ -43,11 +42,8 @@ interface Props {
   onClickStep: (step: ProcessStep) => void;
   /** Drill into the process a sub-process step expands into. */
   onOpenSubProcess: (processId: string) => void;
-  /** Dragging a card into another lane or phase. Without it, cards don't drag. */
+  /** Dragging a card into another lane. Without it, cards don't drag. */
   onMoveStep?: (step: ProcessStep, move: StepMove) => void;
-  /** This process's phases, in order. None means the map isn't split up. */
-  phases: Phase[];
-  onEditPhases?: () => void;
   /** Lane ids in the order someone dragged them into, for this view. */
   laneOrder: string[];
   /** Dragging a lane name. Without it, lanes keep their automatic order. */
@@ -56,31 +52,12 @@ interface Props {
   viewKey?: string;
 }
 
-/** What a drop means for the step: who does it, its apps in order, its phase. */
+/** What a lane change means for the step: who does it, and its apps in order. */
 export interface StepMove {
   performedById: string;
   useIds: string[];
-  /** The phase it lands in, null for Unsorted, absent when it stays put. */
-  phaseId?: string | null;
-  /** Where it ended up, in words, for telling the reader what happened. */
+  /** The lane it lands in, for telling the reader what happened. */
   destination: string;
-}
-
-/** Steps not yet put in a phase. Listed first, as the pile to sort from. */
-const UNSORTED = '__unsorted__';
-/** Extra breathing room between phases, on top of the normal column gap. */
-const PHASE_GAP = 40;
-/** The phase header row, in px. */
-const PHASE_HEADER_H = 40;
-
-interface PhaseSpan {
-  key: string;
-  name: string;
-  /** 1-based position among the real phases; 0 for Unsorted. */
-  number: number;
-  stepCount: number;
-  start: number;
-  end: number;
 }
 
 /** Longest owner chain worth following before calling it a cycle. */
@@ -452,9 +429,6 @@ const LOOP_ARC_Y = 28;
 const LOOP_GUTTER = 8;
 const LOOP_PILL_W = 260;
 
-/** An empty phase sits as a thin strip until a card is being dragged. */
-const THIN_PHASE_W = 56;
-
 // Zoomed out, cards show less but their titles shrink more slowly than the
 // map, so the whole process stays readable at fit-to-screen. Hovering a card
 // always brings back everything.
@@ -513,8 +487,6 @@ export default function SwimlaneDiagram({
   onClickStep,
   onOpenSubProcess,
   onMoveStep,
-  phases,
-  onEditPhases,
   laneOrder,
   onReorderLanes,
   viewKey,
@@ -547,22 +519,12 @@ export default function SwimlaneDiagram({
   // become a card drag, a press on the background only ever a pan.
   const cardDrag = useRef<{ stepId: string; startX: number; startY: number; moved: boolean } | null>(null);
   const [cardDragView, setCardDragView] = useState<{
-    stepId: string; x: number; y: number; lane: string | null; phase: string | null;
+    stepId: string; x: number; y: number; lane: string | null;
   } | null>(null);
   const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
   // Dragging a lane by its name, to reorder lanes.
   const laneDrag = useRef<{ lane: string; startY: number; moved: boolean } | null>(null);
   const [laneDragView, setLaneDragView] = useState<{ lane: string; x: number; y: number; insertAt: number } | null>(null);
-  const phaseEls = useRef<Map<string, HTMLDivElement>>(new Map());
-
-  /** The phase under the pointer, judged by the header cells above the bands. */
-  const phaseAt = useCallback((clientX: number): string | null => {
-    for (const [key, el] of phaseEls.current) {
-      const r = el.getBoundingClientRect();
-      if (clientX >= r.left && clientX < r.right) return key;
-    }
-    return null;
-  }, []);
 
   const laneAt = useCallback((clientY: number): string | null => {
     for (const [lane, el] of laneEls.current) {
@@ -612,53 +574,15 @@ export default function SwimlaneDiagram({
 
   const loops = useMemo(() => deriveLoops(steps, connections), [steps, connections]);
 
-  const showPhases = phases.length > 0;
-  const phaseIdSet = useMemo(() => new Set(phases.map((p) => p.id)), [phases]);
-  const phaseKeyOf = useCallback(
-    (s: ProcessStep) => (s.phaseId && phaseIdSet.has(s.phaseId) ? s.phaseId : UNSORTED),
-    [phaseIdSet],
-  );
-
-  // With phases, each one is laid out on its own and the blocks sit side by
-  // side in phase order, so a phase is always one unbroken stretch of the map.
-  // Arrows between phases simply cross the boundary. An empty phase still gets
-  // a column, so there's somewhere to drop the first step.
-  const { columnMap, phaseSpans, totalColumns } = useMemo(() => {
+  const columnMap = useMemo(() => {
     const laneById = new Map(steps.map((s) => [s.id, getLaneKey(s, grouping)]));
-    const laneOf = (id: string) => laneById.get(id) ?? '';
-    if (!showPhases) {
-      const col = assignColumns(steps, connections, loops, laneOf);
-      const total = steps.length ? Math.max(...Array.from(col.values())) + 1 : 0;
-      return { columnMap: col, phaseSpans: [] as PhaseSpan[], totalColumns: total };
-    }
-    const groups: { key: string; name: string; number: number }[] = [];
-    if (steps.some((s) => phaseKeyOf(s) === UNSORTED)) {
-      groups.push({ key: UNSORTED, name: 'Unsorted', number: 0 });
-    }
-    phases.forEach((p, i) => groups.push({ key: p.id, name: p.name, number: i + 1 }));
+    return assignColumns(steps, connections, loops, (id) => laneById.get(id) ?? '');
+  }, [steps, connections, loops, grouping]);
 
-    const col = new Map<string, number>();
-    const spans: PhaseSpan[] = [];
-    let offset = 0;
-    for (const g of groups) {
-      const groupSteps = steps.filter((s) => phaseKeyOf(s) === g.key);
-      const ids = new Set(groupSteps.map((s) => s.id));
-      let width = 1;
-      if (groupSteps.length) {
-        const local = assignColumns(
-          groupSteps,
-          connections.filter((c) => ids.has(c.fromStepId) && ids.has(c.toStepId)),
-          loops.filter((l) => ids.has(l.reentryStepId) && l.stepIds.every((sid) => ids.has(sid))),
-          laneOf,
-        );
-        for (const [sid, c] of local) col.set(sid, c + offset);
-        width = Math.max(...Array.from(local.values())) + 1;
-      }
-      spans.push({ ...g, stepCount: groupSteps.length, start: offset, end: offset + width - 1 });
-      offset += width;
-    }
-    return { columnMap: col, phaseSpans: spans, totalColumns: offset };
-  }, [steps, connections, loops, phases, showPhases, phaseKeyOf, grouping]);
+  const totalColumns = useMemo(() => {
+    if (steps.length === 0) return 0;
+    return Math.max(...Array.from(columnMap.values())) + 1;
+  }, [columnMap, steps.length]);
 
   // Labels sit in the gutter between two columns, so the gutter has to be wide
   // enough to hold them. Reserving that space up front is what makes placement
@@ -678,50 +602,16 @@ export default function SwimlaneDiagram({
       list.push(c.label);
       labelsByGap.set(from, list);
     }
-    const phaseEnds = new Set(phaseSpans.map((p) => p.end));
-    return Array.from({ length: Math.max(0, totalColumns - 1) }, (_, i) => {
-      const gap = labelGutterWidth(labelsByGap.get(i) ?? [], COL_GAP);
-      return phaseEnds.has(i) ? Math.max(gap, PHASE_GAP) : gap;
-    });
-  }, [connections, columnMap, totalColumns, phaseSpans]);
-
-  // Mid-drag every column is full width, so an empty phase is a real target.
-  const cardDragging = cardDragView !== null;
-  const colWidths = useMemo(() => {
-    const widths = Array.from({ length: totalColumns }, () => CARD_W);
-    if (!cardDragging) {
-      for (const span of phaseSpans) {
-        if (span.stepCount > 0) continue;
-        for (let c = span.start; c <= span.end; c += 1) widths[c] = THIN_PHASE_W;
-      }
-    }
-    return widths;
-  }, [totalColumns, phaseSpans, cardDragging]);
+    return Array.from({ length: Math.max(0, totalColumns - 1) }, (_, i) =>
+      labelGutterWidth(labelsByGap.get(i) ?? [], COL_GAP),
+    );
+  }, [connections, columnMap, totalColumns]);
 
   const gridMinWidth =
     LANE_LABEL_W +
-    colWidths.reduce((sum, w) => sum + w, 0) +
+    totalColumns * CARD_W +
     columnGaps.reduce((sum, g) => sum + g, 0) +
     PAD_X * 2;
-
-  // Where each phase sits horizontally, in the same unzoomed space as the
-  // cards. Columns are fixed-width, so this is arithmetic, not measurement.
-  // Each band reaches halfway into the gap on either side.
-  const phaseBands = useMemo(() => {
-    const colX = (c: number) => {
-      let x = LANE_LABEL_W + PAD_X;
-      for (let i = 0; i < c; i += 1) x += colWidths[i] + (columnGaps[i] ?? 0);
-      return x;
-    };
-    return phaseSpans.map((span) => {
-      const left = span.start === 0 ? LANE_LABEL_W : colX(span.start) - (columnGaps[span.start - 1] ?? 0) / 2;
-      const right =
-        span.end === totalColumns - 1
-          ? gridMinWidth
-          : colX(span.end) + colWidths[span.end] + (columnGaps[span.end] ?? 0) / 2;
-      return { ...span, left, width: right - left, thin: colWidths[span.start] < CARD_W };
-    });
-  }, [phaseSpans, columnGaps, totalColumns, gridMinWidth, colWidths]);
 
   const { lanes, stepsByLane } = useMemo(() => {
     const laneOrder: string[] = [];
@@ -827,43 +717,14 @@ export default function SwimlaneDiagram({
     [grouping, laneTargets],
   );
 
-  /**
-   * What dropping a step at a spot would change, or null if nothing would or
-   * it can't go there. Up and down picks the lane, left and right the phase;
-   * one drop can do both.
-   */
+  /** What dropping a step into a lane would change, or null if it can't go there. */
   const resolveDrop = useCallback(
-    (step: ProcessStep, lane: string | null, phaseKey: string | null): StepMove | null => {
-      const currentLane = stepLaneMap.get(step.id) ?? '';
-      const laneChanged = lane != null && lane !== currentLane;
-      const phaseChanged = showPhases && phaseKey != null && phaseKey !== phaseKeyOf(step);
-      if (!laneChanged && !phaseChanged) return null;
-
-      let who: { performedById: string; useIds: string[] } | null;
-      if (laneChanged) {
-        who = laneMove(step, lane);
-      } else {
-        who = step.performedBy
-          ? { performedById: step.performedBy.id, useIds: step.uses.map((u) => u.id) }
-          : null;
-      }
-      if (!who) return null;
-
-      const phaseName = phaseChanged
-        ? phaseKey === UNSORTED
-          ? 'Unsorted'
-          : phases.find((p) => p.id === phaseKey)?.name ?? ''
-        : '';
-      const destination =
-        laneChanged && phaseChanged ? `${lane} in ${phaseName}` : laneChanged ? lane : phaseName;
-
-      return {
-        ...who,
-        ...(phaseChanged ? { phaseId: phaseKey === UNSORTED ? null : phaseKey } : {}),
-        destination,
-      };
+    (step: ProcessStep, lane: string | null): StepMove | null => {
+      if (lane == null || lane === stepLaneMap.get(step.id)) return null;
+      const who = laneMove(step, lane);
+      return who ? { ...who, destination: lane } : null;
     },
-    [stepLaneMap, showPhases, phaseKeyOf, laneMove, phases],
+    [stepLaneMap, laneMove],
   );
 
   const isCrossLane = useCallback(
@@ -1180,7 +1041,6 @@ export default function SwimlaneDiagram({
         x: e.clientX,
         y: e.clientY,
         lane: laneAt(e.clientY),
-        phase: phaseAt(e.clientX),
       });
       return;
     }
@@ -1204,7 +1064,7 @@ export default function SwimlaneDiagram({
     if (!el) return;
     el.scrollLeft = ds.scrollX - dx;
     el.scrollTop = ds.scrollY - dy;
-  }, [laneAt, phaseAt, laneInsertAt]);
+  }, [laneAt, laneInsertAt]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const ld = laneDrag.current;
@@ -1236,7 +1096,7 @@ export default function SwimlaneDiagram({
       didDragRef.current = true;
       setTimeout(() => { didDragRef.current = false; }, 0);
       const step = steps.find((s) => s.id === cd.stepId);
-      const move = step ? resolveDrop(step, laneAt(e.clientY), phaseAt(e.clientX)) : null;
+      const move = step ? resolveDrop(step, laneAt(e.clientY)) : null;
       if (step && move) onMoveStep?.(step, move);
       return;
     }
@@ -1251,7 +1111,7 @@ export default function SwimlaneDiagram({
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
   }, [
-    resetDrag, laneAt, phaseAt, steps, resolveDrop, onMoveStep,
+    resetDrag, laneAt, steps, resolveDrop, onMoveStep,
     orderedLanes, laneInsertAt, laneIdOf, onReorderLanes,
   ]);
 
@@ -1273,12 +1133,7 @@ export default function SwimlaneDiagram({
     dragStep && cardDragView?.lane && cardDragView.lane !== stepLaneMap.get(dragStep.id)
       ? cardDragView.lane
       : null;
-  const dropPhase =
-    dragStep && showPhases && cardDragView?.phase && cardDragView.phase !== phaseKeyOf(dragStep)
-      ? cardDragView.phase
-      : null;
-  const dropMove =
-    dragStep && cardDragView ? resolveDrop(dragStep, cardDragView.lane, cardDragView.phase) : null;
+  const dropMove = dragStep && cardDragView ? resolveDrop(dragStep, cardDragView.lane) : null;
   const dropOk = dropMove !== null;
 
   const handleClickStep = useCallback((step: ProcessStep) => {
@@ -1329,53 +1184,6 @@ export default function SwimlaneDiagram({
               <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke={EDGE_COLOR_HI} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
             </marker>
           </defs>
-
-          {/* Phase bands: every other phase faintly tinted, a dashed rule
-              between them, Unsorted in grey so it reads as a holding pen. */}
-          {phaseBands.map((band, i) => (
-            <g key={band.key} className="pointer-events-none">
-              <rect
-                className="pointer-events-none"
-                x={band.left}
-                y={0}
-                width={band.width}
-                height="100%"
-                fill={
-                  dropPhase === band.key && dropOk
-                    ? 'hsl(var(--primary) / 0.08)'
-                    : band.key === UNSORTED
-                    ? 'hsl(var(--muted-foreground) / 0.06)'
-                    : i % 2 === 1
-                    ? 'hsl(var(--primary) / 0.03)'
-                    : 'transparent'
-                }
-              />
-              {i > 0 && (
-                <line
-                  className="pointer-events-none"
-                  x1={band.left}
-                  x2={band.left}
-                  y1={0}
-                  y2="100%"
-                  stroke="hsl(var(--border))"
-                  strokeWidth={1}
-                  strokeDasharray="4 4"
-                />
-              )}
-              {band.stepCount === 0 && !band.thin && (
-                <text
-                  className="pointer-events-none"
-                  x={band.left + band.width / 2}
-                  y={PHASE_HEADER_H + 28}
-                  textAnchor="middle"
-                  fill="hsl(var(--muted-foreground) / 0.7)"
-                  fontSize={11}
-                >
-                  Drag steps here
-                </text>
-              )}
-            </g>
-          ))}
 
           {loopArcs.map((arc) => {
             const highlighted = highlightedConnections.has(arc.key);
@@ -1554,62 +1362,6 @@ export default function SwimlaneDiagram({
         {/* Lanes — wrapped in relative z-10 so lane content (including step
             cards) stacks above both SVG background layers. */}
         <div className="relative z-10">
-          {showPhases && (
-            <div
-              className="flex border-b border-border sticky top-0 z-[16] bg-muted/90 backdrop-blur-sm"
-              style={{ height: PHASE_HEADER_H }}
-            >
-              <div className="w-44 shrink-0 border-r border-border bg-card px-4 flex items-center justify-between sticky left-0 z-[17]">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Phases
-                </span>
-                {onEditPhases && (
-                  <button
-                    type="button"
-                    onClick={onEditPhases}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label="Edit phases"
-                    title="Edit phases"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-              <div className="relative flex-1">
-                {phaseBands.map((band) => (
-                  <div
-                    key={band.key}
-                    ref={(el) => {
-                      if (el) phaseEls.current.set(band.key, el);
-                      else phaseEls.current.delete(band.key);
-                    }}
-                    className={`absolute inset-y-0 flex items-center gap-2 px-4 min-w-0 transition-colors ${
-                      dropPhase === band.key ? (dropOk ? 'bg-primary/10' : 'bg-destructive/5') : ''
-                    }`}
-                    style={{ left: band.left - LANE_LABEL_W, width: band.width }}
-                  >
-                    {band.key === UNSORTED ? (
-                      <span className="text-xs font-medium italic text-muted-foreground truncate">
-                        Unsorted · drag steps into a phase
-                      </span>
-                    ) : (
-                      <>
-                        <span className="h-5 min-w-5 px-1 inline-flex items-center justify-center rounded-full bg-card border border-border text-[10px] font-semibold tabular-nums text-muted-foreground">
-                          {band.number}
-                        </span>
-                        <span className="text-xs font-semibold truncate">{band.name}</span>
-                        {!band.thin && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            {band.stepCount} step{band.stepCount === 1 ? '' : 's'}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {orderedLanes.map((lane, laneIdx) => {
             const laneSteps = stepsByLane.get(lane) || [];
             if (laneSteps.length === 0) return null;
@@ -1732,7 +1484,7 @@ export default function SwimlaneDiagram({
                             : 'z-[3]'
                         }`}
                         style={{
-                          width: colWidths[colIdx],
+                          width: CARD_W,
                           marginRight: colIdx < totalColumns - 1 ? columnGaps[colIdx] : 0,
                         }}
                       >
@@ -1791,13 +1543,11 @@ export default function SwimlaneDiagram({
         style={{ left: cardDragView.x - 20, top: cardDragView.y - 16 }}
       >
         <p className="text-xs font-medium line-clamp-1">{dragStep.title}</p>
-        <p className={`mt-1 text-[10px] ${(dropLane || dropPhase) && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
+        <p className={`mt-1 text-[10px] ${dropLane && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
           {dropMove
             ? `Move to ${dropMove.destination}`
-            : !dropLane && !dropPhase
-            ? showPhases
-              ? 'Drop in another lane or phase'
-              : 'Drop in another lane'
+            : !dropLane
+            ? 'Drop in another lane'
             : grouping === 'people' && dropLane === AUTOMATED_LANE
             ? 'Add an app to this step first'
             : "Can't move here"}

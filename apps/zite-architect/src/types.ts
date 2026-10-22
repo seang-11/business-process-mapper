@@ -32,15 +32,6 @@ export interface ProcessStep {
   subProcessId: string | null;
   subProcessName: string;
   checklist: ChecklistItem[];
-  /** Null while the step is still Unsorted. */
-  phaseId: string | null;
-}
-
-/** A named stage of one process. Each process keeps its own, in order. */
-export interface Phase {
-  id: string;
-  name: string;
-  sortOrder: number;
 }
 
 export interface ProcessConnection {

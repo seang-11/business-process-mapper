@@ -65,8 +65,6 @@ export default createEndpoint({
           subProcess: one(s.subProcess) ? [one(s.subProcess) as string] : [],
           sequence: s.sequence ?? 0,
           checklist: s.checklist ?? '',
-          // Phases belong to the process, so the copy lands in the same ones.
-          phase: one(s.phase) ? [one(s.phase) as string] : [],
         },
       });
       idMap.set(s.id, created.id);
