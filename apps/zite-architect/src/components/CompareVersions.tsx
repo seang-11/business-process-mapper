@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getProcessGraph, matchVersionSteps, setStepMatch } from 'zitejs/api';
-import { X, Zap, ArrowRight } from 'lucide-react';
+import { X, Zap, ArrowRight, ChevronDown, CornerDownRight, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
 import { Switch } from '@project/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@project/components/ui/select';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@project/components/ui/hover-card';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import ElementIcon from './ElementIcon';
@@ -32,6 +31,7 @@ interface Side {
 }
 
 type Change = 'automated' | 'manual' | 'reassigned' | 'apps' | 'renamed';
+type Filter = 'automated' | 'removed' | 'added' | 'moved';
 
 interface Row {
   left: ProcessStep | null;
@@ -52,6 +52,34 @@ function handoffs(side: Side) {
   }).length;
 }
 
+interface Stats {
+  steps: number;
+  byHand: number;
+  automated: number;
+  handoffs: number;
+  tools: number;
+}
+
+/** The numbers a side adds up to, so two versions can be read as a before and after. */
+function statsOf(side: Side): Stats {
+  const apps = new Set<string>();
+  let automated = 0;
+  for (const s of side.steps) {
+    if (isApp(s.performedBy)) {
+      automated += 1;
+      apps.add(s.performedBy!.id);
+    }
+    for (const u of s.uses) if (isApp(u)) apps.add(u.id);
+  }
+  return {
+    steps: side.steps.length,
+    byHand: side.steps.length - automated,
+    automated,
+    handoffs: handoffs(side),
+    tools: apps.size,
+  };
+}
+
 function changesBetween(l: ProcessStep, r: ProcessStep): Change[] {
   const out: Change[] = [];
   const lp = l.performedBy;
@@ -66,10 +94,22 @@ function changesBetween(l: ProcessStep, r: ProcessStep): Change[] {
   return out;
 }
 
+const rowKey = (r: Row) => `${r.left?.id ?? ''}|${r.right?.id ?? ''}`;
+
+const matchesFilter = (r: Row, f: Filter) =>
+  f === 'automated'
+    ? r.changes.includes('automated')
+    : f === 'removed'
+    ? !!r.left && !r.right
+    : f === 'added'
+    ? !r.left && !!r.right
+    : r.changes.includes('reassigned') || r.changes.includes('manual');
+
 /**
  * Two versions of a process side by side, matched step for step, so you can
  * see at a glance what a future version changes: what gets automated, cut,
- * added, or handed to someone else.
+ * added, or handed to someone else. Numbers up top, then every step in order;
+ * click a step to open its full detail.
  */
 export default function CompareVersions({ processName, versions, onClose, embedded }: Props) {
   const defaults = useMemo(() => {
@@ -89,6 +129,8 @@ export default function CompareVersions({ processName, versions, onClose, embedd
   const [matches, setMatches] = useState<{ leftId: string; rightId: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlyChanges, setOnlyChanges] = useState(false);
+  const [filter, setFilter] = useState<Filter | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     if (!leftId || !rightId || leftId === rightId) return;
@@ -149,27 +191,49 @@ export default function CompareVersions({ processName, versions, onClose, embedd
     return rows;
   }, [left, right, matches]);
 
+  // "If Guest", "If Employee": which branch of a decision a step sits on.
+  const branchOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const side of [left, right]) {
+      if (!side) continue;
+      for (const it of buildOutline(side.steps, side.connections).items) {
+        if (it.branch?.label) m.set(it.step.id, it.branch.label);
+      }
+    }
+    return m;
+  }, [left, right]);
+
   const summary = useMemo(() => {
     const count = (c: Change) => rows.filter((r) => r.changes.includes(c)).length;
     return {
-      leftSteps: left?.steps.length ?? 0,
-      rightSteps: right?.steps.length ?? 0,
       automated: count('automated'),
       manual: count('manual'),
       reassigned: count('reassigned'),
       apps: count('apps'),
       removed: rows.filter((r) => r.left && !r.right).length,
       added: rows.filter((r) => !r.left && r.right).length,
-      handoffDelta: left && right ? handoffs(right) - handoffs(left) : 0,
     };
-  }, [rows, left, right]);
+  }, [rows]);
+
+  const before = useMemo(() => (left ? statsOf(left) : null), [left]);
+  const after = useMemo(() => (right ? statsOf(right) : null), [right]);
 
   const changed = (r: Row) => !r.left || !r.right || r.changes.length > 0;
   const anyChange = rows.some(changed);
-  const shown = onlyChanges ? rows.filter(changed) : rows;
+  const shown = rows.filter((r) => (!onlyChanges || changed(r)) && (!filter || matchesFilter(r, filter)));
   const unmatchedLeft = rows.filter((r) => r.left && !r.right).map((r) => r.left!);
   const unmatchedRight = rows.filter((r) => !r.left && r.right).map((r) => r.right!);
-  const versionName = (id: string) => versions.find((v) => v.id === id)?.name ?? '';
+  const version = (id: string) => versions.find((v) => v.id === id);
+  const allOpen = shown.length > 0 && shown.every((r) => open.has(rowKey(r)));
+
+  const toggleRow = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const toggleFilter = (f: Filter) => setFilter((cur) => (cur === f ? null : f));
 
   const fixMatch = async (rightStepId: string, leftStepId: string | null, alsoClear?: string) => {
     try {
@@ -188,28 +252,40 @@ export default function CompareVersions({ processName, versions, onClose, embedd
       aria-label={`Compare versions of ${processName}`}
     >
       {!embedded && (
-      <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{processName}</p>
-          <p className="text-xs text-muted-foreground">Compare versions</p>
-        </div>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close (Esc)">
-          <X className="h-5 w-5" />
-        </Button>
-      </header>
+        <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{processName}</p>
+            <p className="text-xs text-muted-foreground">Compare versions</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" title="Close (Esc)">
+            <X className="h-5 w-5" />
+          </Button>
+        </header>
       )}
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-6 py-6">
+        <div className="mx-auto max-w-6xl px-6 pb-10 pt-6">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             Compare
             <VersionSelect value={leftId} versions={versions} onChange={setLeftId} />
             with
             <VersionSelect value={rightId} versions={versions} onChange={setRightId} />
-            <label className="ml-auto flex items-center gap-2 text-sm">
-              <Switch checked={onlyChanges} onCheckedChange={setOnlyChanges} />
-              Only show changes
-            </label>
+            <div className="ml-auto flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpen(allOpen ? new Set() : new Set(shown.map((r) => rowKey(r))))
+                }
+                className="inline-flex items-center gap-1.5 text-sm hover:text-foreground"
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5" />
+                {allOpen ? 'Collapse all' : 'Expand all'}
+              </button>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={onlyChanges} onCheckedChange={setOnlyChanges} />
+                Only show changes
+              </label>
+            </div>
           </div>
 
           {leftId === rightId ? (
@@ -218,21 +294,48 @@ export default function CompareVersions({ processName, versions, onClose, embedd
             <p className="mt-10 text-sm text-muted-foreground">Loading…</p>
           ) : (
             <>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Pill tone="plain">
-                  {summary.leftSteps} steps <ArrowRight className="mx-0.5 inline h-3 w-3" /> {summary.rightSteps} steps
-                </Pill>
-                {summary.automated > 0 && <Pill tone="auto"><Zap className="mr-0.5 inline h-3 w-3" />{summary.automated} automated</Pill>}
-                {summary.removed > 0 && <Pill tone="removed">{summary.removed} removed</Pill>}
-                {summary.added > 0 && <Pill tone="new">{summary.added} new</Pill>}
-                {summary.reassigned > 0 && <Pill tone="moved">{summary.reassigned} reassigned</Pill>}
-                {summary.manual > 0 && <Pill tone="moved">{summary.manual} now done by hand</Pill>}
-                {summary.apps > 0 && <Pill tone="plain">{summary.apps} with app changes</Pill>}
-                {summary.handoffDelta !== 0 && (
-                  <Pill tone="plain">
-                    {Math.abs(summary.handoffDelta)} {summary.handoffDelta < 0 ? 'fewer' : 'more'} handoff
-                    {Math.abs(summary.handoffDelta) === 1 ? '' : 's'}
+              {before && after && (
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <StatTile label="Steps" before={before.steps} after={after.steps} better="none" />
+                  <StatTile label="Done by people" before={before.byHand} after={after.byHand} better="down" />
+                  <StatTile label="Automated" before={before.automated} after={after.automated} better="up" />
+                  <StatTile label="Handoffs" before={before.handoffs} after={after.handoffs} better="down" />
+                  <StatTile label="Tools used" before={before.tools} after={after.tools} better="none" />
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Jump to:</span>
+                {summary.automated > 0 && (
+                  <Pill tone="auto" active={filter === 'automated'} onClick={() => toggleFilter('automated')}>
+                    <Zap className="mr-0.5 inline h-3 w-3" />
+                    {summary.automated} automated
                   </Pill>
+                )}
+                {summary.added > 0 && (
+                  <Pill tone="new" active={filter === 'added'} onClick={() => toggleFilter('added')}>
+                    {summary.added} new
+                  </Pill>
+                )}
+                {summary.removed > 0 && (
+                  <Pill tone="removed" active={filter === 'removed'} onClick={() => toggleFilter('removed')}>
+                    {summary.removed} removed
+                  </Pill>
+                )}
+                {summary.reassigned + summary.manual > 0 && (
+                  <Pill tone="moved" active={filter === 'moved'} onClick={() => toggleFilter('moved')}>
+                    {summary.reassigned + summary.manual} reassigned
+                  </Pill>
+                )}
+                {summary.apps > 0 && <Pill tone="plain">{summary.apps} with app changes</Pill>}
+                {filter && (
+                  <button
+                    type="button"
+                    onClick={() => setFilter(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    Show all
+                  </button>
                 )}
               </div>
 
@@ -243,63 +346,81 @@ export default function CompareVersions({ processName, versions, onClose, embedd
                 </p>
               )}
 
-              <div className="mt-6 grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <span />
-                <span className="truncate">{versionName(leftId)}</span>
-                <span className="truncate">{versionName(rightId)}</span>
+              {/* Stays in view while you scroll, so you always know which side is which. */}
+              <div className="sticky top-0 z-10 -mx-6 mt-6 border-b border-border bg-background/95 px-6 py-2 backdrop-blur">
+                <div className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3">
+                  <span />
+                  <ColumnHead name={version(leftId)?.name ?? ''} state={version(leftId)?.state ?? ''} />
+                  <ColumnHead name={version(rightId)?.name ?? ''} state={version(rightId)?.state ?? ''} />
+                </div>
               </div>
 
-              <ol className="mt-2 space-y-2">
-                {shown.map((row, i) => (
-                  <li
-                    key={`${row.left?.id ?? ''}|${row.right?.id ?? ''}`}
-                    className="group grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3"
-                  >
-                    <span className="pt-3 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
-                    {row.left ? (
-                      <StepBox step={row.left} side="left" tone={row.right ? 'plain' : 'removed'}>
-                        {!row.right && <Tag tone="removed">Removed</Tag>}
-                        {!row.right && unmatchedRight.length > 0 && (
-                          <MatchPicker
-                            options={unmatchedRight}
-                            onPick={(rid) => fixMatch(rid, row.left!.id)}
-                          />
-                        )}
-                      </StepBox>
-                    ) : (
-                      <Gap>Not in this version</Gap>
-                    )}
-                    {row.right ? (
-                      <StepBox
-                        step={row.right}
-                        was={row.left}
-                        side="right"
-                        tone={!row.left ? 'new' : row.changes.includes('automated') ? 'auto' : 'plain'}
-                      >
-                        {!row.left && <Tag tone="new">New</Tag>}
-                        {row.changes.includes('automated') && <Tag tone="auto"><Zap className="mr-0.5 inline h-3 w-3" />Automated</Tag>}
-                        {row.changes.includes('manual') && <Tag tone="moved">Now done by hand</Tag>}
-                        {row.changes.includes('reassigned') && <Tag tone="moved">Reassigned</Tag>}
-                        {row.changes.includes('apps') && <Tag tone="plain">Apps changed</Tag>}
-                        {row.changes.includes('renamed') && <Tag tone="plain">Renamed</Tag>}
-                        {!row.left && unmatchedLeft.length > 0 && (
-                          <MatchPicker options={unmatchedLeft} onPick={(lid) => fixMatch(row.right!.id, lid)} />
-                        )}
-                        {row.left && (
-                          <button
-                            type="button"
-                            onClick={() => fixMatch(row.right!.id, null, row.left!.id)}
-                            className="ml-auto text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground hover:underline group-hover:opacity-100"
-                          >
-                            Not the same step
-                          </button>
-                        )}
-                      </StepBox>
-                    ) : (
-                      <Gap>Removed</Gap>
-                    )}
-                  </li>
-                ))}
+              {shown.length === 0 && (
+                <p className="mt-6 text-sm text-muted-foreground">Nothing matches that filter.</p>
+              )}
+
+              <ol className="mt-3 space-y-2">
+                {shown.map((row, i) => {
+                  const key = rowKey(row);
+                  const isOpen = open.has(key);
+                  return (
+                    <li key={key} className="group grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3">
+                      <span className="pt-3 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                      {row.left ? (
+                        <StepBox
+                          step={row.left}
+                          tone={row.right ? 'plain' : 'removed'}
+                          open={isOpen}
+                          onToggle={() => toggleRow(key)}
+                          branch={branchOf.get(row.left.id)}
+                        >
+                          {!row.right && <Tag tone="removed">Removed</Tag>}
+                          {!row.right && unmatchedRight.length > 0 && (
+                            <MatchPicker options={unmatchedRight} onPick={(rid) => fixMatch(rid, row.left!.id)} />
+                          )}
+                        </StepBox>
+                      ) : (
+                        <Gap>Not in this version</Gap>
+                      )}
+                      {row.right ? (
+                        <StepBox
+                          step={row.right}
+                          was={row.left}
+                          tone={!row.left ? 'new' : row.changes.includes('automated') ? 'auto' : 'plain'}
+                          open={isOpen}
+                          onToggle={() => toggleRow(key)}
+                          branch={branchOf.get(row.right.id)}
+                        >
+                          {!row.left && <Tag tone="new">New</Tag>}
+                          {row.changes.includes('automated') && (
+                            <Tag tone="auto">
+                              <Zap className="mr-0.5 inline h-3 w-3" />
+                              Automated
+                            </Tag>
+                          )}
+                          {row.changes.includes('manual') && <Tag tone="moved">Now done by hand</Tag>}
+                          {row.changes.includes('reassigned') && <Tag tone="moved">Reassigned</Tag>}
+                          {row.changes.includes('apps') && <Tag tone="plain">Apps changed</Tag>}
+                          {row.changes.includes('renamed') && <Tag tone="plain">Renamed</Tag>}
+                          {!row.left && unmatchedLeft.length > 0 && (
+                            <MatchPicker options={unmatchedLeft} onPick={(lid) => fixMatch(row.right!.id, lid)} />
+                          )}
+                          {row.left && (
+                            <button
+                              type="button"
+                              onClick={() => fixMatch(row.right!.id, null, row.left!.id)}
+                              className="ml-auto text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground hover:underline group-hover:opacity-100"
+                            >
+                              Not the same step
+                            </button>
+                          )}
+                        </StepBox>
+                      ) : (
+                        <Gap>Removed</Gap>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             </>
           )}
@@ -320,12 +441,72 @@ const TONES = {
 } as const;
 type Tone = keyof typeof TONES;
 
-function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
-  return <span className={`rounded-full px-3 py-1 text-sm font-medium ${TONES[tone]}`}>{children}</span>;
+function Pill({ tone, active, onClick, children }: {
+  tone: Tone;
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const base = `rounded-full px-3 py-1 text-sm font-medium ${TONES[tone]}`;
+  if (!onClick) return <span className={base}>{children}</span>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={!!active}
+      className={`${base} transition-shadow hover:shadow-sm ${active ? 'ring-2 ring-foreground/40' : ''}`}
+    >
+      {children}
+    </button>
+  );
 }
 
 function Tag({ tone, children }: { tone: Tone; children: React.ReactNode }) {
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONES[tone]}`}>{children}</span>;
+}
+
+/** One before-and-after number. Green when the change is the good kind. */
+function StatTile({ label, before, after, better }: {
+  label: string;
+  before: number;
+  after: number;
+  better: 'up' | 'down' | 'none';
+}) {
+  const delta = after - before;
+  const good = better === 'none' || delta === 0 ? null : better === 'down' ? delta < 0 : delta > 0;
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 flex items-baseline gap-1.5 tabular-nums">
+        <span className="text-sm text-muted-foreground">{before}</span>
+        <ArrowRight className="h-3 w-3 self-center text-muted-foreground" />
+        <span className="text-xl font-semibold leading-none">{after}</span>
+        {delta !== 0 && (
+          <span
+            className={`text-xs font-medium ${
+              good === null ? 'text-muted-foreground' : good ? 'text-emerald-600' : 'text-amber-600'
+            }`}
+          >
+            {delta > 0 ? '+' : ''}
+            {delta}
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function ColumnHead({ name, state }: { name: string; state: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="truncate text-sm font-semibold">{name}</span>
+      {state && (
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {state}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function Gap({ children }: { children: React.ReactNode }) {
@@ -344,13 +525,20 @@ const BORDERS: Record<Tone, string> = {
   moved: 'border-amber-400/70',
 };
 
-function StepBox({ step, was, tone, side, children }: {
+/**
+ * One step in one version: who does it, what it says, which tools it touches.
+ * Click to open the rest (checklist, outputs, what changed). Both sides of a
+ * row open together, so the before and after stay level.
+ */
+function StepBox({ step, was, tone, open, onToggle, branch, children }: {
   step: ProcessStep;
   /** The matching step in the other version, to say what changed. */
   was?: ProcessStep | null;
   tone: Tone;
-  /** Which column it's in, so the details open away from the middle. */
-  side: 'left' | 'right';
+  open: boolean;
+  onToggle: () => void;
+  /** Which branch of a decision this step sits on, if any. */
+  branch?: string;
   children?: React.ReactNode;
 }) {
   const who = step.performedBy;
@@ -360,33 +548,74 @@ function StepBox({ step, was, tone, side, children }: {
   const beforeApps = was ? appsOf(was) : [];
   const added = was ? apps.filter((a) => !beforeApps.some((b) => b.id === a.id)) : [];
   const dropped = beforeApps.filter((b) => !apps.some((a) => a.id === b.id));
+  const accent = isApp(who) ? 'rgb(16 185 129)' : who?.color || 'hsl(var(--border))';
 
   return (
-    <HoverCard openDelay={250} closeDelay={80}>
-      <HoverCardTrigger asChild>
-        <div className={`cursor-default rounded-lg border bg-card px-3 py-2.5 transition-shadow hover:shadow-md ${BORDERS[tone]}`}>
-          <p className={`text-sm font-medium ${tone === 'removed' ? 'text-muted-foreground line-through decoration-red-400/60' : ''}`}>
-            {step.title}
-          </p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-            {isApp(who) && <Zap className="h-3 w-3 text-emerald-600" />}
-            <span className={changedHands ? 'font-semibold text-foreground' : ''}>{who?.name ?? 'Unassigned'}</span>
-            {changedHands && <span>(was {before?.name ?? 'unassigned'})</span>}
-          </p>
-          {apps.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {apps.map((a) => (
-                <AppChip key={a.id} app={a} added={added.includes(a)} />
-              ))}
-            </div>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      onClick={onToggle}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle())}
+      style={{ borderLeftWidth: 4, borderLeftColor: accent }}
+      className={`cursor-pointer rounded-lg border bg-card px-3 py-2.5 transition-shadow hover:shadow-md ${BORDERS[tone]}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+          {isApp(who) && <Zap className="h-3 w-3 text-emerald-600" />}
+          <span className={`font-semibold ${changedHands ? 'text-foreground' : ''}`}>{who?.name ?? 'Unassigned'}</span>
+          {changedHands && <span>(was {before?.name ?? 'unassigned'})</span>}
+          {step.stepType === 'Decision' && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Decision</span>
           )}
-          {children && <div className="mt-2 flex flex-wrap items-center gap-1.5">{children}</div>}
+          {step.stepType === 'Wait' && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium">Wait</span>
+          )}
+        </p>
+        <ChevronDown
+          className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </div>
+
+      <p
+        className={`mt-1 text-sm font-medium ${
+          tone === 'removed' ? 'text-muted-foreground line-through decoration-red-400/60' : ''
+        }`}
+      >
+        {step.title}
+      </p>
+
+      {branch && (
+        <p className="mt-1 flex items-center gap-1 text-[11px] italic text-muted-foreground">
+          <CornerDownRight className="h-3 w-3" />
+          {branch}
+        </p>
+      )}
+
+      {!open && step.description && (
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{step.description}</p>
+      )}
+
+      {apps.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {apps.map((a) => (
+            <AppChip key={a.id} app={a} added={added.some((x) => x.id === a.id)} />
+          ))}
         </div>
-      </HoverCardTrigger>
-      <HoverCardContent side={side} align="start" className="w-80">
-        <StepDetails step={step} was={was} changedHands={changedHands} added={added} dropped={dropped} />
-      </HoverCardContent>
-    </HoverCard>
+      )}
+
+      {open && (
+        <div className="mt-3 border-t border-border pt-3">
+          <StepDetails step={step} was={was} changedHands={changedHands} added={added} dropped={dropped} />
+        </div>
+      )}
+
+      {children && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -405,7 +634,7 @@ function AppChip({ app, added }: { app: ElementRef; added?: boolean }) {
   );
 }
 
-/** Everything about a step, shown on hover: who, notes, apps and what changed, checklist, outputs. */
+/** Everything about a step: who, notes, apps and what changed, checklist, outputs. */
 function StepDetails({ step, was, changedHands, added, dropped }: {
   step: ProcessStep;
   was?: ProcessStep | null;
@@ -422,13 +651,10 @@ function StepDetails({ step, was, changedHands, added, dropped }: {
 
   return (
     <div className="space-y-3 text-sm">
-      <div>
-        <p className="font-semibold leading-snug">{step.title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {isApp(who) ? `Runs automatically in ${who?.name}` : `Done by ${who?.name ?? 'nobody yet'}`}
-          {changedHands && ` · was ${was?.performedBy?.name ?? 'unassigned'}`}
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {isApp(who) ? `Runs automatically in ${who?.name}` : `Done by ${who?.name ?? 'nobody yet'}`}
+        {changedHands && ` · was ${was?.performedBy?.name ?? 'unassigned'}`}
+      </p>
 
       {step.description && <p className="text-muted-foreground">{step.description}</p>}
 
@@ -458,8 +684,13 @@ function StepDetails({ step, was, changedHands, added, dropped }: {
       )}
 
       {step.produces.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Produces <span className="text-foreground">{step.produces.map((p) => p.name).join(', ')}</span>
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          Produces
+          {step.produces.map((p) => (
+            <span key={p.id} className="rounded-full border border-border px-2 py-0.5 text-foreground">
+              {p.name}
+            </span>
+          ))}
         </p>
       )}
 

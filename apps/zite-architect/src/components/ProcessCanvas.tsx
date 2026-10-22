@@ -62,7 +62,7 @@ export default function ProcessCanvas() {
   /** The whole process as one scrolling timeline instead of the map. */
   const [showOverview, setShowOverview] = useState(false);
   /** Inside the Overview: one version, or Current and Future side by side. */
-  const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('single');
+  const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('side');
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
@@ -514,6 +514,16 @@ export default function ProcessCanvas() {
               {process && process.versions.length > 1 && (
                 <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2">
                   <div className="flex overflow-hidden rounded-md border border-border text-xs">
+                    <button
+                      className={`border-r border-border px-3 py-1.5 font-medium transition-colors ${
+                        overviewMode === 'side'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => setOverviewMode('side')}
+                    >
+                      Side by side
+                    </button>
                     {/* Each version is its own tab, so the one on screen is always named. */}
                     {process.versions.map((v) => {
                       const active = overviewMode === 'single' && graph?.version?.id === v.id;
@@ -534,16 +544,6 @@ export default function ProcessCanvas() {
                         </button>
                       );
                     })}
-                    <button
-                      className={`border-l border-border px-3 py-1.5 font-medium transition-colors ${
-                        overviewMode === 'side'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => setOverviewMode('side')}
-                    >
-                      Side by side
-                    </button>
                   </div>
                 </div>
               )}
