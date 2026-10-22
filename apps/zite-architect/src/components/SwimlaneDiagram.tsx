@@ -1422,9 +1422,9 @@ export default function SwimlaneDiagram({
                       type="button"
                       onClick={() => onOpenLane(lane)}
                       style={{ zoom: textScale }}
-                      className="absolute right-2.5 top-3 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                      className="absolute bottom-2.5 right-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-primary opacity-0 transition-opacity hover:underline focus-visible:opacity-100 group-hover:opacity-100"
                     >
-                      View
+                      View <ArrowRight className="h-3 w-3" />
                     </button>
                   )}
                 </div>
