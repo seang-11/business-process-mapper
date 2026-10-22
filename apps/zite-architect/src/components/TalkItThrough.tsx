@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getWorkspaceLink, GetWorkspaceLinkOutputType } from 'zitejs/api';
 import { Check, ChevronDown, Copy, Mic, Plug, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { toast } from 'sonner';
@@ -8,8 +9,19 @@ import wisprLogo from '../assets/logos/wisprflow.svg';
 
 const OPEN_KEY = 'bpm_talk_open_v2';
 
-const PROMPT = `You are helping me add a business process to my Business Process Mapper app in Zite.
+type Links = GetWorkspaceLinkOutputType;
 
+const buildPrompt = (links: Links | null) => `You are helping me add a business process to my Business Process Mapper app in Zite.
+${
+  links
+    ? `
+My Zite workspace: ${links.workspaceHomeUrl}
+The app's editor: ${links.editorUrl}
+The live app: ${links.appUrl}
+Use the Zite workspace that matches those links. Do not touch any other workspace.
+`
+    : ''
+}
 First, look at the app's tables in my Zite workspace (Processes, Steps, Elements, and so on) so you know how a process is stored. Do not change anything yet.
 
 Then interview me about one process. Rules:
@@ -40,6 +52,12 @@ export default function TalkItThrough() {
   });
   const [mode, setMode] = useState<Mode>('ready');
   const [copied, setCopied] = useState(false);
+  // This app's own links, so the prompt points the AI at the right workspace.
+  const [links, setLinks] = useState<Links | null>(null);
+  useEffect(() => {
+    getWorkspaceLink({}).then(setLinks).catch(() => setLinks(null));
+  }, []);
+  const PROMPT = buildPrompt(links);
 
   const toggle = () => {
     const next = !open;

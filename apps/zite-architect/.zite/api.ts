@@ -16,6 +16,7 @@ import type { default as _GetMeEp } from '../src/api/getMe';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
+import type { default as _GetWorkspaceLinkEp } from '../src/api/getWorkspaceLink';
 import type { default as _GoLiveEp } from '../src/api/goLive';
 import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
@@ -98,6 +99,11 @@ export type GetTaxonomyInputType = NonNullable<_GetTaxonomyCfg['inputSchema']> e
 export type GetTaxonomyOutputType = Awaited<ReturnType<_GetTaxonomyCfg['execute']>>;
 export const getTaxonomy = createCaller<GetTaxonomyInputType, GetTaxonomyOutputType>('getTaxonomy');
 
+type _GetWorkspaceLinkCfg = typeof _GetWorkspaceLinkEp;
+export type GetWorkspaceLinkInputType = NonNullable<_GetWorkspaceLinkCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetWorkspaceLinkCfg['execute']>[0]['input'];
+export type GetWorkspaceLinkOutputType = Awaited<ReturnType<_GetWorkspaceLinkCfg['execute']>>;
+export const getWorkspaceLink = createCaller<GetWorkspaceLinkInputType, GetWorkspaceLinkOutputType>('getWorkspaceLink');
+
 type _GoLiveCfg = typeof _GoLiveEp;
 export type GoLiveInputType = NonNullable<_GoLiveCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GoLiveCfg['execute']>[0]['input'];
 export type GoLiveOutputType = Awaited<ReturnType<_GoLiveCfg['execute']>>;
@@ -169,6 +175,7 @@ export const api = {
   getProcessGraph,
   getProcesses,
   getTaxonomy,
+  getWorkspaceLink,
   goLive,
   listEditors,
   matchVersionSteps,
