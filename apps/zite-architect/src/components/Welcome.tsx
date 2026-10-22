@@ -39,8 +39,8 @@ export default function Welcome({ firstName, onDone }: Props) {
             <>
               <h2 className="text-2xl font-semibold tracking-tight">Pick a process, then your role</h2>
               <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Every process has a card on the home page. Tap Start training, and you'll see the whole picture first.
-                Then pick your role to see exactly what you do.
+                Every process is on the home page. Open one and press Start training, or switch to Cards for a Start training
+                button on each. You'll see the whole picture first, then pick your role to see exactly what you do.
               </p>
               <div className="mx-auto mt-6 max-w-xs rounded-xl border border-border bg-card p-4 text-left shadow-sm">
                 <div className="flex items-center justify-between">

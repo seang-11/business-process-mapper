@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
-import { Workflow, Boxes, Plus, Network, LayoutGrid, List, Search } from 'lucide-react';
+import { Workflow, Boxes, Plus, Network, LayoutGrid, Table2, Columns3, Grid3x3, Search } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import { Skeleton } from '@project/components/ui/skeleton';
@@ -16,11 +16,22 @@ import ElementsTable from './ElementsTable';
 import ProcessesTable from './ProcessesTable';
 import VersionFooter from './VersionFooter';
 import ProcessCards from './ProcessCards';
+import ProcessBoard from './ProcessBoard';
+import ProcessGrid from './ProcessGrid';
 import Welcome from './Welcome';
 import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
+
+type HomeView = 'table' | 'cards' | 'board' | 'grid';
+
+const VIEWS: { key: HomeView; label: string; Icon: typeof Table2 }[] = [
+  { key: 'table', label: 'Table', Icon: Table2 },
+  { key: 'cards', label: 'Cards', Icon: LayoutGrid },
+  { key: 'board', label: 'Board', Icon: Columns3 },
+  { key: 'grid', label: 'Grid', Icon: Grid3x3 },
+];
 
 const SEG_TRACK = 'flex shrink-0 rounded-lg bg-muted p-0.5 text-xs';
 const segBtn = (active: boolean) =>
@@ -65,15 +76,15 @@ export default function WorkspaceList() {
   const [deleteProcessTarget, setDeleteProcessTarget] = useState<ProcessRow | null>(null);
   const [editProcessTarget, setEditProcessTarget] = useState<ProcessRow | null>(null);
   /** Cards are the friendly front door; the table is still one click away. */
-  const [viewChoice, setViewChoice] = useState<'cards' | 'table' | null>(() => {
+  const [viewChoice, setViewChoice] = useState<HomeView | null>(() => {
     const saved = storedFlag('bpm_home_view');
-    return saved === 'cards' || saved === 'table' ? saved : null;
+    return saved === 'table' || saved === 'cards' || saved === 'board' || saved === 'grid' ? saved : null;
   });
-  // Editors and admins land on the table; viewers on the friendlier cards. A choice they make sticks.
-  const view = viewChoice ?? (canEdit ? 'table' : 'cards');
+  // The table is where everyone lands. A view they pick sticks.
+  const view: HomeView = viewChoice ?? 'table';
   const [query, setQuery] = useState('');
 
-  const chooseView = (next: 'cards' | 'table') => {
+  const chooseView = (next: HomeView) => {
     setViewChoice(next);
     storeFlag('bpm_home_view', next);
   };
@@ -169,12 +180,11 @@ export default function WorkspaceList() {
           <div className="mb-2 flex items-center gap-2">
             {tab === 'processes' && (
               <div className={SEG_TRACK}>
-                <button className={segBtn(view === 'cards')} onClick={() => chooseView('cards')} aria-label="Cards">
-                  <LayoutGrid className="h-3.5 w-3.5" /> Cards
-                </button>
-                <button className={segBtn(view === 'table')} onClick={() => chooseView('table')} aria-label="Table">
-                  <List className="h-3.5 w-3.5" /> Table
-                </button>
+                {VIEWS.map(({ key, label, Icon }) => (
+                  <button key={key} className={segBtn(view === key)} onClick={() => chooseView(key)} aria-label={label}>
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </button>
+                ))}
               </div>
             )}
             {canEdit && (
@@ -190,7 +200,7 @@ export default function WorkspaceList() {
           </div>
         </div>
 
-        {tab === 'processes' && view === 'cards' ? (
+        {tab === 'processes' && view !== 'table' ? (
           <>
             {processes.length > 0 && (
               <div className="relative mb-4 w-full sm:w-64">
@@ -223,20 +233,29 @@ export default function WorkspaceList() {
                 )}
               </div>
             ) : (
-              <ProcessCards
-                processes={processes.filter((p) => {
-                  const q = query.trim().toLowerCase();
-                  return (
+              (() => {
+                const q = query.trim().toLowerCase();
+                const visible = processes.filter(
+                  (p) =>
                     !q ||
                     p.name.toLowerCase().includes(q) ||
                     p.description.toLowerCase().includes(q) ||
                     p.people.some((x) => x.name.toLowerCase().includes(q)) ||
-                    p.apps.some((x) => x.name.toLowerCase().includes(q))
-                  );
-                })}
-                onOpen={(processId) => navigate(`/process/${processId}`)}
-                onTrain={(processId) => navigate(`/process/${processId}?train=all&view=process`)}
-              />
+                    p.apps.some((x) => x.name.toLowerCase().includes(q)),
+                );
+                const open = (processId: string) => navigate(`/process/${processId}`);
+                const train = (processId: string) => navigate(`/process/${processId}?train=all&view=process`);
+                if (visible.length === 0) {
+                  return <p className="py-12 text-center text-sm text-muted-foreground">No processes match that search.</p>;
+                }
+                return view === 'board' ? (
+                  <ProcessBoard processes={visible} onOpen={open} onTrain={train} />
+                ) : view === 'grid' ? (
+                  <ProcessGrid processes={visible} onOpen={open} />
+                ) : (
+                  <ProcessCards processes={visible} onOpen={open} onTrain={train} />
+                );
+              })()
             )}
           </>
         ) : tab === 'processes' ? (
