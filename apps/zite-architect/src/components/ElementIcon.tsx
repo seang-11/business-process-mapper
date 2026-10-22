@@ -82,6 +82,8 @@ const LOGO_ALIASES: Record<string, string> = {
   'x (twitter)': 'x',
   'x / twitter': 'x',
   'x.com': 'x',
+  'whats app': 'whatsapp',
+  'whatsapp business': 'whatsapp',
 };
 
 function stemFromPath(path: string): string {
