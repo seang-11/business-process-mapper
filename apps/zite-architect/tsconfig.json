@@ -32,7 +32,7 @@
         "./src/__zite__/integrations.ts"
       ],
       "zitejs/db": [
-        "../../.zite/db.ts"
+        "./.zite/db.ts"
       ],
       "zitejs/api": [
         "./.zite/api.ts"
@@ -53,6 +53,7 @@
         "../../node_modules/zitejs/dist/esm/caller/index.d.ts"
       ],
       "zitejs/integrations": [
+        "./.zite/integrations/index.ts",
         "./.zite/integrations/airtable.ts"
       ],
       "zitejs/email": [

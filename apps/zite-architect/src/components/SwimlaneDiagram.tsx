@@ -301,6 +301,36 @@ const PAD_X = 24;
 // Minimum drag distance (px) before it counts as a pan (suppresses click)
 const DRAG_THRESHOLD = 5;
 
+// Arrows stay neutral at rest so the cards carry the colour; the accent is
+// saved for the paths of whatever the reader is hovering. Dashes are kept for
+// loop-backs only, so a dashed line always means "this goes back a step".
+const EDGE_COLOR = 'hsl(var(--muted-foreground) / 0.45)';
+const EDGE_COLOR_HI = 'hsl(var(--primary))';
+const EDGE_DOT_COLOR = 'hsl(var(--muted-foreground) / 0.8)';
+/** Softest bend a cross-lane edge is allowed, in px of control-point reach. */
+const EDGE_MIN_BEND = 48;
+/** Flowing dots: px per second, clamped so nothing crawls or races. */
+const EDGE_DOT_SPEED = 70;
+const EDGE_DOT_MIN_S = 1.8;
+const EDGE_DOT_MAX_S = 6;
+/** Past this length an edge gets a second dot so it never looks empty. */
+const EDGE_SECOND_DOT_PX = 220;
+
+/** Follows the OS "reduce motion" setting, live. */
+function usePrefersReducedMotion(): boolean {
+  const query = '(prefers-reduced-motion: reduce)';
+  const [reduce, setReduce] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setReduce(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduce;
+}
+
 export default function SwimlaneDiagram({
   steps,
   connections,
@@ -313,6 +343,7 @@ export default function SwimlaneDiagram({
     () => new Map(elements.map((e) => [e.id, e])),
     [elements],
   );
+  const reduceMotion = usePrefersReducedMotion();
   const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
   // Tracked separately from hover: the panel outlives the hover by a moment as
   // it fades, and it has to stay above its neighbours for the whole of it.
@@ -614,8 +645,17 @@ export default function SwimlaneDiagram({
           style={{ width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
         >
           <defs>
-            <marker id="loop-arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6" orient="auto">
-              <path className="pointer-events-none" d="M 0 0 L 10 4 L 0 8 z" fill="hsl(var(--primary) / 0.5)" />
+            {/* Open chevrons rather than filled triangles: they read as direction
+                without adding weight. One marker per colour, since marker fill
+                can't follow the line it sits on in every browser. */}
+            <marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+              <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary) / 0.5)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+            </marker>
+            <marker id="flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
+              <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke={EDGE_COLOR} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+            </marker>
+            <marker id="flow-arrow-hi" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
+              <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke={EDGE_COLOR_HI} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
             </marker>
           </defs>
 
@@ -695,20 +735,53 @@ export default function SwimlaneDiagram({
             const y2 = toRect.y + toRect.height / 2;
 
             const dx = Math.abs(x2 - x1);
-            const cpOffset = dx * 0.6;
+            const dy = Math.abs(y2 - y1);
+            // A handoff between lanes with little horizontal room would kink into
+            // a near-vertical S, so give the bend a floor that grows with the drop.
+            // Same-row edges keep a plain proportional curve and never overshoot.
+            const cpOffset = Math.max(dx * 0.5, Math.min(EDGE_MIN_BEND, dy * 0.4));
             const path = `M ${x1} ${y1} C ${x1 + cpOffset} ${y1}, ${x2 - cpOffset} ${y2}, ${x2} ${y2}`;
 
+            // Dots travel at a steady pace, so a long edge takes longer rather
+            // than its dots racing to keep up with a short one.
+            const length = Math.hypot(dx, dy);
+            const dur = Math.min(EDGE_DOT_MAX_S, Math.max(EDGE_DOT_MIN_S, length / EDGE_DOT_SPEED));
+            const dotCount = length > EDGE_SECOND_DOT_PX ? 2 : 1;
+            const color = highlighted ? EDGE_COLOR_HI : EDGE_COLOR;
+
             return (
-              <g key={c.id || key} className="pointer-events-none">
+              <g
+                key={c.id || key}
+                className="pointer-events-none transition-opacity duration-200"
+                opacity={dimmed ? 0.12 : 1}
+              >
                 <path
-                  className="pointer-events-none transition-opacity duration-200"
+                  className="pointer-events-none"
                   d={path}
                   fill="none"
-                  stroke={highlighted ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.35)'}
+                  stroke={color}
                   strokeWidth={highlighted ? 2 : 1.5}
-                  strokeDasharray={highlighted ? '8 4' : '6 3'}
-                  opacity={dimmed ? 0.12 : 1}
+                  strokeLinecap="round"
+                  markerEnd={highlighted ? 'url(#flow-arrow-hi)' : 'url(#flow-arrow)'}
                 />
+                {/* Where the work leaves the card. */}
+                <circle className="pointer-events-none" cx={x1} cy={y1} r={2.5} fill={color} />
+                {!reduceMotion && !dimmed &&
+                  Array.from({ length: dotCount }, (_, i) => (
+                    <circle
+                      key={i}
+                      className="pointer-events-none"
+                      r={highlighted ? 3 : 2.5}
+                      fill={highlighted ? EDGE_COLOR_HI : EDGE_DOT_COLOR}
+                    >
+                      <animateMotion
+                        path={path}
+                        dur={`${dur}s`}
+                        begin={`${(dur / dotCount) * i}s`}
+                        repeatCount="indefinite"
+                      />
+                    </circle>
+                  ))}
               </g>
             );
           })}
