@@ -13,52 +13,43 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import asanaLogo from '../assets/logos/asana.svg';
-import calendlyLogo from '../assets/logos/calendly.svg';
-import frameioLogo from '../assets/logos/frameio.svg';
-import gmailLogo from '../assets/logos/gmail.svg';
-import googleCalendarLogo from '../assets/logos/googlecalendar.svg';
-import googleDriveLogo from '../assets/logos/googledrive.svg';
-import hubspotLogo from '../assets/logos/hubspot.svg';
-import obsLogo from '../assets/logos/obs.svg';
-import pandadocLogo from '../assets/logos/pandadoc.svg';
-import premiereProLogo from '../assets/logos/premierepro.svg';
-import quickbooksLogo from '../assets/logos/quickbooks.svg';
-import slackLogo from '../assets/logos/slack.svg';
-import stripeLogo from '../assets/logos/stripe.svg';
-import zapierLogo from '../assets/logos/zapier.svg';
-import zoomLogo from '../assets/logos/zoom.svg';
-
 /**
- * Brand marks that ship with the app, keyed by lowercased element name. An
- * element with no icon of its own falls back to one of these when its name
- * matches — we would rather show a correct generic mark than a wrong logo, so
- * nothing here is guessed.
+ * Brand marks that ship with the app. Drop an SVG in `src/assets/logos` and it
+ * shows up — no extra import. The file stem is the lookup key (`notion.svg` →
+ * "notion"). Extra aliases live in LOGO_ALIASES for names that don't match
+ * the file (spaces, dots, product families).
  *
- * Imported rather than referenced by path: the bundler then emits the URL
- * itself, so these can't 404 on however the app happens to be served.
- *
- * To add one: drop an SVG in `src/assets/logos`, import it, and add the name.
+ * Vite globs the folder so the bundler still emits hashed URLs; these can't
+ * 404 on however the app happens to be served.
  */
-const BRAND_LOGOS: Record<string, string> = {
-  hubspot: hubspotLogo,
-  stripe: stripeLogo,
-  quickbooks: quickbooksLogo,
-  asana: asanaLogo,
-  calendly: calendlyLogo,
-  'google drive': googleDriveLogo,
-  gmail: gmailLogo,
-  'google calendar': googleCalendarLogo,
-  zoom: zoomLogo,
-  zapier: zapierLogo,
-  slack: slackLogo,
-  pandadoc: pandadocLogo,
-  obs: obsLogo,
-  'frame.io': frameioLogo,
-  frameio: frameioLogo,
-  'adobe premiere pro': premiereProLogo,
-  'premiere pro': premiereProLogo,
+const LOGO_MODULES = import.meta.glob('../assets/logos/*.svg', {
+  eager: true,
+  import: 'default',
+}) as Record<string, string>;
+
+const LOGO_ALIASES: Record<string, string> = {
+  'google drive': 'googledrive',
+  'google calendar': 'googlecalendar',
+  'google sheets': 'googlesheets',
+  'frame.io': 'frameio',
+  'adobe premiere pro': 'premierepro',
+  'premiere pro': 'premierepro',
+  'mail chimp': 'mailchimp',
 };
+
+function stemFromPath(path: string): string {
+  const file = path.split('/').pop() ?? path;
+  return file.replace(/\.svg$/i, '').toLowerCase();
+}
+
+const BRAND_LOGOS: Record<string, string> = {};
+for (const [path, src] of Object.entries(LOGO_MODULES)) {
+  BRAND_LOGOS[stemFromPath(path)] = src;
+}
+for (const [alias, stem] of Object.entries(LOGO_ALIASES)) {
+  const src = BRAND_LOGOS[stem];
+  if (src) BRAND_LOGOS[alias] = src;
+}
 
 /** Prefix marking a stored icon as one of the brand marks above. */
 export const LOGO_PREFIX = 'logo:';
