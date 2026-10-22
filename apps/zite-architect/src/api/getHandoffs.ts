@@ -40,6 +40,11 @@ export default createEndpoint({
         loopBacks: z.number(),
         /** The most handoffs work passes through on any one path, start to finish. */
         longestChain: z.number(),
+        /**
+         * Who holds the work from start to finish along the busiest path, in order.
+         * Each entry says whether the next one is a different person (the riskiest kind of handoff).
+         */
+        relay: z.array(z.object({ who: participant, nextIsPerson: z.boolean() })),
         pairs: z.array(
           z.object({
             from: participant,
@@ -159,6 +164,30 @@ export default createEndpoint({
         };
         const longestChain = steps.reduce((max, s) => Math.max(max, longestFrom(s.id)), 0);
 
+        // The relay: follow the path with the most handoffs, noting who holds the work at each point.
+        const hasForwardIn = new Set(edges.filter((e) => !back.has(e)).map((e) => e.to));
+        const sources = steps.filter((s) => !hasForwardIn.has(s.id));
+        const startStep = [...(sources.length ? sources : steps)].sort((x, y) => longestFrom(y.id) - longestFrom(x.id))[0];
+        const relay: { who: z.infer<typeof participant>; nextIsPerson: boolean }[] = [];
+        const holders: string[] = [];
+        if (startStep) {
+          let cur = startStep.id;
+          const seen = new Set<string>();
+          while (!seen.has(cur)) {
+            seen.add(cur);
+            const who = performerOf.get(cur);
+            if (who && holders[holders.length - 1] !== who) holders.push(who);
+            const outs = forwardOut.get(cur) ?? [];
+            if (outs.length === 0) break;
+            outs.sort((x, y) => (weight.get(y) ?? 0) + longestFrom(y.to) - ((weight.get(x) ?? 0) + longestFrom(x.to)));
+            cur = outs[0].to;
+          }
+        }
+        holders.forEach((id, i) => {
+          const next = holders[i + 1];
+          relay.push({ who: describe(id), nextIsPerson: !!next && actorClassOf(id) !== 'System' && actorClassOf(next) !== 'System' });
+        });
+
         return {
           id: p.id,
           name: p.name ?? '',
@@ -169,6 +198,7 @@ export default createEndpoint({
           withApps,
           loopBacks,
           longestChain,
+          relay,
           pairs: [...pairs.values()]
             .sort((x, y) => KINDS.indexOf(x.kind) - KINDS.indexOf(y.kind) || y.count - x.count)
             .map((x) => ({ from: describe(x.from), to: describe(x.to), count: x.count, kind: x.kind })),
