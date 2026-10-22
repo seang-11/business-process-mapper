@@ -78,6 +78,10 @@ const LOGO_ALIASES: Record<string, string> = {
   'google doc': 'googledocs',
   'smartlead.ai': 'smartlead',
   'wix.com': 'wix',
+  twitter: 'x',
+  'x (twitter)': 'x',
+  'x / twitter': 'x',
+  'x.com': 'x',
 };
 
 function stemFromPath(path: string): string {
