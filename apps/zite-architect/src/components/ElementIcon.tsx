@@ -117,6 +117,13 @@ const LOGO_ALIASES: Record<string, string> = {
   'eleven labs': 'elevenlabs',
   '11labs': 'elevenlabs',
   'higgsfield ai': 'higgsfield',
+  'retell ai': 'retellai',
+  retell: 'retellai',
+  'vapi ai': 'vapi',
+  'vapi.ai': 'vapi',
+  'vercel v0': 'vercel',
+  v0: 'vercel',
+  'voice flow': 'voiceflow',
 };
 
 function stemFromPath(path: string): string {

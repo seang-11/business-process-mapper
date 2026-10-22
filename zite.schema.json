@@ -415,6 +415,84 @@
               "inverseFieldId": "fpuLhKtPWh1"
             }
           }
+        },
+        {
+          "id": "f8A7vud5nyp",
+          "sdkName": "category",
+          "definition": {
+            "name": "Category",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "qiKM",
+                  "label": "Communication",
+                  "color": "blue"
+                },
+                {
+                  "value": "qcNg",
+                  "label": "Project management",
+                  "color": "purple"
+                },
+                {
+                  "value": "mQPK",
+                  "label": "CRM & sales",
+                  "color": "orange"
+                },
+                {
+                  "value": "oaqy",
+                  "label": "Forms & data",
+                  "color": "teal"
+                },
+                {
+                  "value": "qrCf",
+                  "label": "Finance & payments",
+                  "color": "green"
+                },
+                {
+                  "value": "cLg7",
+                  "label": "Documents & storage",
+                  "color": "gray"
+                },
+                {
+                  "value": "nF8o",
+                  "label": "Meetings & scheduling",
+                  "color": "cyan"
+                },
+                {
+                  "value": "vxPF",
+                  "label": "Automation & AI",
+                  "color": "pink"
+                },
+                {
+                  "value": "nt2R",
+                  "label": "Video & creative",
+                  "color": "red"
+                },
+                {
+                  "value": "jvRj",
+                  "label": "Social & marketing",
+                  "color": "yellow"
+                },
+                {
+                  "value": "dqYg",
+                  "label": "HR & people",
+                  "color": "purple"
+                },
+                {
+                  "value": "jEaH",
+                  "label": "Security & access",
+                  "color": "gray"
+                },
+                {
+                  "value": "pv4A",
+                  "label": "Building & dev",
+                  "color": "teal"
+                }
+              ],
+              "disableColors": false
+            }
+          }
         }
       ]
     },
