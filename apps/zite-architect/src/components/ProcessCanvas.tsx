@@ -439,7 +439,7 @@ export default function ProcessCanvas() {
               <SelectContent>
                 {process.versions.map((v) => (
                   <SelectItem key={v.id} value={v.id} className="text-xs">
-                    {v.name} · {v.state}
+                    {v.name} · {v.state === 'Current' ? 'Live' : v.state === 'Future' ? 'Not live yet' : 'Retired'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -560,6 +560,12 @@ export default function ProcessCanvas() {
                             if (graph?.version?.id !== v.id) setSearchParams({ version: v.id });
                           }}
                         >
+                          {v.state === 'Current' && (
+                            <span
+                              className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle"
+                              title="Live: how the work is done today"
+                            />
+                          )}
                           {v.name}
                         </button>
                       );
@@ -596,18 +602,28 @@ export default function ProcessCanvas() {
           )}
         </div>
 
-        {trainOpen && graph?.version && (
+        {trainOpen && process && graph?.version && (
           <Train
-            processName={process?.name ?? 'This process'}
-            versionName={graph.version.name}
-            steps={steps}
-            connections={connections}
+            processName={process.name}
+            versions={process.versions}
+            // Training teaches the live version unless a shared link names another.
+            initialVersionId={
+              trainParam
+                ? graph.version.id
+                : process.versions.find((v) => v.state === 'Current')?.id ?? graph.version.id
+            }
             initialRole={trainParam}
             initialView={trainView}
             onClose={closeTrain}
-            onOpenStep={(s) => {
-              closeTrain();
-              openStep(s);
+            onOpenStep={(s, versionOfStep) => {
+              if (versionOfStep === graph.version.id) {
+                closeTrain();
+                openStep(s);
+              } else {
+                // The step lives in another version: show that version on the map.
+                setTrainOpen(false);
+                setSearchParams({ version: versionOfStep });
+              }
             }}
           />
         )}

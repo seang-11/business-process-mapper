@@ -3,7 +3,17 @@ import {
   X, ArrowLeft, ArrowRight, GraduationCap, Link2, Printer, Zap, CornerDownRight, ExternalLink, Check, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getProcessGraph } from 'zitejs/api';
+import { format } from 'date-fns';
 import { Button } from '@project/components/ui/button';
+import { Skeleton } from '@project/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@project/components/ui/select';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import {
@@ -11,17 +21,48 @@ import {
 } from '@/lib/training';
 import ElementIcon from './ElementIcon';
 
+export interface TrainVersion {
+  id: string;
+  name: string;
+  /** Current is the live way of working; Future is being prepared; Archived is retired. */
+  state: string;
+  liveFrom: string;
+  liveTo: string;
+}
+
 interface Props {
   processName: string;
-  versionName: string;
-  steps: ProcessStep[];
-  connections: ProcessConnection[];
+  versions: TrainVersion[];
+  /** Which version to train on first. The live one, unless a link says otherwise. */
+  initialVersionId: string;
   /** A role to open straight to, from a shared link. */
   initialRole: string | null;
   initialView: 'lesson' | 'brief';
   onClose: () => void;
-  /** Close Train and open this step on the map. */
-  onOpenStep: (step: ProcessStep) => void;
+  /** Close Train and show this step on the map. */
+  onOpenStep: (step: ProcessStep, versionId: string) => void;
+}
+
+const EMPTY_STEPS: ProcessStep[] = [];
+const EMPTY_CONNECTIONS: ProcessConnection[] = [];
+
+const prettyDay = (value: string) => {
+  const d = value ? new Date(`${value}T00:00:00`) : null;
+  return d && !Number.isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : '';
+};
+
+const STATE_LABEL: Record<string, string> = { Current: 'Live', Future: 'Not live yet', Archived: 'Retired' };
+
+/** When a version applies, in words: "Live since Sep 2, 2026", "Not live yet", "Sep 2 to Oct 22, 2026". */
+function whenText(v: TrainVersion): string {
+  const from = prettyDay(v.liveFrom);
+  const to = prettyDay(v.liveTo);
+  if (v.state === 'Current') return from ? `Live since ${from}` : 'Live now';
+  if (v.state === 'Future') return 'Not live yet';
+  if (from && to) return `Was live ${from} to ${to}`;
+  if (to) return `Was live until ${to}`;
+  if (from) return `Was live from ${from}`;
+  return 'Retired';
 }
 
 // Soft tints for role avatars, picked from the name so a role keeps its colour.
@@ -81,14 +122,38 @@ function AppChip({ app }: { app: ElementRef }) {
  * leaving and someone else is arriving. All of it is read straight from the map.
  */
 export default function Train({
-  processName, versionName, steps, connections, initialRole, initialView, onClose, onOpenStep,
+  processName, versions, initialVersionId, initialRole, initialView, onClose, onOpenStep,
 }: Props) {
+  const [versionId, setVersionId] = useState(initialVersionId);
+  const [graph, setGraph] = useState<{ steps: ProcessStep[]; connections: ProcessConnection[] } | null>(null);
+  const version = versions.find((v) => v.id === versionId) ?? versions[0];
+  const live = versions.find((v) => v.state === 'Current') ?? null;
+  const versionName = version?.name ?? '';
+
+  // Each version is read on its own, so what you learn is exactly what that version says.
+  useEffect(() => {
+    let cancelled = false;
+    setGraph(null);
+    getProcessGraph({ versionId })
+      .then((res) => {
+        if (!cancelled) setGraph({ steps: res.steps as ProcessStep[], connections: res.connections });
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : 'Could not load that version.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [versionId]);
+
+  const steps = graph?.steps ?? EMPTY_STEPS;
+  const connections = graph?.connections ?? EMPTY_CONNECTIONS;
+
   const outline = useMemo(() => buildOutline(steps, connections), [steps, connections]);
   const roles = useMemo(() => rolesOf(outline), [outline]);
 
-  const [roleKey, setRoleKey] = useState<string | null>(
-    initialRole && roles.some((r) => r.key === initialRole) ? initialRole : null,
-  );
+  // Checked against the roles once the version has loaded; an unknown one just shows the picker.
+  const [roleKey, setRoleKey] = useState<string | null>(initialRole);
   const [view, setView] = useState<'lesson' | 'brief'>(initialView);
   /** -1 is the introduction; steps follow; one past the last is the wrap-up. */
   const [idx, setIdx] = useState(-1);
@@ -126,6 +191,8 @@ export default function Train({
     url.searchParams.delete('by');
     url.searchParams.set('train', role.key);
     url.searchParams.set('view', view);
+    // So the link teaches the same version it was copied from.
+    url.searchParams.set('version', versionId);
     navigator.clipboard.writeText(url.toString()).then(
       () => toast.success('Link copied'),
       () => toast.error('Could not copy the link'),
@@ -144,8 +211,29 @@ export default function Train({
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">Train · {processName}</p>
-          <p className="truncate text-xs text-muted-foreground">{versionName}</p>
+          <p className="truncate text-xs text-muted-foreground">{version ? whenText(version) : ''}</p>
         </div>
+
+        {versions.length > 1 && (
+          <Select
+            value={versionId}
+            onValueChange={(v) => {
+              setVersionId(v);
+              setIdx(-1);
+            }}
+          >
+            <SelectTrigger className="h-8 w-[260px] text-xs" aria-label="Version to train on">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map((v) => (
+                <SelectItem key={v.id} value={v.id} className="text-xs">
+                  {v.name} · {STATE_LABEL[v.state] ?? v.state}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {role && (
           <div className={`${SEG_TRACK} ml-4`}>
@@ -171,6 +259,19 @@ export default function Train({
         </div>
       </header>
 
+      {version && (
+        <VersionBanner
+          version={version}
+          live={live}
+          onSwitchToLive={() => {
+            if (live) {
+              setVersionId(live.id);
+              setIdx(-1);
+            }
+          }}
+        />
+      )}
+
       {role && (
         <div className="train-noprint flex items-center gap-2 overflow-x-auto border-b border-border bg-background px-6 py-2">
           <span className="shrink-0 text-xs text-muted-foreground">Your role</span>
@@ -192,10 +293,25 @@ export default function Train({
       )}
 
       <main className="min-h-0 flex-1 overflow-y-auto">
-        {!role || !lesson || !brief ? (
+        {!graph ? (
+          <div className="mx-auto max-w-3xl space-y-3 px-6 py-14">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-24 rounded-xl" />
+          </div>
+        ) : steps.length === 0 ? (
+          <p className="mx-auto max-w-3xl px-6 py-14 text-sm text-muted-foreground">
+            This version has no steps yet, so there is nothing to teach. Pick another version above.
+          </p>
+        ) : !role || !lesson || !brief ? (
           <RolePicker roles={roles} processName={processName} onPick={pickRole} />
         ) : view === 'brief' ? (
-          <BriefView lesson={lesson} brief={brief} processName={processName} versionName={versionName} />
+          <BriefView
+            lesson={lesson}
+            brief={brief}
+            processName={processName}
+            versionName={versionName}
+            versionWhen={version ? `${STATE_LABEL[version.state] ?? version.state} · ${whenText(version)}` : ''}
+          />
         ) : (
           <div className="mx-auto max-w-3xl px-6 pb-16 pt-6">
             <ProcessStrip
@@ -223,7 +339,7 @@ export default function Train({
                   lesson={lesson}
                   step={lesson.steps[idx]}
                   index={idx}
-                  onOpen={() => onOpenStep(lesson.steps[idx].item.step)}
+                  onOpen={() => onOpenStep(lesson.steps[idx].item.step, versionId)}
                 />
               )}
             </div>
@@ -243,6 +359,57 @@ export default function Train({
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// --- Which version you are teaching ---
+
+/**
+ * Says plainly which way of working this training describes, so nobody learns a
+ * process that isn't the one the team runs. Training should use the live version;
+ * a version still being prepared, or an old one, says so and offers the way back.
+ */
+function VersionBanner({ version, live, onSwitchToLive }: {
+  version: TrainVersion;
+  live: TrainVersion | null;
+  onSwitchToLive: () => void;
+}) {
+  const isLive = version.state === 'Current';
+  const when = whenText(version);
+
+  const tone = isLive
+    ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200'
+    : 'bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200';
+
+  let headline: string;
+  let detail: string;
+  if (isLive) {
+    headline = `You're training on the live version: ${version.name}`;
+    detail = version.liveFrom
+      ? `${when}. This is how the work is done today.`
+      : 'This is how the work is done today.';
+  } else if (version.state === 'Future') {
+    headline = `${version.name} isn't live yet`;
+    detail = live
+      ? `Train people on ${live.name}, which is how the work is done today. Use this version only for people who start after it goes live.`
+      : 'No version is marked live yet, so check this is the one your team uses.';
+  } else {
+    headline = `${version.name} is an old version`;
+    detail = live
+      ? `${when}. It's here for reference. New people should learn ${live.name}.`
+      : `${when}. It's here for reference.`;
+  }
+
+  return (
+    <div className={`train-noprint flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-6 py-2.5 text-sm ${tone}`}>
+      <span className="font-semibold">{headline}</span>
+      <span className="min-w-0 flex-1 text-xs opacity-90">{detail}</span>
+      {!isLive && live && (
+        <Button size="sm" variant="outline" className="h-7 bg-background text-xs text-foreground" onClick={onSwitchToLive}>
+          Switch to {live.name}
+        </Button>
+      )}
     </div>
   );
 }
@@ -536,11 +703,13 @@ function WrapUp({ role, onBrief, onOther, onRestart }: {
 
 // --- Handover brief ---
 
-function BriefView({ lesson, brief, processName, versionName }: {
+function BriefView({ lesson, brief, processName, versionName, versionWhen }: {
   lesson: Lesson;
   brief: ReturnType<typeof buildBrief>;
   processName: string;
   versionName: string;
+  /** "Live · Live since Sep 2, 2026": which way of working this brief describes. */
+  versionWhen: string;
 }) {
   const { role, steps, tools, worksWith } = lesson;
   const subject = role.automated ? 'the automation' : 'you';
@@ -548,6 +717,10 @@ function BriefView({ lesson, brief, processName, versionName }: {
     <div className="train-print mx-auto max-w-3xl px-6 py-10">
       <p className="text-xs font-medium uppercase tracking-wider text-primary">Handover brief</p>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight">{brief.headline}</h1>
+      <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
+        <span className="font-semibold">{versionName}</span>
+        {versionWhen && <span className="text-muted-foreground">{versionWhen}</span>}
+      </p>
       <p className="mt-4 text-base leading-relaxed">{brief.summary}</p>
 
       <section className="mt-8">

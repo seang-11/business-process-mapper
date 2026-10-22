@@ -40,6 +40,10 @@ export default createEndpoint({
             notes: z.string(),
             stepCount: z.number(),
             lastEdited: z.string(),
+            /** The day this version became the way the work is done (YYYY-MM-DD), or empty. */
+            liveFrom: z.string(),
+            /** The day it was replaced (YYYY-MM-DD), or empty while it is still live. */
+            liveTo: z.string(),
           }),
         ),
         stepCount: z.number(),
@@ -161,6 +165,8 @@ export default createEndpoint({
             notes: v.notes ?? '',
             stepCount: (stepsByVersion.get(v.id) ?? []).length,
             lastEdited: v.lastEdited ?? '',
+            liveFrom: (v.liveFrom ?? '').slice(0, 10),
+            liveTo: (v.liveTo ?? '').slice(0, 10),
           })),
           stepCount: currentSteps.length,
           humanSteps,

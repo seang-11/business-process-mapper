@@ -15,6 +15,7 @@ import type { default as _GetElementDetailEp } from '../src/api/getElementDetail
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
+import type { default as _GoLiveEp } from '../src/api/goLive';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
@@ -90,6 +91,11 @@ export type GetTaxonomyInputType = NonNullable<_GetTaxonomyCfg['inputSchema']> e
 export type GetTaxonomyOutputType = Awaited<ReturnType<_GetTaxonomyCfg['execute']>>;
 export const getTaxonomy = createCaller<GetTaxonomyInputType, GetTaxonomyOutputType>('getTaxonomy');
 
+type _GoLiveCfg = typeof _GoLiveEp;
+export type GoLiveInputType = NonNullable<_GoLiveCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GoLiveCfg['execute']>[0]['input'];
+export type GoLiveOutputType = Awaited<ReturnType<_GoLiveCfg['execute']>>;
+export const goLive = createCaller<GoLiveInputType, GoLiveOutputType>('goLive');
+
 type _MatchVersionStepsCfg = typeof _MatchVersionStepsEp;
 export type MatchVersionStepsInputType = NonNullable<_MatchVersionStepsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MatchVersionStepsCfg['execute']>[0]['input'];
 export type MatchVersionStepsOutputType = Awaited<ReturnType<_MatchVersionStepsCfg['execute']>>;
@@ -150,6 +156,7 @@ export const api = {
   getProcessGraph,
   getProcesses,
   getTaxonomy,
+  goLive,
   matchVersionSteps,
   moveStep,
   saveConnection,
