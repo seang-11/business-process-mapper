@@ -34,6 +34,7 @@ import type { ElementRef, ElementSummary, ElementType, ProcessConnection, Proces
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
+import ProcessTimeline from './ProcessTimeline';
 import Walkthrough from './Walkthrough';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -57,6 +58,8 @@ export default function ProcessCanvas() {
   const [editStep, setEditStep] = useState<ProcessStep | null>(null);
   const [addingStep, setAddingStep] = useState(false);
   const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>('people');
+  /** The whole process as one scrolling timeline instead of the map. */
+  const [showOverview, setShowOverview] = useState(false);
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
@@ -154,6 +157,7 @@ export default function ProcessCanvas() {
   const byParam = searchParams.get('by');
   useEffect(() => {
     if (!laneParam) return;
+    setShowOverview(false);
     setLaneGrouping(byParam === 'app' ? 'app' : 'people');
     setOpenLane(laneParam);
   }, [laneParam, byParam]);
@@ -370,11 +374,12 @@ export default function ProcessCanvas() {
             <button
               key={mode}
               className={`px-3 py-1.5 font-medium transition-colors ${
-                laneGrouping === mode
+                !showOverview && laneGrouping === mode
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               onClick={() => {
+                setShowOverview(false);
                 setLaneGrouping(mode);
                 // Lanes mean something else in the other view.
                 setOpenLane(null);
@@ -383,6 +388,17 @@ export default function ProcessCanvas() {
               {mode === 'people' ? 'By person' : 'By app'}
             </button>
           ))}
+          <button
+            className={`px-3 py-1.5 font-medium transition-colors ${
+              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => {
+              setShowOverview(true);
+              setOpenLane(null);
+            }}
+          >
+            Overview
+          </button>
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -489,6 +505,9 @@ export default function ProcessCanvas() {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Depth comes from the gap between this and the white cards on it. */}
         <div className="flex-1 bg-muted overflow-hidden min-w-0">
+          {showOverview ? (
+            <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
+          ) : (
           <SwimlaneDiagram
             steps={steps}
             connections={connections}
@@ -506,6 +525,7 @@ export default function ProcessCanvas() {
               setOpenLane((current) => (current === lane ? null : lane));
             }}
           />
+          )}
         </div>
 
         {walkthroughOpen && graph?.version && (
