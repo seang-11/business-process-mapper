@@ -21,6 +21,8 @@ export default createEndpoint({
     image: z.string().optional(),
     ownerId: z.string().nullable().optional(),
     backupOwnerId: z.string().nullable().optional(),
+    /** Which team a process belongs to, such as Sales or Delivery. Empty clears it. */
+    department: z.string().optional(),
     effectiveFrom: z.string().nullable().optional(),
     effectiveTo: z.string().nullable().optional(),
   }),
@@ -43,6 +45,7 @@ export default createEndpoint({
       if (input.image !== undefined) patch.image = input.image;
       if (input.ownerId !== undefined) patch.owner = input.ownerId ? [input.ownerId] : [];
       if (input.backupOwnerId !== undefined) patch.backupOwner = input.backupOwnerId ? [input.backupOwnerId] : [];
+      if (input.department !== undefined) patch.department = input.department.trim();
       if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom;
       if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo;
 

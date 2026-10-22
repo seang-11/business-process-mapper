@@ -82,6 +82,7 @@ export default function AppShell() {
   const links: { to: string; label: string; active: boolean }[] = [
     { to: '/', label: 'Home', active: onHome },
     { to: '/overview', label: 'Overview', active: location.pathname === '/overview' },
+    { to: '/brain', label: 'Brain', active: location.pathname === '/brain' },
     { to: '/handoffs', label: 'Handoffs', active: location.pathname === '/handoffs' },
     { to: '/training', label: 'Training', active: location.pathname === '/training' },
     ...(isRealAdmin ? [{ to: '/team', label: 'Team and access', active: location.pathname === '/team' }] : []),

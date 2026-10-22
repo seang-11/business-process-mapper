@@ -94,6 +94,7 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.ownerName.toLowerCase().includes(q) ||
+        p.department.toLowerCase().includes(q) ||
         p.people.some((x) => x.name.toLowerCase().includes(q)) ||
         p.apps.some((x) => x.name.toLowerCase().includes(q)),
     );
@@ -123,6 +124,10 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
             </span>
           );
         },
+      },
+      department: {
+        render: (value) =>
+          value ? <span>{String(value)}</span> : <span className="text-muted-foreground">—</span>,
       },
       ownerName: {
         render: (value, record) => {
@@ -170,7 +175,7 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
   const { columns, visibleColumns, toggleColumn, reorderColumns, resetToDefault } =
     useColumnConfig({
       tableName: 'Processes',
-      defaultVisible: ['name', 'ownerName', 'people', 'apps', 'stepCount', 'lastEdited'],
+      defaultVisible: ['name', 'department', 'ownerName', 'people', 'apps', 'stepCount', 'lastEdited'],
       overrides,
     });
 

@@ -11,6 +11,7 @@ import type { default as _DeleteProcessEp } from '../src/api/deleteProcess';
 import type { default as _DeleteStepEp } from '../src/api/deleteStep';
 import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
+import type { default as _GetBrainEp } from '../src/api/getBrain';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
 import type { default as _GetHandoffsEp } from '../src/api/getHandoffs';
 import type { default as _GetMeEp } from '../src/api/getMe';
@@ -77,6 +78,11 @@ type _EnsureCoreTypesCfg = typeof _EnsureCoreTypesEp;
 export type EnsureCoreTypesInputType = NonNullable<_EnsureCoreTypesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_EnsureCoreTypesCfg['execute']>[0]['input'];
 export type EnsureCoreTypesOutputType = Awaited<ReturnType<_EnsureCoreTypesCfg['execute']>>;
 export const ensureCoreTypes = createCaller<EnsureCoreTypesInputType, EnsureCoreTypesOutputType>('ensureCoreTypes');
+
+type _GetBrainCfg = typeof _GetBrainEp;
+export type GetBrainInputType = NonNullable<_GetBrainCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetBrainCfg['execute']>[0]['input'];
+export type GetBrainOutputType = Awaited<ReturnType<_GetBrainCfg['execute']>>;
+export const getBrain = createCaller<GetBrainInputType, GetBrainOutputType>('getBrain');
 
 type _GetElementDetailCfg = typeof _GetElementDetailEp;
 export type GetElementDetailInputType = NonNullable<_GetElementDetailCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetElementDetailCfg['execute']>[0]['input'];
@@ -194,6 +200,7 @@ export const api = {
   deleteStep,
   deleteVersion,
   ensureCoreTypes,
+  getBrain,
   getElementDetail,
   getHandoffs,
   getMe,

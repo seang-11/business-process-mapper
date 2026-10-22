@@ -118,6 +118,12 @@ export default function WorkspaceList() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, canEdit, me]);
 
+  // Departments already in use, offered as suggestions in the process forms.
+  const departments = useMemo(
+    () => [...new Set(processes.map((p) => p.department).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [processes],
+  );
+
   const elementCount = useMemo(
     () => elements.filter((e) => e.typeKey !== TYPE_KEYS.process).length,
     [elements],
@@ -299,6 +305,7 @@ export default function WorkspaceList() {
         <CreateProcessDialog
           elements={elements}
           types={types}
+          departments={departments}
           onClose={() => setCreating(false)}
           onCreated={(processId) => navigate(`/process/${processId}`)}
         />
@@ -339,9 +346,11 @@ export default function WorkspaceList() {
             name: editProcessTarget.name,
             ownerId: editProcessTarget.ownerId,
             backupOwnerId: editProcessTarget.backupOwnerId,
+            department: editProcessTarget.department,
           }}
           elements={elements}
           types={types}
+          departments={departments}
           onClose={() => setEditProcessTarget(null)}
           onSaved={() => {
             setEditProcessTarget(null);

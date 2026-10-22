@@ -12,6 +12,7 @@ export default createEndpoint({
     description: z.string().default(''),
     ownerId: z.string().nullable().default(null),
     backupOwnerId: z.string().nullable().default(null),
+    department: z.string().default(''),
   }),
   outputSchema: z.object({ processId: z.string(), versionId: z.string() }),
   execute: async ({ input, context }) => {
@@ -33,6 +34,7 @@ export default createEndpoint({
         status: 'Active',
         owner: input.ownerId ? [input.ownerId] : [],
         backupOwner: input.backupOwnerId ? [input.backupOwnerId] : [],
+        department: input.department.trim(),
       },
     });
 

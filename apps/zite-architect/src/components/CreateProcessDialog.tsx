@@ -18,6 +18,8 @@ import ElementPicker from './ElementPicker';
 interface Props {
   elements: ElementSummary[];
   types: ElementType[];
+  /** Departments already in use, offered as suggestions. */
+  departments?: string[];
   onClose: () => void;
   onCreated: (processId: string) => void;
 }
@@ -25,6 +27,7 @@ interface Props {
 export default function CreateProcessDialog({
   elements,
   types,
+  departments = [],
   onClose,
   onCreated,
 }: Props) {
@@ -32,6 +35,7 @@ export default function CreateProcessDialog({
   const [description, setDescription] = useState('');
   const [ownerId, setOwnerId] = useState<string>('');
   const [backupOwnerId, setBackupOwnerId] = useState<string>('');
+  const [department, setDepartment] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleCreate = async () => {
@@ -46,6 +50,7 @@ export default function CreateProcessDialog({
         description,
         ownerId: ownerId || null,
         backupOwnerId: backupOwnerId || null,
+        department: department.trim(),
       });
       toast.success('Process created');
       onCreated(res.processId);
@@ -107,6 +112,20 @@ export default function CreateProcessDialog({
               placeholder="Who covers when the owner is away?"
               excludeIds={ownerId ? [ownerId] : []}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Department</Label>
+            <Input
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              list="process-departments-new"
+              placeholder="Sales, Delivery, Finance…"
+            />
+            <datalist id="process-departments-new">
+              {departments.map((d) => (
+                <option key={d} value={d} />
+              ))}
+            </datalist>
           </div>
         </div>
 

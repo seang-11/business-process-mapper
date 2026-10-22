@@ -569,6 +569,15 @@
             "type": "single_line_text",
             "template": {}
           }
+        },
+        {
+          "id": "fsgX3GtA7dP",
+          "sdkName": "department",
+          "definition": {
+            "name": "Department",
+            "type": "single_line_text",
+            "template": {}
+          }
         }
       ]
     },

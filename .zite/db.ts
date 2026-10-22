@@ -164,6 +164,7 @@ export type ElementsRecordType = {
   /** Links to elements ("Elements"). Single record only. "Backup Owner" */
   backupOwner?: string | string[];
   shareToken?: string;
+  department?: string;
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -188,6 +189,7 @@ export type ElementsRecordInput = {
   category: "Communication" | "Customer support" | "CRM" | "Sales outreach" | "Database" | "Forms" | "Documents & storage" | "Contracts & e-signature" | "Finance & payments" | "HR & people" | "Meetings & scheduling" | "Project management" | "Security & access" | "Social media" | "Marketing" | "Websites & hosting" | "E-commerce" | "Video & audio" | "Design" | "AI" | "Voice agents" | "Automation" | "Web data & scraping" | "Building & dev" | string | null;
   backupOwner: string | string[] | null;
   shareToken: string | null;
+  department: string | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */

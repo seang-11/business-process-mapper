@@ -11,6 +11,7 @@ import TrainingHome from '@/components/TrainingHome';
 import TeamAccess from '@/components/TeamAccess';
 import Handoffs from '@/components/Handoffs';
 import NotFound from '@/components/NotFound';
+import Brain from '@/components/Brain';
 import SharedProcess from '@/components/SharedProcess';
 import { MeProvider } from '@/lib/me';
 
@@ -55,6 +56,7 @@ function MemberApp() {
           <Route element={<AppShell />}>
             <Route path="/" element={<WorkspaceList />} />
             <Route path="/overview" element={<Overview />} />
+            <Route path="/brain" element={<Brain />} />
             <Route path="/handoffs" element={<Handoffs />} />
             <Route path="/training" element={<TrainingHome />} />
             <Route path="/team" element={<TeamAccess />} />
