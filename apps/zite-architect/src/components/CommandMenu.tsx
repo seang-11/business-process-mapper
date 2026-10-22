@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
-import { BarChart3, Boxes, GraduationCap, Home, Keyboard, LogOut, Plus, Undo2, Users } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, Boxes, GraduationCap, Home, Keyboard, LogOut, Plus, Undo2, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@project/components/ui/dialog';
 import {
   Command,
@@ -83,6 +83,9 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
               </CommandItem>
               <CommandItem className={ITEM} value="go to overview where time goes" onSelect={() => run(() => navigate('/overview'))}>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" /> Overview
+              </CommandItem>
+              <CommandItem className={ITEM} value="go to handoffs who passes work" onSelect={() => run(() => navigate('/handoffs'))}>
+                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" /> Handoffs
               </CommandItem>
               <CommandItem className={ITEM} value="go to training learn" onSelect={() => run(() => navigate('/training'))}>
                 <GraduationCap className="h-4 w-4 text-muted-foreground" /> Training

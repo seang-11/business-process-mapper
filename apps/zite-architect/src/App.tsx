@@ -9,6 +9,7 @@ import AppShell from '@/components/AppShell';
 import Overview from '@/components/Overview';
 import TrainingHome from '@/components/TrainingHome';
 import TeamAccess from '@/components/TeamAccess';
+import Handoffs from '@/components/Handoffs';
 import { MeProvider } from '@/lib/me';
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/" element={<WorkspaceList />} />
             <Route path="/overview" element={<Overview />} />
+            <Route path="/handoffs" element={<Handoffs />} />
             <Route path="/training" element={<TrainingHome />} />
             <Route path="/team" element={<TeamAccess />} />
             <Route path="/process/:id" element={<ProcessCanvas />} />

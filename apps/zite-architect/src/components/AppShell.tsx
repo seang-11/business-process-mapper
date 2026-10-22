@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
 import {
-  BarChart3, GraduationCap, Home, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Users,
+  ArrowLeftRight, BarChart3, GraduationCap, Home, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Users,
 } from 'lucide-react';
 import { useMe } from '@/lib/me';
 import CommandMenu from './CommandMenu';
@@ -168,6 +168,10 @@ export default function AppShell() {
           <NavLink to="/overview" className={() => navItem(location.pathname === '/overview')} title="Overview">
             <BarChart3 className="h-4 w-4 shrink-0" />
             {!collapsed && <span className="flex-1">Overview</span>}
+          </NavLink>
+          <NavLink to="/handoffs" className={() => navItem(location.pathname === '/handoffs')} title="Handoffs">
+            <ArrowLeftRight className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="flex-1">Handoffs</span>}
           </NavLink>
           <NavLink to="/training" className={() => navItem(location.pathname === '/training')} title="Training">
             <GraduationCap className="h-4 w-4 shrink-0" />
