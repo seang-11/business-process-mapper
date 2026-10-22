@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
-import { Boxes, Keyboard, LogOut, Plus, Undo2, Workflow } from 'lucide-react';
+import { BarChart3, Boxes, GraduationCap, Home, Keyboard, LogOut, Plus, Undo2, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@project/components/ui/dialog';
 import {
   Command,
@@ -37,7 +37,7 @@ const ITEM = 'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm';
 export default function CommandMenu({ open, onOpenChange, processes, onShowShortcuts }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { canEdit } = useMe();
+  const { canEdit, isRealAdmin } = useMe();
   const [query, setQuery] = useState('');
   const [elements, setElements] = useState<ElementSummary[] | null>(null);
 
@@ -78,8 +78,14 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
             <CommandEmpty className="py-8 text-center text-sm text-muted-foreground">Nothing matches that.</CommandEmpty>
 
             <CommandGroup heading="Go to">
-              <CommandItem className={ITEM} value="go to processes home" onSelect={() => run(() => navigate('/'))}>
-                <Workflow className="h-4 w-4 text-muted-foreground" /> Processes
+              <CommandItem className={ITEM} value="go to home processes" onSelect={() => run(() => navigate('/'))}>
+                <Home className="h-4 w-4 text-muted-foreground" /> Home
+              </CommandItem>
+              <CommandItem className={ITEM} value="go to overview where time goes" onSelect={() => run(() => navigate('/overview'))}>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" /> Overview
+              </CommandItem>
+              <CommandItem className={ITEM} value="go to training learn" onSelect={() => run(() => navigate('/training'))}>
+                <GraduationCap className="h-4 w-4 text-muted-foreground" /> Training
               </CommandItem>
               <CommandItem
                 className={ITEM}
@@ -88,6 +94,11 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
               >
                 <Boxes className="h-4 w-4 text-muted-foreground" /> Elements
               </CommandItem>
+              {isRealAdmin && (
+                <CommandItem className={ITEM} value="go to team and access editors admins" onSelect={() => run(() => navigate('/team'))}>
+                  <Users className="h-4 w-4 text-muted-foreground" /> Team and access
+                </CommandItem>
+              )}
             </CommandGroup>
 
             <CommandGroup heading="Actions">

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
 import {
-  Boxes, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Workflow,
+  BarChart3, GraduationCap, Home, Keyboard, LogOut, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Users,
 } from 'lucide-react';
 import { useMe } from '@/lib/me';
 import CommandMenu from './CommandMenu';
@@ -21,10 +21,6 @@ const initialsOf = (name: string) =>
 const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 
-/** Green when a version is live, amber while a process is still a draft. */
-const statusDot = (p: ProcessRow) =>
-  p.versions.some((v) => v.state === 'Current') ? 'bg-emerald-500' : 'bg-amber-400';
-
 /**
  * The frame around every page: a sidebar to move around, the Cmd+K menu, and
  * the shortcuts list. Pages render in the space on the right.
@@ -32,8 +28,7 @@ const statusDot = (p: ProcessRow) =>
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const { me, canEdit } = useMe();
+  const { me, canEdit, isRealAdmin } = useMe();
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -89,8 +84,9 @@ export default function AppShell() {
   }, []);
 
   const sorted = useMemo(() => [...processes].sort((a, b) => a.name.localeCompare(b.name)), [processes]);
-  const onElements = location.pathname === '/' && searchParams.get('tab') === 'elements';
-  const onProcesses = location.pathname === '/' && !onElements;
+  // Home covers the list of processes, the elements tab, and any process or element opened from them.
+  const onHome =
+    location.pathname === '/' || location.pathname.startsWith('/process/') || location.pathname.startsWith('/element/');
 
   const navItem = (active: boolean) =>
     `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
@@ -163,70 +159,45 @@ export default function AppShell() {
           </button>
         </div>
 
-        {/* Main places */}
+        {/* Main places. Processes and elements live on Home, so they are not repeated here. */}
         <nav className="space-y-0.5 px-3">
-          <NavLink to="/" end className={() => navItem(onProcesses || location.pathname.startsWith('/process/'))} title="Processes">
-            <Workflow className="h-4 w-4 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="flex-1">Processes</span>
-                <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground">
-                  {processes.length}
-                </span>
-              </>
-            )}
+          <NavLink to="/" end className={() => navItem(onHome)} title="Home">
+            <Home className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="flex-1">Home</span>}
           </NavLink>
-          <NavLink
-            to="/?tab=elements"
-            className={() => navItem(onElements || location.pathname.startsWith('/element/'))}
-            title="Elements"
-          >
-            <Boxes className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="flex-1">Elements</span>}
+          <NavLink to="/overview" className={() => navItem(location.pathname === '/overview')} title="Overview">
+            <BarChart3 className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="flex-1">Overview</span>}
           </NavLink>
+          <NavLink to="/training" className={() => navItem(location.pathname === '/training')} title="Training">
+            <GraduationCap className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="flex-1">Training</span>}
+          </NavLink>
+          {isRealAdmin && (
+            <NavLink to="/team" className={() => navItem(location.pathname === '/team')} title="Team and access">
+              <Users className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="flex-1">Team and access</span>}
+            </NavLink>
+          )}
         </nav>
 
-        {/* Every process, A to Z, one click away */}
-        {!collapsed ? (
-          <div className="mt-4 flex min-h-0 flex-1 flex-col">
-            <div className="flex items-center justify-between px-5 pb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                All processes
-              </span>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => navigate('/?new=process')}
-                  aria-label="New process"
-                  title="New process"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
-              {sorted.map((p) => {
-                const active = location.pathname === `/process/${p.id}`;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => navigate(`/process/${p.id}`)}
-                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${
-                      active ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(p)}`} />
-                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+        {canEdit && (
+          <div className="px-3 pt-3">
+            <button
+              type="button"
+              onClick={() => navigate('/?new=process')}
+              title="New process"
+              className={`flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.25)] transition-colors hover:bg-primary/90 ${
+                collapsed ? 'px-0' : ''
+              }`}
+            >
+              <Plus className="h-4 w-4 shrink-0" />
+              {!collapsed && 'New process'}
+            </button>
           </div>
-        ) : (
-          <div className="flex-1" />
         )}
+
+        <div className="flex-1" />
 
         {/* Bottom: help, version, and you */}
         <div className="shrink-0 space-y-1 border-t border-border p-3">

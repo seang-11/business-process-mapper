@@ -13,6 +13,7 @@ import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
 import type { default as _GetMeEp } from '../src/api/getMe';
+import type { default as _GetOverviewEp } from '../src/api/getOverview';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
@@ -85,6 +86,11 @@ type _GetMeCfg = typeof _GetMeEp;
 export type GetMeInputType = NonNullable<_GetMeCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetMeCfg['execute']>[0]['input'];
 export type GetMeOutputType = Awaited<ReturnType<_GetMeCfg['execute']>>;
 export const getMe = createCaller<GetMeInputType, GetMeOutputType>('getMe');
+
+type _GetOverviewCfg = typeof _GetOverviewEp;
+export type GetOverviewInputType = NonNullable<_GetOverviewCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetOverviewCfg['execute']>[0]['input'];
+export type GetOverviewOutputType = Awaited<ReturnType<_GetOverviewCfg['execute']>>;
+export const getOverview = createCaller<GetOverviewInputType, GetOverviewOutputType>('getOverview');
 
 type _GetProcessGraphCfg = typeof _GetProcessGraphEp;
 export type GetProcessGraphInputType = NonNullable<_GetProcessGraphCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetProcessGraphCfg['execute']>[0]['input'];
@@ -184,6 +190,7 @@ export const api = {
   ensureCoreTypes,
   getElementDetail,
   getMe,
+  getOverview,
   getProcessGraph,
   getProcesses,
   getTaxonomy,
