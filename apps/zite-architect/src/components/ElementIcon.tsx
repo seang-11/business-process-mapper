@@ -84,6 +84,15 @@ const LOGO_ALIASES: Record<string, string> = {
   'x.com': 'x',
   'whats app': 'whatsapp',
   'whatsapp business': 'whatsapp',
+  fb: 'facebook',
+  'pay pal': 'paypal',
+  'google analytics 4': 'googleanalytics',
+  ga4: 'googleanalytics',
+  excel: 'microsoftexcel',
+  'microsoft excel': 'microsoftexcel',
+  'linkedin ads': 'linkedinads',
+  'linkedin campaign manager': 'linkedinads',
+  'square pos': 'square',
 };
 
 function stemFromPath(path: string): string {
