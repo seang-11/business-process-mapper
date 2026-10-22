@@ -980,6 +980,29 @@ function StepLesson({ lesson, step, index, onOpen }: {
   );
 }
 
+/** A short burst of confetti when someone finishes a lesson. Skipped for anyone who prefers less motion. */
+function Confetti() {
+  const colors = ['hsl(217 80% 60%)', 'hsl(152 60% 45%)', 'hsl(24 90% 58%)', 'hsl(336 75% 58%)', 'hsl(262 65% 62%)'];
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden motion-reduce:hidden">
+      {Array.from({ length: 32 }, (_, i) => (
+        <span
+          key={i}
+          className="confetti-piece"
+          style={{
+            left: `${(i * 37) % 100}%`,
+            backgroundColor: colors[i % colors.length],
+            animationDelay: `${(i % 8) * 0.1}s`,
+            animationDuration: `${1.7 + (i % 5) * 0.25}s`,
+            width: i % 3 === 0 ? 6 : 8,
+            height: i % 2 === 0 ? 12 : 8,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function WrapUp({ role, onBrief, onOther, onRestart }: {
   role: RoleOption;
   onBrief: () => void;
@@ -987,11 +1010,13 @@ function WrapUp({ role, onBrief, onOther, onRestart }: {
   onRestart: () => void;
 }) {
   return (
-    <div className="py-10 text-center">
+    <div className="relative py-10 text-center">
+      <Confetti />
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
         <Check className="h-6 w-6" />
       </span>
-      <h2 className="mt-4 text-2xl font-semibold tracking-tight">That's the {role.name} part of the process</h2>
+      <p className="mt-4 text-sm font-medium text-emerald-700">Nice work</p>
+      <h2 className="mt-1 text-2xl font-semibold tracking-tight">That's the {role.name} part of the process</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
         Taking this role over from someone, or handing it on? The handover brief puts it on one page.
       </p>

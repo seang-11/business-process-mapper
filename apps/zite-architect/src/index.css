@@ -118,6 +118,19 @@
   }
 }
 
+/* The little celebration at the end of a lesson. */
+.confetti-piece {
+  position: absolute;
+  top: -14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall ease-in forwards;
+}
+@keyframes confetti-fall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(280px) rotate(560deg); }
+}
+
 /* Printing a handover brief: show only the brief, flowing over as many pages as it needs. */
 @media print {
   body * {
