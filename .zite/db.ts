@@ -200,6 +200,10 @@ export type ProcessVersionsRecordType = {
   steps?: string | string[];
   /** Links to stepConnections ("Step Connections"). Single record only. "Step Connections" */
   stepConnections?: string | string[];
+  /** "Live From". Date-only field (YYYY-MM-DD string), null when unset, display as "local" format */
+  liveFrom?: string;
+  /** "Live To". Date-only field (YYYY-MM-DD string), null when unset, display as "local" format */
+  liveTo?: string;
 };
 
 /** What you may write when creating or updating a record in the "Process Versions" table. */
@@ -212,6 +216,8 @@ export type ProcessVersionsRecordInput = {
   lastEdited: string | Date | null;
   steps: string | string[] | null;
   stepConnections: string | string[] | null;
+  liveFrom: string | Date | null;
+  liveTo: string | Date | null;
 };
 
 /** A record in the "Steps" table, as it is read back. */

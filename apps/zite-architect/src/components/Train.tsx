@@ -388,9 +388,11 @@ function Intro({ lesson, processName, onStart }: { lesson: Lesson; processName: 
         </div>
       </div>
 
-      <Button className="mt-8" onClick={onStart}>
-        Start with {steps.length > 1 ? 'your first step' : 'your step'} <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
+      <div className="mt-8 flex justify-end border-t border-border pt-5">
+        <Button onClick={onStart}>
+          Start with {steps.length > 1 ? 'your first step' : 'your step'} <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

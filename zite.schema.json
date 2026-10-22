@@ -537,6 +537,28 @@
               "inverseFieldId": "f86BuTbZhS8"
             }
           }
+        },
+        {
+          "id": "fsmRzEKEHB3",
+          "sdkName": "liveFrom",
+          "definition": {
+            "name": "Live From",
+            "type": "date",
+            "template": {
+              "dateFormat": "local"
+            }
+          }
+        },
+        {
+          "id": "fdazQP3diJY",
+          "sdkName": "liveTo",
+          "definition": {
+            "name": "Live To",
+            "type": "date",
+            "template": {
+              "dateFormat": "local"
+            }
+          }
         }
       ]
     },
