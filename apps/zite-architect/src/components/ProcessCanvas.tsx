@@ -10,6 +10,8 @@ import {
   moveStep,
   reorderStep,
   restoreEdges,
+  saveConnection,
+  deleteConnection,
   saveLaneOrder,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
@@ -45,6 +47,7 @@ import { toast } from 'sonner';
 import type { ElementRef, ElementSummary, ElementType, ProcessConnection, ProcessStep } from '@/types';
 import { applyOps, planReorder } from '@/lib/planReorder';
 import { buildOutline } from '@/lib/walkthrough';
+import { connectProblem, removalSplitsFlow } from '@/lib/connectRules';
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 
@@ -439,8 +442,14 @@ export default function ProcessCanvas() {
       e.preventDefault();
       undoLast();
     };
+    // The Cmd+K menu's "Undo the last change" asks for the same thing.
+    const onMenuUndo = () => undoLast();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('bpm:undo', onMenuUndo);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('bpm:undo', onMenuUndo);
+    };
   }, [canEdit, undoLast]);
 
   /** A drop waiting for a yes: shows how the process will read afterwards. */
@@ -509,6 +518,128 @@ export default function ProcessCanvas() {
       load();
     }
   }, [pendingMove, graph, undoLast, load]);
+
+  /** A new arrow waiting for a yes: shows how the process will read once it is added. */
+  const [pendingConnect, setPendingConnect] = useState<{
+    from: ProcessStep;
+    to: ProcessStep;
+    label: string;
+    preview: { id: string; number: number; title: string; touched: boolean }[];
+  } | null>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
+  const connectButton = useRef<HTMLButtonElement | null>(null);
+
+  // Letting go of a pin on a step never changes anything by itself. A bad pair
+  // is refused here; a good one is shown for approval first.
+  const handleConnectSteps = useCallback(
+    (from: ProcessStep, to: ProcessStep) => {
+      if (!graph?.version) return;
+      const links = graph.connections.map((c) => ({ from: c.fromStepId, to: c.toStepId }));
+      const problem = connectProblem(links, from.id, to.id);
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
+      const next = [
+        ...graph.connections,
+        { id: 'new', fromStepId: from.id, toStepId: to.id, label: '', condition: '' },
+      ] as ProcessConnection[];
+      setPendingConnect({
+        from,
+        to,
+        label: '',
+        preview: buildOutline(steps, next).items.map((it) => ({
+          id: it.step.id, number: it.number, title: it.step.title, touched: it.step.id === from.id || it.step.id === to.id,
+        })),
+      });
+    },
+    [graph, steps],
+  );
+
+  const confirmConnect = useCallback(async () => {
+    if (!pendingConnect || !graph?.version) return;
+    const vId = graph.version.id;
+    const before = graph.connections.map((c) => ({ from: c.fromStepId, to: c.toStepId, label: c.label, condition: c.condition }));
+    const { from, to, label } = pendingConnect;
+    setConnectBusy(true);
+    try {
+      await saveConnection({ versionId: vId, fromStepId: from.id, toStepId: to.id, label: label.trim() });
+      undoStack.current.push({
+        label: `Connected "${from.title}" to "${to.title}"`,
+        run: async () => {
+          await restoreEdges({ versionId: vId, edges: before });
+        },
+      });
+      toast.success(`Connected "${from.title}" to "${to.title}"`, { action: { label: 'Undo', onClick: () => undoLast() } });
+      setPendingConnect(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not connect those steps. Nothing was changed.');
+    } finally {
+      setConnectBusy(false);
+      load();
+    }
+  }, [pendingConnect, graph, undoLast, load]);
+
+  /** An arrow waiting for a yes to be taken away. */
+  const [pendingRemove, setPendingRemove] = useState<{
+    connection: ProcessConnection;
+    fromTitle: string;
+    toTitle: string;
+    splits: boolean;
+    preview: { id: string; number: number; title: string; touched: boolean }[];
+  } | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+
+  const handleRemoveConnection = useCallback(
+    (connection: ProcessConnection) => {
+      if (!graph?.version) return;
+      const at = graph.connections.findIndex((c) => c.id === connection.id);
+      if (at < 0) return;
+      const links = graph.connections.map((c) => ({ from: c.fromStepId, to: c.toStepId }));
+      const titleOf = (sid: string) => steps.find((x) => x.id === sid)?.title ?? 'Step';
+      const next = graph.connections.filter((_, i) => i !== at);
+      setPendingRemove({
+        connection,
+        fromTitle: titleOf(connection.fromStepId),
+        toTitle: titleOf(connection.toStepId),
+        splits: removalSplitsFlow(steps.map((x) => x.id), links, at),
+        preview: buildOutline(steps, next).items.map((it) => ({
+          id: it.step.id,
+          number: it.number,
+          title: it.step.title,
+          touched: it.step.id === connection.fromStepId || it.step.id === connection.toStepId,
+        })),
+      });
+    },
+    [graph, steps],
+  );
+
+  const confirmRemove = useCallback(async () => {
+    if (!pendingRemove || !graph?.version) return;
+    const vId = graph.version.id;
+    const before = graph.connections.map((c) => ({ from: c.fromStepId, to: c.toStepId, label: c.label, condition: c.condition }));
+    const { connection, fromTitle, toTitle } = pendingRemove;
+    setRemoveBusy(true);
+    try {
+      await deleteConnection({ id: connection.id });
+      undoStack.current.push({
+        label: `Removed the connection from "${fromTitle}" to "${toTitle}"`,
+        run: async () => {
+          await restoreEdges({ versionId: vId, edges: before });
+        },
+      });
+      toast.success(`Removed the connection from "${fromTitle}" to "${toTitle}"`, {
+        action: { label: 'Undo', onClick: () => undoLast() },
+      });
+      setPendingRemove(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not remove that connection. Nothing was changed.');
+    } finally {
+      setRemoveBusy(false);
+      load();
+    }
+  }, [pendingRemove, graph, undoLast, load]);
+
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
 
   const laneOrder = graph?.laneOrder ?? NO_LANE_ORDER;
@@ -789,6 +920,112 @@ export default function ProcessCanvas() {
         </Dialog>
       )}
 
+      {pendingConnect && (
+        <Dialog open onOpenChange={(o) => !o && !connectBusy && setPendingConnect(null)}>
+          <DialogContent
+            className="max-w-md"
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              connectButton.current?.focus();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !connectBusy) {
+                e.preventDefault();
+                confirmConnect();
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-base">
+                Connect “{pendingConnect.from.title}” to “{pendingConnect.to.title}”?
+              </DialogTitle>
+              <DialogDescription>
+                An arrow will run from the first step to the second. This is how the process will read afterwards.
+                You can undo it with Cmd+Z.
+              </DialogDescription>
+            </DialogHeader>
+            <label className="space-y-1.5 text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Label (optional)</span>
+              <Input
+                value={pendingConnect.label}
+                onChange={(e) => setPendingConnect({ ...pendingConnect, label: e.target.value })}
+                placeholder="Yes, No, Needs work"
+                maxLength={60}
+                className="h-9"
+              />
+            </label>
+            <ol className="max-h-60 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2 text-sm">
+              {pendingConnect.preview.map((p) => (
+                <li
+                  key={p.id}
+                  className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                    p.touched ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  <span className="w-5 shrink-0 text-right text-[11px] tabular-nums">{p.number}</span>
+                  <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                </li>
+              ))}
+            </ol>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" disabled={connectBusy} onClick={() => setPendingConnect(null)}>
+                Cancel
+              </Button>
+              <Button ref={connectButton} size="sm" disabled={connectBusy} onClick={confirmConnect}>
+                {connectBusy ? 'Connecting…' : 'Connect'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {pendingRemove && (
+        <Dialog open onOpenChange={(o) => !o && !removeBusy && setPendingRemove(null)}>
+          <DialogContent
+            className="max-w-md"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !removeBusy) {
+                e.preventDefault();
+                confirmRemove();
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-base">
+                Remove the connection from “{pendingRemove.fromTitle}” to “{pendingRemove.toTitle}”?
+              </DialogTitle>
+              <DialogDescription>
+                {pendingRemove.splits
+                  ? 'Careful: this is the only link holding part of the process to the rest, so that part would be left on its own. '
+                  : ''}
+                This is how the process will read afterwards. You can undo it with Cmd+Z.
+              </DialogDescription>
+            </DialogHeader>
+            <ol className="max-h-60 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2 text-sm">
+              {pendingRemove.preview.map((p) => (
+                <li
+                  key={p.id}
+                  className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                    p.touched ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  <span className="w-5 shrink-0 text-right text-[11px] tabular-nums">{p.number}</span>
+                  <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                </li>
+              ))}
+            </ol>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" disabled={removeBusy} onClick={() => setPendingRemove(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" size="sm" disabled={removeBusy} onClick={confirmRemove}>
+                {removeBusy ? 'Removing…' : 'Remove it'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {makeLiveOpen && graph?.version && (
         <Dialog open onOpenChange={(o) => !o && !goingLive && setMakeLiveOpen(false)}>
           <DialogContent className="max-w-md">
@@ -919,6 +1156,8 @@ export default function ProcessCanvas() {
             onOpenSubProcess={(processId) => navigate(`/process/${processId}`)}
             onMoveStep={canEdit ? handleMoveStep : undefined}
             onReorderStep={canEdit ? handleReorderStep : undefined}
+            onConnectSteps={canEdit ? handleConnectSteps : undefined}
+            onRemoveConnection={canEdit ? handleRemoveConnection : undefined}
             laneOrder={laneOrder[laneGrouping]}
             onReorderLanes={canEdit ? handleReorderLanes : undefined}
             viewKey={graph?.version?.id ?? id}

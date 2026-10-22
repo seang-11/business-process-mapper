@@ -5,6 +5,7 @@ import { Toaster } from '@project/components/ui/sonner';
 import WorkspaceList from '@/components/WorkspaceList';
 import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
+import AppShell from '@/components/AppShell';
 import { MeProvider } from '@/lib/me';
 
 export default function App() {
@@ -27,9 +28,11 @@ export default function App() {
       <BrowserRouter>
         <Toaster />
         <Routes>
-          <Route path="/" element={<WorkspaceList />} />
-          <Route path="/process/:id" element={<ProcessCanvas />} />
-          <Route path="/element/:id" element={<ElementDetail />} />
+          <Route element={<AppShell />}>
+            <Route path="/" element={<WorkspaceList />} />
+            <Route path="/process/:id" element={<ProcessCanvas />} />
+            <Route path="/element/:id" element={<ElementDetail />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </MeProvider>

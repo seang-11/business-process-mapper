@@ -14,7 +14,6 @@ import DeleteProcessDialog from './DeleteProcessDialog';
 import EditProcessDialog from './EditProcessDialog';
 import ElementsTable from './ElementsTable';
 import ProcessesTable from './ProcessesTable';
-import VersionFooter from './VersionFooter';
 import ProcessCards from './ProcessCards';
 import ProcessBoard from './ProcessBoard';
 import ProcessGrid from './ProcessGrid';
@@ -103,6 +102,15 @@ export default function WorkspaceList() {
     load();
   }, [load]);
 
+  // Cmd+K and the sidebar open the new-process form by linking here with ?new=process.
+  useEffect(() => {
+    if (searchParams.get('new') !== 'process' || !me) return;
+    if (canEdit) setCreating(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, canEdit, me]);
+
   const elementCount = useMemo(
     () => elements.filter((e) => e.typeKey !== TYPE_KEYS.process).length,
     [elements],
@@ -125,10 +133,11 @@ export default function WorkspaceList() {
     <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
+          {/* The sidebar carries the name on wider screens. */}
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)] md:hidden">
             <Network className="h-5 w-5" />
           </span>
-          <h1 className="text-lg font-semibold tracking-tight">Business Process Mapper</h1>
+          <h1 className="text-lg font-semibold tracking-tight md:hidden">Business Process Mapper</h1>
           <div className="ml-auto">
             <PreviewSwitcher />
           </div>
@@ -348,9 +357,6 @@ export default function WorkspaceList() {
           onDone={markWelcomeSeen}
         />
       )}
-      <footer className="fixed bottom-3 left-4">
-        <VersionFooter />
-      </footer>
     </div>
   );
 }
