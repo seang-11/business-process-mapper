@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[] | null): string | null =>
@@ -15,7 +16,8 @@ export default createEndpoint({
   authenticated: true,
   inputSchema: z.object({ stepId: z.string(), matchStepId: z.string().nullable() }),
   outputSchema: z.object({ ok: z.boolean() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const step = await zite.steps.findOne({ id: input.stepId });
     if (!step) throw new Error('That step no longer exists.');
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite, type ElementTypesRecordInput } from 'zitejs/db';
 
 const CATEGORIES = ['Actor', 'Resource', 'Output', 'Place'] as const;
@@ -25,7 +26,8 @@ export default createEndpoint({
     humanKind: z.enum(HUMAN_KINDS).nullable().optional(),
   }),
   outputSchema: z.object({ id: z.string(), locked: z.array(z.string()) }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const cosmetic: Partial<ElementTypesRecordInput> = {};
     if (input.name !== undefined) cosmetic.name = input.name;
     if (input.description !== undefined) cosmetic.description = input.description;

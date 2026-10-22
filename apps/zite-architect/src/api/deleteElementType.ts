@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -21,7 +22,8 @@ export default createEndpoint({
     inUseBy: z.array(z.string()),
     reassigned: z.number(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const target = await zite.elementTypes.findOne({ id: input.id });
     if (!target) throw new Error('That element type no longer exists.');
 

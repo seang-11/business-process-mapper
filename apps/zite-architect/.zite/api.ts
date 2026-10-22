@@ -5,6 +5,7 @@ import { createCaller } from 'zitejs/caller';
 import type { default as _CreateProcessEp } from '../src/api/createProcess';
 import type { default as _CreateVersionEp } from '../src/api/createVersion';
 import type { default as _DeleteConnectionEp } from '../src/api/deleteConnection';
+import type { default as _DeleteEditorEp } from '../src/api/deleteEditor';
 import type { default as _DeleteElementEp } from '../src/api/deleteElement';
 import type { default as _DeleteElementTypeEp } from '../src/api/deleteElementType';
 import type { default as _DeleteProcessEp } from '../src/api/deleteProcess';
@@ -12,13 +13,16 @@ import type { default as _DeleteStepEp } from '../src/api/deleteStep';
 import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
+import type { default as _GetMeEp } from '../src/api/getMe';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
 import type { default as _GoLiveEp } from '../src/api/goLive';
+import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
+import type { default as _SaveEditorEp } from '../src/api/saveEditor';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
@@ -40,6 +44,11 @@ type _DeleteConnectionCfg = typeof _DeleteConnectionEp;
 export type DeleteConnectionInputType = NonNullable<_DeleteConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteConnectionCfg['execute']>[0]['input'];
 export type DeleteConnectionOutputType = Awaited<ReturnType<_DeleteConnectionCfg['execute']>>;
 export const deleteConnection = createCaller<DeleteConnectionInputType, DeleteConnectionOutputType>('deleteConnection');
+
+type _DeleteEditorCfg = typeof _DeleteEditorEp;
+export type DeleteEditorInputType = NonNullable<_DeleteEditorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteEditorCfg['execute']>[0]['input'];
+export type DeleteEditorOutputType = Awaited<ReturnType<_DeleteEditorCfg['execute']>>;
+export const deleteEditor = createCaller<DeleteEditorInputType, DeleteEditorOutputType>('deleteEditor');
 
 type _DeleteElementCfg = typeof _DeleteElementEp;
 export type DeleteElementInputType = NonNullable<_DeleteElementCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteElementCfg['execute']>[0]['input'];
@@ -76,6 +85,11 @@ export type GetElementDetailInputType = NonNullable<_GetElementDetailCfg['inputS
 export type GetElementDetailOutputType = Awaited<ReturnType<_GetElementDetailCfg['execute']>>;
 export const getElementDetail = createCaller<GetElementDetailInputType, GetElementDetailOutputType>('getElementDetail');
 
+type _GetMeCfg = typeof _GetMeEp;
+export type GetMeInputType = NonNullable<_GetMeCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetMeCfg['execute']>[0]['input'];
+export type GetMeOutputType = Awaited<ReturnType<_GetMeCfg['execute']>>;
+export const getMe = createCaller<GetMeInputType, GetMeOutputType>('getMe');
+
 type _GetProcessGraphCfg = typeof _GetProcessGraphEp;
 export type GetProcessGraphInputType = NonNullable<_GetProcessGraphCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetProcessGraphCfg['execute']>[0]['input'];
 export type GetProcessGraphOutputType = Awaited<ReturnType<_GetProcessGraphCfg['execute']>>;
@@ -96,6 +110,11 @@ export type GoLiveInputType = NonNullable<_GoLiveCfg['inputSchema']> extends { _
 export type GoLiveOutputType = Awaited<ReturnType<_GoLiveCfg['execute']>>;
 export const goLive = createCaller<GoLiveInputType, GoLiveOutputType>('goLive');
 
+type _ListEditorsCfg = typeof _ListEditorsEp;
+export type ListEditorsInputType = NonNullable<_ListEditorsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_ListEditorsCfg['execute']>[0]['input'];
+export type ListEditorsOutputType = Awaited<ReturnType<_ListEditorsCfg['execute']>>;
+export const listEditors = createCaller<ListEditorsInputType, ListEditorsOutputType>('listEditors');
+
 type _MatchVersionStepsCfg = typeof _MatchVersionStepsEp;
 export type MatchVersionStepsInputType = NonNullable<_MatchVersionStepsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MatchVersionStepsCfg['execute']>[0]['input'];
 export type MatchVersionStepsOutputType = Awaited<ReturnType<_MatchVersionStepsCfg['execute']>>;
@@ -110,6 +129,11 @@ type _SaveConnectionCfg = typeof _SaveConnectionEp;
 export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveConnectionCfg['execute']>[0]['input'];
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
 export const saveConnection = createCaller<SaveConnectionInputType, SaveConnectionOutputType>('saveConnection');
+
+type _SaveEditorCfg = typeof _SaveEditorEp;
+export type SaveEditorInputType = NonNullable<_SaveEditorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveEditorCfg['execute']>[0]['input'];
+export type SaveEditorOutputType = Awaited<ReturnType<_SaveEditorCfg['execute']>>;
+export const saveEditor = createCaller<SaveEditorInputType, SaveEditorOutputType>('saveEditor');
 
 type _SaveElementCfg = typeof _SaveElementEp;
 export type SaveElementInputType = NonNullable<_SaveElementCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveElementCfg['execute']>[0]['input'];
@@ -146,6 +170,7 @@ export const api = {
   createProcess,
   createVersion,
   deleteConnection,
+  deleteEditor,
   deleteElement,
   deleteElementType,
   deleteProcess,
@@ -153,13 +178,16 @@ export const api = {
   deleteVersion,
   ensureCoreTypes,
   getElementDetail,
+  getMe,
   getProcessGraph,
   getProcesses,
   getTaxonomy,
   goLive,
+  listEditors,
   matchVersionSteps,
   moveStep,
   saveConnection,
+  saveEditor,
   saveElement,
   saveElementType,
   saveLaneOrder,

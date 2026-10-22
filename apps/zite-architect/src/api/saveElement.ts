@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite, type ElementsRecordInput } from 'zitejs/db';
 
 export default createEndpoint({
@@ -22,7 +23,8 @@ export default createEndpoint({
     effectiveTo: z.string().nullable().optional(),
   }),
   outputSchema: z.object({ id: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     if (input.id && input.ownerId === input.id) {
       throw new Error('An element cannot own itself.');
     }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 import { ensureCoreTypes } from '../lib/ensureCoreTypes';
 
@@ -12,7 +13,8 @@ export default createEndpoint({
     ownerId: z.string().nullable().default(null),
   }),
   outputSchema: z.object({ processId: z.string(), versionId: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     await ensureCoreTypes();
 
     const { records: types } = await zite.elementTypes.findAll({ limit: 500 });

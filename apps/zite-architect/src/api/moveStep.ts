@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -20,7 +21,8 @@ export default createEndpoint({
     useIds: z.array(z.string()),
   }),
   outputSchema: z.object({ id: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const step = await zite.steps.findOne({ id: input.id });
     if (!step || one(step.version) !== input.versionId) {
       throw new Error('That step is no longer in this version.');

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
@@ -14,7 +15,8 @@ export default createEndpoint({
     condition: z.string().default(''),
   }),
   outputSchema: z.object({ id: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     if (input.fromStepId === input.toStepId) {
       throw new Error('A step cannot connect to itself.');
     }

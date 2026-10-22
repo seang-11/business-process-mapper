@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -18,7 +19,8 @@ export default createEndpoint({
     versionsRemoved: z.number(),
     stepsRemoved: z.number(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const target = await zite.elements.findOne({ id: input.id });
     if (!target) throw new Error('That process no longer exists.');
 

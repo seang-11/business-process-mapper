@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -12,7 +13,8 @@ export default createEndpoint({
   description: 'Delete an element, refusing when steps or other elements still reference it',
   inputSchema: z.object({ id: z.string(), cascadeProcess: z.boolean().default(false) }),
   outputSchema: z.object({ success: z.boolean(), blockedBy: z.array(z.string()) }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const [stepRes, elementRes, versionRes] = await Promise.all([
       zite.steps.findAll({ limit: 2000 }),
       zite.elements.findAll({ limit: 2000 }),

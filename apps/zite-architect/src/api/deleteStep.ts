@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -10,7 +11,8 @@ export default createEndpoint({
   description: 'Delete a step along with any connections touching it, then resync the version step count',
   inputSchema: z.object({ id: z.string(), versionId: z.string() }),
   outputSchema: z.object({ success: z.boolean(), connectionsRemoved: z.number() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     // An edge pointing at a deleted step would strand the layout, so clear them first.
     const { records: conns } = await zite.stepConnections.findAll({ limit: 2000 });
     const orphaned = conns.filter(

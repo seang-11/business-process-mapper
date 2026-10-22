@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -25,7 +26,8 @@ export default createEndpoint({
     walkthroughLine: z.string().default(''),
   }),
   outputSchema: z.object({ id: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     // Every step is done by someone or something — a person, a role, a team or
     // a system. On a Wait it is whoever is being waited on. A step with nobody
     // behind it has no lane, and no one to ask about it.

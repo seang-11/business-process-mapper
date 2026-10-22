@@ -883,6 +883,64 @@
           }
         }
       ]
+    },
+    {
+      "id": "tueqAHaFcHH",
+      "sdkName": "editors",
+      "name": "Editors",
+      "primaryFieldId": "f85WQiFWFGz",
+      "fields": [
+        {
+          "id": "f85WQiFWFGz",
+          "sdkName": "email",
+          "definition": {
+            "name": "Email",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "f1hQxtaGnug",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "faBn3iNYBsT",
+          "sdkName": "access",
+          "definition": {
+            "name": "Access",
+            "type": "single_select",
+            "template": {
+              "options": [
+                {
+                  "value": "qFW5",
+                  "label": "Admin",
+                  "color": "purple"
+                },
+                {
+                  "value": "r9yr",
+                  "label": "Editor",
+                  "color": "blue"
+                }
+              ],
+              "disableColors": false
+            }
+          }
+        },
+        {
+          "id": "fcGZuNVW4Sa",
+          "sdkName": "addedBy",
+          "definition": {
+            "name": "Added By",
+            "type": "single_line_text",
+            "template": {}
+          }
+        }
+      ]
     }
   ]
 }

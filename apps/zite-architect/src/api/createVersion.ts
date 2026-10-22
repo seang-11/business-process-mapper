@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -20,7 +21,8 @@ export default createEndpoint({
     notes: z.string().default(''),
   }),
   outputSchema: z.object({ versionId: z.string(), stepsCopied: z.number() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const source = input.sourceVersionId
       ? await zite.processVersions.findOne({ id: input.sourceVersionId })
       : null;

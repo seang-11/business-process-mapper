@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 const one = (v?: string | string[]): string | null =>
@@ -16,7 +17,8 @@ export default createEndpoint({
     /** Where to send the viewer next, since the one they were on is gone. */
     remainingVersionId: z.string().nullable(),
   }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const target = await zite.processVersions.findOne({ id: input.id });
     if (!target) throw new Error('That version no longer exists.');
 

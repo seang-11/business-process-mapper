@@ -310,6 +310,24 @@ export type MapLayoutsRecordInput = {
   appLaneOrder: string | null;
 };
 
+/** A record in the "Editors" table, as it is read back. */
+export type EditorsRecordType = {
+  id: string;
+  /** Primary field. "Email" */
+  email?: string;
+  name?: string;
+  access?: "Admin" | "Editor" | string;
+  addedBy?: string;
+};
+
+/** What you may write when creating or updating a record in the "Editors" table. */
+export type EditorsRecordInput = {
+  email: string | null;
+  name: string | null;
+  access: "Admin" | "Editor" | string | null;
+  addedBy: string | null;
+};
+
 export interface ZiteAuthUser {
   id: string;
   name: string;
@@ -326,6 +344,7 @@ export const zite = {
   steps: createTableClient<StepsRecordType, StepsRecordInput>('Steps'), // "Steps"
   stepConnections: createTableClient<StepConnectionsRecordType, StepConnectionsRecordInput>('StepConnections'), // "Step Connections"
   mapLayouts: createTableClient<MapLayoutsRecordType, MapLayoutsRecordInput>('MapLayouts'), // "Map Layouts"
+  editors: createTableClient<EditorsRecordType, EditorsRecordInput>('Editors'), // "Editors"
   sql: createSqlClient(),
   auth: createAuthClient<ZiteAuthUser>(),
 };

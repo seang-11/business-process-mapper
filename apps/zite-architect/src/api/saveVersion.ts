@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
+import { requireEditor } from '../lib/access';
 import { zite, type ProcessVersionsRecordInput } from 'zitejs/db';
 
 const day = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Use a date like 2026-10-22');
@@ -17,7 +18,8 @@ export default createEndpoint({
     liveTo: day.optional(),
   }),
   outputSchema: z.object({ id: z.string() }),
-  execute: async ({ input }) => {
+  execute: async ({ input, context }) => {
+    await requireEditor(context);
     const existing = await zite.processVersions.findOne({ id: input.id });
     if (!existing) throw new Error('That version no longer exists.');
 
