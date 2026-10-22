@@ -66,6 +66,14 @@ const LOGO_ALIASES: Record<string, string> = {
   'claude ai': 'claude',
   'wispr flow': 'wisprflow',
   wispr: 'wisprflow',
+  'microsoft teams': 'microsoftteams',
+  'ms teams': 'microsoftteams',
+  teams: 'microsoftteams',
+  'microsoft outlook': 'outlook',
+  'outlook calendar': 'outlook',
+  'jira software': 'jira',
+  'instantly.ai': 'instantly',
+  'attio crm': 'attio',
 };
 
 function stemFromPath(path: string): string {
