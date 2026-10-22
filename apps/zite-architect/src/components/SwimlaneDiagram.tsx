@@ -797,6 +797,12 @@ export default function SwimlaneDiagram({
     return () => { clearTimeout(t); obs.disconnect(); };
   }, [measure, steps, connections, grouping, totalColumns, zoom]);
 
+  // Dragging the name column slides every card sideways, so the arrows have to
+  // be re-measured on the same frame or they point at where the cards were.
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, labelBase]);
+
   // Fit shows the whole process at once, but never blows a small one up past
   // its real size.
   // Fit fills the screen top to bottom rather than squeezing the whole width
