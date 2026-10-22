@@ -6,12 +6,22 @@ import {
   getTaxonomy,
   saveElement,
   createVersion,
+  goLive,
   moveStep,
   saveLaneOrder,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GraduationCap } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GraduationCap, Radio } from 'lucide-react';
+import { Input } from '@project/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@project/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,6 +92,10 @@ export default function ProcessCanvas() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   /** Role training for the version on screen. */
   const [trainOpen, setTrainOpen] = useState(false);
+  /** The "make this version live" confirmation, and the day it goes live. */
+  const [makeLiveOpen, setMakeLiveOpen] = useState(false);
+  const [liveDay, setLiveDay] = useState('');
+  const [goingLive, setGoingLive] = useState(false);
   const [walkthroughEditId, setWalkthroughEditId] = useState<string | null>(null);
 
   // The panel shows one thing at a time, so opening either view closes the
@@ -373,6 +387,33 @@ export default function ProcessCanvas() {
   );
 
 
+  const openMakeLive = () => {
+    setLiveDay(new Date().toLocaleDateString('en-CA'));
+    setMakeLiveOpen(true);
+  };
+
+  // The version that is live today, which this one would replace.
+  const replacedVersion =
+    process?.versions.find((v) => v.state === 'Current' && v.id !== graph?.version?.id) ?? null;
+
+  const confirmMakeLive = async () => {
+    const v = graph?.version;
+    if (!v || !liveDay) return;
+    setGoingLive(true);
+    try {
+      const res = await goLive({ versionId: v.id, date: liveDay });
+      toast.success(
+        res.retired ? `${v.name} is live. The old version is retired.` : `${v.name} is live`,
+      );
+      setMakeLiveOpen(false);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not make that version live.');
+    } finally {
+      setGoingLive(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -493,6 +534,54 @@ export default function ProcessCanvas() {
           </Button>
         </div>
       </header>
+
+      {/* A version that isn't live yet says so, wherever you are, with the way to change that. */}
+      {graph?.version?.state === 'Future' && (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <span className="font-semibold">{graph.version.name} isn't live yet.</span>
+          <span className="text-xs opacity-90">
+            {replacedVersion
+              ? `${replacedVersion.name} is still how the work is done today.`
+              : 'No version is live yet.'}
+          </span>
+          <Button size="sm" className="ml-auto h-7 text-xs" onClick={openMakeLive}>
+            <Radio className="mr-1.5 h-3 w-3" /> Make live
+          </Button>
+        </div>
+      )}
+
+      {makeLiveOpen && graph?.version && (
+        <Dialog open onOpenChange={(o) => !o && !goingLive && setMakeLiveOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base">Make {graph.version.name} live?</DialogTitle>
+              <DialogDescription>
+                {replacedVersion
+                  ? `${replacedVersion.name} is retired on the day you pick, and kept with the dates it ran. `
+                  : ''}
+                From then on, new people are trained on {graph.version.name}.
+              </DialogDescription>
+            </DialogHeader>
+            <label className="flex items-center gap-3 text-sm">
+              Goes live on
+              <Input
+                type="date"
+                value={liveDay}
+                onChange={(e) => setLiveDay(e.target.value)}
+                className="h-9 w-[11rem]"
+              />
+            </label>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" disabled={goingLive} onClick={() => setMakeLiveOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={!liveDay || goingLive} onClick={confirmMakeLive}>
+                <Radio className="mr-1.5 h-3.5 w-3.5" /> Make it live
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {managingVersions && process && (
         <VersionsDialog
