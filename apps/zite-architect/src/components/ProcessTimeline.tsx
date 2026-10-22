@@ -43,7 +43,7 @@ export default function ProcessTimeline({ steps, connections, onOpenStep }: Prop
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-[hsl(220_20%_98.5%)]">
       <div className="mx-auto max-w-3xl px-6 py-8">
         <p className="text-sm text-muted-foreground">
           {total} steps · {people} {people === 1 ? 'person' : 'people'} · {automated} automated

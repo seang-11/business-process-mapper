@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { GetProcessesOutputType } from 'zitejs/api';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { Workflow, Search, X } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@project/components/ui/tooltip';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import { useColumnConfig, type ColumnOverride } from '@/hooks/useColumnConfig';
@@ -9,6 +16,65 @@ import ElementIcon from './ElementIcon';
 import IconStack from './IconStack';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
+
+// Soft tints for the people avatars, picked from the name so a role keeps its
+// colour every time it appears.
+const AVATAR_TINTS = [
+  { fg: 'hsl(217 65% 42%)', bg: 'hsl(217 90% 95%)' },
+  { fg: 'hsl(262 55% 48%)', bg: 'hsl(262 80% 96%)' },
+  { fg: 'hsl(152 55% 32%)', bg: 'hsl(152 60% 94%)' },
+  { fg: 'hsl(24 80% 42%)', bg: 'hsl(24 95% 94%)' },
+  { fg: 'hsl(336 65% 46%)', bg: 'hsl(336 85% 96%)' },
+  { fg: 'hsl(188 70% 30%)', bg: 'hsl(188 65% 93%)' },
+];
+
+const tintFor = (name: string) => {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_TINTS[h % AVATAR_TINTS.length];
+};
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
+
+/** Overlapping initials, one per person or role. Hover names them. */
+function PeopleStack({ people }: { people: { id: string; name: string }[] }) {
+  if (people.length === 0) return <span className="text-muted-foreground">—</span>;
+  const shown = people.slice(0, 6);
+  const rest = people.length - shown.length;
+  return (
+    <TooltipProvider delayDuration={100}>
+      <span className="flex items-center">
+        <span className="flex -space-x-1.5">
+          {shown.map((p) => {
+            const tint = tintFor(p.name);
+            return (
+              <Tooltip key={p.id}>
+                <TooltipTrigger asChild>
+                  <span
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-card"
+                    style={{ backgroundColor: tint.bg, color: tint.fg }}
+                  >
+                    {initials(p.name)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {p.name}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </span>
+        {rest > 0 && <span className="ml-1.5 text-[11px] text-muted-foreground">+{rest}</span>}
+      </span>
+    </TooltipProvider>
+  );
+}
 
 interface Props {
   processes: ProcessRow[];
@@ -35,12 +101,36 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
   const overrides = useMemo<Record<string, ColumnOverride>>(
     () => ({
       name: {
-        render: (_value, record) => (
-          <span className="flex items-center gap-2 min-w-0">
-            <ElementIcon name={String(record.name ?? '')} typeIcon="Workflow" size={16} />
-            <span className="truncate font-medium">{String(record.name ?? '')}</span>
-          </span>
-        ),
+        render: (_value, record) => {
+          const versionCount = Array.isArray(record.versions) ? record.versions.length : 0;
+          return (
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground">
+                <ElementIcon name={String(record.name ?? '')} typeIcon="Workflow" size={14} />
+              </span>
+              <span className="truncate font-medium">{String(record.name ?? '')}</span>
+              {versionCount > 1 && (
+                <span
+                  className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                  title="Has a future version to compare"
+                >
+                  {versionCount} versions
+                </span>
+              )}
+            </span>
+          );
+        },
+      },
+      lastEdited: {
+        render: (value) => {
+          const date = value ? new Date(String(value)) : null;
+          if (!date || Number.isNaN(date.getTime())) return <span className="text-muted-foreground">—</span>;
+          return (
+            <span className="text-muted-foreground" title={date.toLocaleString()}>
+              {formatDistanceToNowStrict(date, { addSuffix: true })}
+            </span>
+          );
+        },
       },
       ownerName: {
         render: (value, record) => {
@@ -61,7 +151,7 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
         },
       },
       people: {
-        render: (value) => <IconStack items={(value ?? []) as never[]} />,
+        render: (value) => <PeopleStack people={(value ?? []) as { id: string; name: string }[]} />,
       },
       apps: {
         render: (value) => <IconStack items={(value ?? []) as never[]} />,

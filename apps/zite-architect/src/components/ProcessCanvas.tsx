@@ -32,6 +32,13 @@ import { toast } from 'sonner';
 import type { ElementRef, ElementSummary, ElementType, ProcessConnection, ProcessStep } from '@/types';
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
+
+// Segmented switches: a soft track with a raised white pill on the active option.
+const SEG_TRACK = 'flex shrink-0 rounded-lg bg-muted p-0.5 text-xs';
+const segBtn = (active: boolean) =>
+  `rounded-md px-3 py-1 font-medium transition-all ${
+    active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+  }`;
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
 import ProcessTimeline from './ProcessTimeline';
@@ -372,15 +379,11 @@ export default function ProcessCanvas() {
 
         <span className="h-5 w-px bg-border shrink-0" aria-hidden="true" />
 
-        <div className="flex border border-border rounded-md overflow-hidden text-xs shrink-0">
+        <div className={SEG_TRACK}>
           {(['people', 'app'] as LaneGrouping[]).map((mode) => (
             <button
               key={mode}
-              className={`px-3 py-1.5 font-medium transition-colors ${
-                !showOverview && laneGrouping === mode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className={segBtn(!showOverview && laneGrouping === mode)}
               onClick={() => {
                 setShowOverview(false);
                 setLaneGrouping(mode);
@@ -392,9 +395,7 @@ export default function ProcessCanvas() {
             </button>
           ))}
           <button
-            className={`px-3 py-1.5 font-medium transition-colors ${
-              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={segBtn(showOverview)}
             onClick={() => {
               setShowOverview(true);
               setOpenLane(null);
@@ -512,14 +513,10 @@ export default function ProcessCanvas() {
             <div className="flex h-full flex-col">
               {/* Only worth showing once there is a second version to put beside the first. */}
               {process && process.versions.length > 1 && (
-                <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2">
-                  <div className="flex overflow-hidden rounded-md border border-border text-xs">
+                <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2.5">
+                  <div className={SEG_TRACK}>
                     <button
-                      className={`border-r border-border px-3 py-1.5 font-medium transition-colors ${
-                        overviewMode === 'side'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                      className={segBtn(overviewMode === 'side')}
                       onClick={() => setOverviewMode('side')}
                     >
                       Side by side
@@ -530,11 +527,7 @@ export default function ProcessCanvas() {
                       return (
                         <button
                           key={v.id}
-                          className={`px-3 py-1.5 font-medium transition-colors ${
-                            active
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
+                          className={segBtn(active)}
                           onClick={() => {
                             setOverviewMode('single');
                             if (graph?.version?.id !== v.id) setSearchParams({ version: v.id });

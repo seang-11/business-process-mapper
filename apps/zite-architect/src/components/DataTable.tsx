@@ -277,13 +277,13 @@ function DataRow({
 }) {
   return (
     <tr
-      className={`border-t border-border hover:bg-muted/30 transition-colors group ${onRowClick ? 'cursor-pointer' : ''}`}
+      className={`border-t border-border/70 hover:bg-muted/50 transition-colors group ${onRowClick ? 'cursor-pointer' : ''}`}
       onClick={() => onRowClick?.(record)}
     >
       {visibleColumns.map((col, colIdx) => (
         <td
           key={col.key}
-          className={`px-4 py-3 ${colIdx === 0 ? 'font-medium' : ''} ${col.type === 'long_text' || col.type === 'rich_text' ? 'max-w-[240px] truncate text-muted-foreground' : ''}`}
+          className={`px-4 py-2.5 ${colIdx === 0 ? 'font-medium' : ''} ${col.type === 'long_text' || col.type === 'rich_text' ? 'max-w-[240px] truncate text-muted-foreground' : ''}`}
         >
           <CellContent
             value={record[col.key]}
@@ -434,15 +434,15 @@ export default function DataTable({
   return (
     <div>
       {toolbarRow}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/50 text-left">
+              <tr className="bg-muted/40 text-left">
                 {displayColumns.map(col => (
                   <th
                     key={col.key}
-                    className="group px-4 py-2.5 font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
+                    className="group px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
                     onClick={() => handleSort(col.key)}
                   >
                     <span className="inline-flex items-center gap-1">

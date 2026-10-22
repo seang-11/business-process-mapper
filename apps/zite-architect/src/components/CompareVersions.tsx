@@ -305,7 +305,11 @@ export default function CompareVersions({ processName, versions, onClose, embedd
 
   return (
     <div
-      className={embedded ? 'flex h-full flex-col bg-background' : 'fixed inset-0 z-50 flex flex-col bg-background'}
+      className={
+        embedded
+          ? 'flex h-full flex-col bg-[hsl(220_20%_98.5%)]'
+          : 'fixed inset-0 z-50 flex flex-col bg-[hsl(220_20%_98.5%)]'
+      }
       role={embedded ? undefined : 'dialog'}
       aria-label={`Compare versions of ${processName}`}
     >
@@ -352,9 +356,9 @@ export default function CompareVersions({ processName, versions, onClose, embedd
             <p className="mt-10 text-sm text-muted-foreground">Loading…</p>
           ) : (
             <>
-              <div className="mt-5 rounded-xl border border-border bg-card px-5 py-4">
+              <div className="mt-5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.05] to-card px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
                     What changes
                   </p>
                   {notesDraft === null && (
@@ -443,7 +447,7 @@ export default function CompareVersions({ processName, versions, onClose, embedd
               )}
 
               {/* Stays in view while you scroll, so you always know which side is which. */}
-              <div className="sticky top-0 z-10 -mx-6 mt-6 border-b border-border bg-background/95 px-6 py-2 backdrop-blur">
+              <div className="sticky top-0 z-10 -mx-6 mt-6 border-b border-border bg-[hsl(220_20%_98.5%_/_0.92)] px-6 py-2.5 backdrop-blur">
                 <div className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-3">
                   <span />
                   <ColumnHead name={version(leftId)?.name ?? ''} state={version(leftId)?.state ?? ''} />
@@ -543,7 +547,7 @@ function Pill({ tone, active, onClick, children }: {
   onClick?: () => void;
   children: React.ReactNode;
 }) {
-  const base = `rounded-full px-3 py-1 text-sm font-medium ${TONES[tone]}`;
+  const base = `rounded-full px-2.5 py-0.5 text-xs font-medium ${TONES[tone]}`;
   if (!onClick) return <span className={base}>{children}</span>;
   return (
     <button
@@ -571,8 +575,8 @@ function StatTile({ label, before, after, better }: {
   const delta = after - before;
   const good = better === 'none' || delta === 0 ? null : better === 'down' ? delta < 0 : delta > 0;
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="mt-1 flex items-baseline gap-1.5 tabular-nums">
         <span className="text-sm text-muted-foreground">{before}</span>
         <ArrowRight className="h-3 w-3 self-center text-muted-foreground" />
@@ -653,8 +657,8 @@ function StepBox({ step, was, tone, open, onToggle, branch, children }: {
       aria-expanded={open}
       onClick={onToggle}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle())}
-      style={{ borderLeftWidth: 4, borderLeftColor: accent }}
-      className={`cursor-pointer rounded-lg border bg-card px-3 py-2.5 transition-shadow hover:shadow-md ${BORDERS[tone]}`}
+      style={{ borderLeftWidth: 3, borderLeftColor: accent }}
+      className={`cursor-pointer rounded-lg border bg-card px-3.5 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(16,24,40,0.08)] ${BORDERS[tone]}`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">

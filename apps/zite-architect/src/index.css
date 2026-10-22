@@ -22,8 +22,8 @@
     --secondary: 215 25% 27%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 44%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
     --accent: 48 97% 77%;
     --accent-foreground: 0 0% 4%;
@@ -31,8 +31,8 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 4%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
     --ring: 223 78% 57%;
 
     --chart-1: 223 78% 57%;
@@ -50,7 +50,7 @@
     --sidebar-border: 0 0% 90%;
     --sidebar-ring: 223 78% 57%;
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
     --font-sans: 'Inter', sans-serif;
     --font-mono: 'Roboto Mono', monospace;
@@ -124,5 +124,7 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.005em;
   }
 }

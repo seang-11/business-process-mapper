@@ -4,7 +4,6 @@ import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
 import { Workflow, Boxes, Plus } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Skeleton } from '@project/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@project/components/ui/tabs';
 import type { ElementSummary, ElementType } from '@/types';
 import { TYPE_KEYS } from '@/lib/typeKeys';
 import CreateProcessDialog from './CreateProcessDialog';
@@ -65,42 +64,53 @@ export default function WorkspaceList() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-8 py-5">
-        <h1 className="text-lg font-semibold">Business Process Mapper</h1>
+    <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <Workflow className="h-4 w-4" />
+          </span>
+          <h1 className="text-[15px] font-semibold tracking-tight">Business Process Mapper</h1>
+        </div>
       </header>
 
-      <div className="px-8 py-6">
-        <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs
-            value={tab}
-            onValueChange={(v) => setSearchParams(v === 'elements' ? { tab: 'elements' } : {})}
-          >
-            <TabsList>
-              <TabsTrigger value="processes" className="text-xs">
-                <Workflow className="h-3.5 w-3.5 mr-1.5" />
-                Processes ({processes.length})
-              </TabsTrigger>
-              <TabsTrigger value="elements" className="text-xs">
-                <Boxes className="h-3.5 w-3.5 mr-1.5" />
-                Elements ({elementCount})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+      <div className="mx-auto max-w-[1400px] px-8 py-6">
+        <div className="mb-5 flex items-end justify-between gap-3 border-b border-border">
+          <nav className="flex gap-6">
+            {(
+              [
+                ['processes', 'Processes', Workflow, processes.length],
+                ['elements', 'Elements', Boxes, elementCount],
+              ] as const
+            ).map(([key, label, Icon, count]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSearchParams(key === 'elements' ? { tab: 'elements' } : {})}
+                className={`relative -mb-px flex items-center gap-1.5 pb-3 text-sm font-medium transition-colors ${
+                  tab === key
+                    ? 'text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+                <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground">
+                  {count}
+                </span>
+              </button>
+            ))}
+          </nav>
 
           {/* The primary action sits in the same place on both tabs. */}
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={() =>
-                tab === 'processes' ? setCreating(true) : setCreatingElement(true)
-              }
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              {tab === 'processes' ? 'New process' : 'New element'}
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="mb-2 h-8 shrink-0"
+            onClick={() => (tab === 'processes' ? setCreating(true) : setCreatingElement(true))}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            {tab === 'processes' ? 'New process' : 'New element'}
+          </Button>
         </div>
 
         {tab === 'processes' ? (
