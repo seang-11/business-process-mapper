@@ -23,10 +23,9 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
   {
     title: 'On a process map',
     rows: [
-      { keys: [MOD, 'Z'], does: 'Undo the last move or connection', editorOnly: true },
-      { keys: ['Drag a card'], does: 'Move it to another lane', editorOnly: true },
-      { keys: ['Drop on a card'], does: 'Place it before or after that step. You see a preview first', editorOnly: true },
-      { keys: ['Drag the pin'], does: 'Draw an arrow from a step to another step', editorOnly: true },
+      { keys: [MOD, 'Z'], does: 'Undo the last connection you added or removed', editorOnly: true },
+      { keys: ['Drag the pin'], does: 'Draw an arrow from a step to another step. You see a preview first', editorOnly: true },
+      { keys: ['Hover a step'], does: 'See its details and light up every arrow into and out of it' },
       { keys: [MOD, 'Scroll'], does: 'Zoom in and out' },
       { keys: ['Drag the background'], does: 'Pan around' },
     ],

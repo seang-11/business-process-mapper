@@ -24,8 +24,6 @@ import type { default as _GetWorkspaceLinkEp } from '../src/api/getWorkspaceLink
 import type { default as _GoLiveEp } from '../src/api/goLive';
 import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
-import type { default as _MoveStepEp } from '../src/api/moveStep';
-import type { default as _ReorderStepEp } from '../src/api/reorderStep';
 import type { default as _RestoreEdgesEp } from '../src/api/restoreEdges';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
@@ -146,16 +144,6 @@ export type MatchVersionStepsInputType = NonNullable<_MatchVersionStepsCfg['inpu
 export type MatchVersionStepsOutputType = Awaited<ReturnType<_MatchVersionStepsCfg['execute']>>;
 export const matchVersionSteps = createCaller<MatchVersionStepsInputType, MatchVersionStepsOutputType>('matchVersionSteps');
 
-type _MoveStepCfg = typeof _MoveStepEp;
-export type MoveStepInputType = NonNullable<_MoveStepCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MoveStepCfg['execute']>[0]['input'];
-export type MoveStepOutputType = Awaited<ReturnType<_MoveStepCfg['execute']>>;
-export const moveStep = createCaller<MoveStepInputType, MoveStepOutputType>('moveStep');
-
-type _ReorderStepCfg = typeof _ReorderStepEp;
-export type ReorderStepInputType = NonNullable<_ReorderStepCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_ReorderStepCfg['execute']>[0]['input'];
-export type ReorderStepOutputType = Awaited<ReturnType<_ReorderStepCfg['execute']>>;
-export const reorderStep = createCaller<ReorderStepInputType, ReorderStepOutputType>('reorderStep');
-
 type _RestoreEdgesCfg = typeof _RestoreEdgesEp;
 export type RestoreEdgesInputType = NonNullable<_RestoreEdgesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_RestoreEdgesCfg['execute']>[0]['input'];
 export type RestoreEdgesOutputType = Awaited<ReturnType<_RestoreEdgesCfg['execute']>>;
@@ -225,8 +213,6 @@ export const api = {
   goLive,
   listEditors,
   matchVersionSteps,
-  moveStep,
-  reorderStep,
   restoreEdges,
   saveConnection,
   saveElement,

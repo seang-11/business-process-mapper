@@ -19,7 +19,6 @@ import {
   LABEL_PAD_Y,
   type EdgeGeometry,
 } from '@/lib/labelPlacement';
-import { groupOf } from '@/lib/stepGroup';
 import { connectProblem } from '@/lib/connectRules';
 import ElementIcon from './ElementIcon';
 import IconStack from './IconStack';
@@ -45,10 +44,6 @@ interface Props {
   onClickStep: (step: ProcessStep) => void;
   /** Drill into the process a sub-process step expands into. */
   onOpenSubProcess: (processId: string) => void;
-  /** Dragging a card into another lane. Without it, cards don't drag. */
-  onMoveStep?: (step: ProcessStep, move: StepMove) => void;
-  /** Dropping a card on another card: place it just before or after that one. */
-  onReorderStep?: (step: ProcessStep, targetId: string, position: 'before' | 'after') => void;
   /** Dragging a card's pin onto another card. Without it, cards show no pin. */
   onConnectSteps?: (from: ProcessStep, to: ProcessStep) => void;
   /** Taking an arrow away, from the list a click on a card's pin opens. */
@@ -63,14 +58,6 @@ interface Props {
   focusLane?: string | null;
   /** Clicking a lane name, to open its panel. */
   onOpenLane?: (lane: string) => void;
-}
-
-/** What a lane change means for the step: who does it, and its apps in order. */
-export interface StepMove {
-  performedById: string;
-  useIds: string[];
-  /** The lane it lands in, for telling the reader what happened. */
-  destination: string;
 }
 
 /** Longest owner chain worth following before calling it a cycle. */
@@ -469,8 +456,6 @@ export default function SwimlaneDiagram({
   elements,
   onClickStep,
   onOpenSubProcess,
-  onMoveStep,
-  onReorderStep,
   onConnectSteps,
   onRemoveConnection,
   laneOrder,
@@ -501,37 +486,6 @@ export default function SwimlaneDiagram({
   const dragState = useRef<{ active: boolean; startX: number; startY: number; scrollX: number; scrollY: number; moved: boolean } | null>(null);
   const didDragRef = useRef(false);
 
-  // Dragging a card. Kept apart from panning: a press on a card can only ever
-  // become a card drag, a press on the background only ever a pan.
-  const cardDrag = useRef<{ stepId: string; startX: number; startY: number; moved: boolean } | null>(null);
-  const [cardDragView, setCardDragView] = useState<{
-    stepId: string; x: number; y: number; lane: string | null;
-    /** Set while the pointer is over another card: where the dragged one would slot in. */
-    drop: { targetId: string; position: 'before' | 'after'; left: number; right: number; top: number; height: number } | null;
-    /** The dragged step and the steps tied to it, which all move together. */
-    group: string[];
-  } | null>(null);
-
-  /** The card under the pointer, and which side of it, for dropping a card before or after another. */
-  const cardUnder = useCallback((x: number, y: number, group: string[]) => {
-    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-step-card]');
-    const targetId = hit?.dataset.stepId;
-    if (!hit || !targetId || group.includes(targetId)) return null;
-    const r = hit.getBoundingClientRect();
-    return {
-      targetId,
-      position: (x < r.left + r.width / 2 ? 'before' : 'after') as 'before' | 'after',
-      left: r.left, right: r.right, top: r.top, height: r.height,
-    };
-  }, []);
-
-  /** Who moves with a step: its decision branches or its loop. */
-  const groupFor = useCallback(
-    (stepId: string) =>
-      [...groupOf(stepId, connections.map((c) => ({ from: c.fromStepId, to: c.toStepId })), steps.map((s) => s.id)).members],
-    [connections, steps],
-  );
-
   // Dragging a card's pin to another card draws a new arrow. Kept apart from
   // card and lane dragging: the pin has its own listeners, so a press on it can
   // never pan the map or lift the card.
@@ -545,7 +499,7 @@ export default function SwimlaneDiagram({
 
   const startConnect = useCallback(
     (step: ProcessStep, e: React.PointerEvent<HTMLElement>) => {
-      if (!onConnectSteps || e.button !== 0 || cardDrag.current || laneDrag.current) return;
+      if (!onConnectSteps || e.button !== 0 || laneDrag.current) return;
       e.stopPropagation();
       e.preventDefault();
       const r = e.currentTarget.getBoundingClientRect();
@@ -657,6 +611,17 @@ export default function SwimlaneDiagram({
   }, [zoom]);
 
   const loops = useMemo(() => deriveLoops(steps, connections), [steps, connections]);
+  // A loop's way back is drawn once, as the dashed return arrow under its box. It
+  // is left out of the ordinary arrows so no second copy runs behind the cards.
+  const loopReturnKeys = useMemo(
+    () =>
+      new Set(
+        loops
+          .filter((l) => l.stepIds.length >= 2)
+          .map((l) => `${l.stepIds[l.stepIds.length - 1]}->${l.reentryStepId}`),
+      ),
+    [loops],
+  );
 
   const columnMap = useMemo(
     () => assignColumns(steps, connections, loops),
@@ -791,46 +756,6 @@ export default function SwimlaneDiagram({
       return orderedLanes.length;
     },
     [orderedLanes],
-  );
-
-  /** Who does the step, and its apps, once it lands in a lane — or null if it can't. */
-  const laneMove = useCallback(
-    (step: ProcessStep, lane: string): { performedById: string; useIds: string[] } | null => {
-      const useIds = step.uses.map((u) => u.id);
-
-      if (grouping === 'people') {
-        // An app can only take over a step it is already part of.
-        if (lane === AUTOMATED_LANE) {
-          const app = step.uses.find((u) => u.actorClass === 'System');
-          return app ? { performedById: app.id, useIds } : null;
-        }
-        const person = laneTargets.get(lane);
-        return person ? { performedById: person.id, useIds } : null;
-      }
-
-      const app = laneTargets.get(lane);
-      if (!app || !step.performedBy) return null;
-      // A step an app runs is laned by that app, so the new app runs it.
-      if (step.performedBy.actorClass === 'System') {
-        return { performedById: app.id, useIds };
-      }
-      // A person's step is laned by its first app, so the new one goes first.
-      return {
-        performedById: step.performedBy.id,
-        useIds: [app.id, ...useIds.filter((id) => id !== app.id)],
-      };
-    },
-    [grouping, laneTargets],
-  );
-
-  /** What dropping a step into a lane would change, or null if it can't go there. */
-  const resolveDrop = useCallback(
-    (step: ProcessStep, lane: string | null): StepMove | null => {
-      if (lane == null || lane === stepLaneMap.get(step.id)) return null;
-      const who = laneMove(step, lane);
-      return who ? { ...who, destination: lane } : null;
-    },
-    [stepLaneMap, laneMove],
   );
 
   const isCrossLane = useCallback(
@@ -1039,7 +964,7 @@ export default function SwimlaneDiagram({
 
   const labelPlacements = useMemo(() => {
     const withGeometry = connections
-      .filter((c) => c.label)
+      .filter((c) => c.label && !loopReturnKeys.has(`${c.fromStepId}->${c.toStepId}`))
       .map((c) => {
         const fromRect = positions.get(c.fromStepId);
         const toRect = positions.get(c.toStepId);
@@ -1065,7 +990,7 @@ export default function SwimlaneDiagram({
     }));
 
     return placeEdgeLabels(withGeometry, cards);
-  }, [connections, positions, highlightedConnections]);
+  }, [connections, positions, highlightedConnections, loopReturnKeys]);
 
   // --- Click-and-drag panning handlers ---
   // Pointer capture is deferred until the drag threshold is crossed so that
@@ -1074,11 +999,9 @@ export default function SwimlaneDiagram({
 
   const resetDrag = useCallback(() => {
     dragState.current = null;
-    cardDrag.current = null;
     laneDrag.current = null;
     pointerIdRef.current = null;
     setIsDragging(false);
-    setCardDragView(null);
     setLaneDragView(null);
   }, []);
 
@@ -1097,15 +1020,8 @@ export default function SwimlaneDiagram({
       return;
     }
 
-    const card = target.closest<HTMLElement>('[data-step-card]');
-    if (card) {
-      const stepId = card.dataset.stepId;
-      if (!onMoveStep || !stepId) return;
-      didDragRef.current = false;
-      pointerIdRef.current = e.pointerId;
-      cardDrag.current = { stepId, startX: e.clientX, startY: e.clientY, moved: false };
-      return;
-    }
+    // A press on a card is just a click: cards do not drag.
+    if (target.closest('[data-step-card]')) return;
 
     const el = containerRef.current;
     if (!el) return;
@@ -1121,7 +1037,7 @@ export default function SwimlaneDiagram({
       moved: false,
     };
     // Do NOT capture yet — capture only once movement passes the threshold.
-  }, [onMoveStep, onReorderLanes]);
+  }, [onReorderLanes]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const ld = laneDrag.current;
@@ -1135,31 +1051,6 @@ export default function SwimlaneDiagram({
         }
       }
       setLaneDragView({ lane: ld.lane, x: e.clientX, y: e.clientY, insertAt: laneInsertAt(e.clientY) });
-      return;
-    }
-
-    const cd = cardDrag.current;
-    if (cd) {
-      if (!cd.moved) {
-        if (Math.abs(e.clientX - cd.startX) + Math.abs(e.clientY - cd.startY) <= DRAG_THRESHOLD) return;
-        cd.moved = true;
-        setHoveredStepId(null);
-        const el = containerRef.current;
-        if (el && pointerIdRef.current != null) {
-          try { el.setPointerCapture(pointerIdRef.current); } catch { /* already released */ }
-        }
-      }
-      const group = groupFor(cd.stepId);
-      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, group) : null;
-      setCardDragView({
-        stepId: cd.stepId,
-        x: e.clientX,
-        y: e.clientY,
-        // Over a card the drop reorders; only open lane space moves it to that lane.
-        lane: drop ? null : laneAt(e.clientY),
-        drop,
-        group,
-      });
       return;
     }
 
@@ -1182,7 +1073,7 @@ export default function SwimlaneDiagram({
     if (!el) return;
     el.scrollLeft = ds.scrollX - dx;
     el.scrollTop = ds.scrollY - dy;
-  }, [laneAt, laneInsertAt, onReorderStep, cardUnder, groupFor]);
+  }, [laneInsertAt]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const ld = laneDrag.current;
@@ -1206,28 +1097,6 @@ export default function SwimlaneDiagram({
       return;
     }
 
-    const cd = cardDrag.current;
-    if (cd) {
-      const el = containerRef.current;
-      if (el && pointerIdRef.current != null) {
-        try { el.releasePointerCapture(pointerIdRef.current); } catch { /* ok */ }
-      }
-      resetDrag();
-      if (!cd.moved) return;
-      // Swallow the click that follows the drop, so it doesn't open the step.
-      didDragRef.current = true;
-      setTimeout(() => { didDragRef.current = false; }, 0);
-      const step = steps.find((s) => s.id === cd.stepId);
-      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, groupFor(cd.stepId)) : null;
-      if (step && drop) {
-        onReorderStep?.(step, drop.targetId, drop.position);
-        return;
-      }
-      const move = step ? resolveDrop(step, laneAt(e.clientY)) : null;
-      if (step && move) onMoveStep?.(step, move);
-      return;
-    }
-
     const ds = dragState.current;
     if (!ds?.active) { resetDrag(); return; }
     if (ds.moved) didDragRef.current = true;
@@ -1238,7 +1107,7 @@ export default function SwimlaneDiagram({
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
   }, [
-    resetDrag, laneAt, steps, resolveDrop, onMoveStep, onReorderStep, cardUnder, groupFor,
+    resetDrag,
     orderedLanes, laneInsertAt, laneIdOf, onReorderLanes, onOpenLane,
   ]);
 
@@ -1254,14 +1123,6 @@ export default function SwimlaneDiagram({
     // The browser took capture away — make sure local state is clean.
     resetDrag();
   }, [resetDrag]);
-
-  const dragStep = cardDragView ? steps.find((s) => s.id === cardDragView.stepId) ?? null : null;
-  const dropLane =
-    dragStep && cardDragView?.lane && cardDragView.lane !== stepLaneMap.get(dragStep.id)
-      ? cardDragView.lane
-      : null;
-  const dropMove = dragStep && cardDragView ? resolveDrop(dragStep, cardDragView.lane) : null;
-  const dropOk = dropMove !== null;
 
   // With a lane's panel open, its steps and the arrows touching them stay
   // bright and the rest fades back. Hovering a card still wins while it lasts.
@@ -1294,7 +1155,7 @@ export default function SwimlaneDiagram({
     <div className="relative h-full">
     <div
       ref={containerRef}
-      className={`h-full overflow-auto relative ${isDragging || cardDragView || laneDragView ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+      className={`h-full overflow-auto relative ${isDragging || laneDragView ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1316,6 +1177,9 @@ export default function SwimlaneDiagram({
                 can't follow the line it sits on in every browser. */}
             <marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
               <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary) / 0.5)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+            </marker>
+            <marker id="loop-arrow-hi" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
+              <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke={EDGE_COLOR_HI} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
             </marker>
             <marker id="flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
               <path className="pointer-events-none" d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke={EDGE_COLOR} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
@@ -1340,6 +1204,11 @@ export default function SwimlaneDiagram({
             const lastStepId = loop.stepIds[loop.stepIds.length - 1];
             const lastRect = positions.get(lastStepId);
             const reentryRect = positions.get(loop.reentryStepId);
+            const returnKey = `${lastStepId}->${loop.reentryStepId}`;
+            // Pointing at any step in the loop lights up the way back, so you can
+            // see where the work returns to instead of two loose arrow ends.
+            const lit = highlightedConnections.has(returnKey) || (!!hoveredStepId && loop.stepIds.includes(hoveredStepId));
+            const returnLabel = connections.find((c) => `${c.fromStepId}->${c.toStepId}` === returnKey)?.label ?? '';
 
             return (
               <g key={loop.id} className="pointer-events-none">
@@ -1347,15 +1216,15 @@ export default function SwimlaneDiagram({
                   className="pointer-events-none"
                   x={minX} y={minY} width={w} height={h}
                   rx={12} ry={12}
-                  fill="hsl(var(--primary) / 0.04)"
-                  stroke="hsl(var(--primary) / 0.25)"
+                  fill={lit ? 'hsl(var(--primary) / 0.08)' : 'hsl(var(--primary) / 0.04)'}
+                  stroke={lit ? 'hsl(var(--primary) / 0.55)' : 'hsl(var(--primary) / 0.25)'}
                   strokeWidth={2}
                   strokeDasharray="8 4"
                 />
                 <text
                   className="pointer-events-none"
                   x={minX + 14} y={minY + 16}
-                  fill="hsl(var(--primary) / 0.7)"
+                  fill={lit ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.7)'}
                   fontSize={11} fontWeight={600}
                 >
                   {loop.name}
@@ -1369,16 +1238,43 @@ export default function SwimlaneDiagram({
                     const y2 = maxY;
                     const drop = 24;
                     const path = `M ${x1} ${y1 - pad} L ${x1} ${y1 + drop} C ${x1} ${y1 + drop + 12}, ${x2} ${y1 + drop + 12}, ${x2} ${y2 + drop} L ${x2} ${y2 - pad}`;
+                    const midX = (x1 + x2) / 2;
+                    const midY = y1 + drop + 9;
+                    const chipW = Math.max(36, returnLabel.length * 6.2 + 16);
                     return (
-                      <path
-                        className="pointer-events-none"
-                        d={path}
-                        fill="none"
-                        stroke="hsl(var(--primary) / 0.4)"
-                        strokeWidth={2}
-                        strokeDasharray="6 4"
-                        markerEnd="url(#loop-arrow)"
-                      />
+                      <>
+                        <path
+                          className="pointer-events-none transition-all duration-200"
+                          d={path}
+                          fill="none"
+                          stroke={lit ? EDGE_COLOR_HI : 'hsl(var(--primary) / 0.4)'}
+                          strokeWidth={lit ? 2.5 : 2}
+                          strokeDasharray={lit ? undefined : '6 4'}
+                          strokeLinecap="round"
+                          markerEnd={lit ? 'url(#loop-arrow-hi)' : 'url(#loop-arrow)'}
+                        />
+                        {lit && !reduceMotion && (
+                          <circle className="pointer-events-none" r={3.5} fill={EDGE_COLOR_HI}>
+                            <animateMotion path={path} dur="2.4s" repeatCount="indefinite" />
+                          </circle>
+                        )}
+                        {returnLabel && (
+                          <g className="pointer-events-none">
+                            <rect
+                              x={midX - chipW / 2} y={midY - 10} width={chipW} height={20} rx={10}
+                              fill="hsl(var(--background))"
+                              stroke={lit ? 'hsl(var(--primary))' : 'hsl(var(--border))'}
+                            />
+                            <text
+                              x={midX} y={midY} textAnchor="middle" dominantBaseline="central"
+                              fill={lit ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'}
+                              fontSize={LABEL_FONT_SIZE} fontWeight={LABEL_FONT_WEIGHT}
+                            >
+                              {returnLabel}
+                            </text>
+                          </g>
+                        )}
+                      </>
                     );
                   })()
                 )}
@@ -1392,6 +1288,7 @@ export default function SwimlaneDiagram({
             if (!fromRect || !toRect) return null;
 
             const key = `${c.fromStepId}->${c.toStepId}`;
+            if (loopReturnKeys.has(key)) return null;
             const highlighted = highlightedConnections.has(key);
             const dimmed = isEdgeDimmed(key, highlighted);
 
@@ -1747,11 +1644,7 @@ export default function SwimlaneDiagram({
                 {/* Faint banding so a row stays trackable across a wide diagram. */}
                 <div
                   className={`flex-1 px-6 ${loopTopLanes.has(lane) ? 'pt-14 pb-5' : 'py-5'} transition-colors ${
-                    dropLane === lane
-                      ? dropOk
-                        ? 'bg-primary/[0.06] shadow-[inset_0_0_0_2px_hsl(var(--primary)/0.35)]'
-                        : 'bg-destructive/[0.04]'
-                      : laneIdx % 2 === 1 ? 'bg-foreground/[0.025]' : ''
+                    laneIdx % 2 === 1 ? 'bg-foreground/[0.025]' : ''
                   }`}
                 >
                   <div className="space-y-3">
@@ -1790,11 +1683,9 @@ export default function SwimlaneDiagram({
                             hasCrossLaneDep={connections.some(
                               c => isCrossLane(c) && (c.fromStepId === step.id || c.toStepId === step.id)
                             )}
-                            isDragSource={!!cardDragView?.group.includes(step.id)}
                             detail={detail}
                             textScale={textScale}
                             panelScale={1 / zoom}
-                            draggable={!!onMoveStep}
                             canConnect={!!onConnectSteps}
                             connecting={connectView !== null}
                             connectMark={
@@ -1829,18 +1720,6 @@ export default function SwimlaneDiagram({
       >
         {laneDragView.lane}
       </div>
-    )}
-
-    {/* A line where the dragged card will slot in: before or after the card it hovers. */}
-    {cardDragView?.drop && (
-      <div
-        className="pointer-events-none fixed z-50 w-1 rounded-full bg-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.2)]"
-        style={{
-          left: (cardDragView.drop.position === 'before' ? cardDragView.drop.left : cardDragView.drop.right) - 2,
-          top: cardDragView.drop.top,
-          height: cardDragView.drop.height,
-        }}
-      />
     )}
 
     {/* The line that follows the pointer while a pin is dragged. */}
@@ -1939,27 +1818,6 @@ export default function SwimlaneDiagram({
       );
     })()}
 
-    {/* Follows the pointer outside the zoomed content, so it stays full size. */}
-    {dragStep && cardDragView && (
-      <div
-        className="pointer-events-none fixed z-50 w-52 rotate-[1.5deg] rounded-lg border border-primary/40 bg-card p-3 shadow-xl"
-        style={{ left: cardDragView.x - 20, top: cardDragView.y - 16 }}
-      >
-        <p className="text-xs font-medium line-clamp-1">{dragStep.title}</p>
-        <p className={`mt-1 text-[10px] ${dropLane && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {cardDragView.drop
-            ? `Place ${cardDragView.drop.position} “${steps.find((s) => s.id === cardDragView.drop!.targetId)?.title ?? 'step'}”${cardDragView.group.length > 1 ? `, with ${cardDragView.group.length - 1} linked` : ''}`
-            : dropMove
-            ? `Move to ${dropMove.destination}`
-            : !dropLane
-            ? 'Drop in another lane'
-            : grouping === 'people' && dropLane === AUTOMATED_LANE
-            ? 'Add an app to this step first'
-            : "Can't move here"}
-        </p>
-      </div>
-    )}
-
     <div className="absolute bottom-4 right-4 z-30 flex items-center gap-0.5 rounded-full border border-border bg-card/95 p-1 shadow-md backdrop-blur">
       <button
         type="button"
@@ -2025,8 +1883,6 @@ interface StepCardProps {
   /** Undoes the zoom on the hover panel, so its details are always full size. */
   panelScale: number;
   /** This card is the one being dragged; the ghost stands in for it. */
-  isDragSource: boolean;
-  draggable: boolean;
   /** Shows the pin on the card's right edge. */
   canConnect: boolean;
   /** A pin is being dragged somewhere on the map: hold the hover panel back. */
@@ -2036,7 +1892,6 @@ interface StepCardProps {
   onPinDown: (step: ProcessStep, e: React.PointerEvent<HTMLElement>) => void;
 }
 
-const PANEL_W = 256;
 /** Logos shown beside a step's main app before the rest fold into "+N". */
 const MAX_USE_BADGES = 3;
 const PANEL_FADE_MS = 150;
@@ -2057,8 +1912,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       textScale,
       panelScale,
       hasCrossLaneDep,
-      isDragSource,
-      draggable,
       canConnect,
       connecting,
       connectMark,
@@ -2068,7 +1921,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
   ) => {
     const checklistItems = step.checklist || [];
     const [showDetail, setShowDetail] = useState(false);
-    const [side, setSide] = useState<'right' | 'left'>('right');
     const closeTimeout = useRef<ReturnType<typeof setTimeout>>();
     const layerTimeout = useRef<ReturnType<typeof setTimeout>>();
     const cardEl = useRef<HTMLDivElement | null>(null);
@@ -2091,11 +1943,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
     const openDetail = () => {
       clearTimeout(closeTimeout.current);
       clearTimeout(layerTimeout.current);
-      // Open away from the edge of the window rather than off it.
-      const rect = cardEl.current?.getBoundingClientRect();
-      if (rect) {
-        setSide(window.innerWidth - rect.right >= PANEL_W + 24 ? 'right' : 'left');
-      }
       setShowDetail(true);
       onDetailChange(step.id, true);
     };
@@ -2129,13 +1976,13 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         ref={setRefs}
         data-step-card
         data-step-id={step.id}
-        className={`group/card w-52 shrink-0 rounded-lg bg-card p-3 ${connectMark === 'ok' ? 'ring-2 ring-primary ring-offset-2' : connectMark === 'bad' ? 'ring-2 ring-destructive/60 ring-offset-2 cursor-not-allowed' : ''} ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} pointer-events-auto transition-all duration-200 relative ${
+        className={`group/card w-52 shrink-0 rounded-lg bg-card p-3 ${connectMark === 'ok' ? 'ring-2 ring-primary ring-offset-2' : connectMark === 'bad' ? 'ring-2 ring-destructive/60 ring-offset-2 cursor-not-allowed' : ''} cursor-pointer pointer-events-auto transition-all duration-200 relative ${
           isHighlighted
             ? 'border-2 border-primary shadow-sm'
             : hasCrossLaneDep
             ? 'border border-primary/30'
             : 'border border-border'
-        } ${isDragSource ? 'opacity-30 border-dashed' : isDimmed ? 'opacity-30' : 'opacity-100'} shadow-sm hover:shadow-md`}
+        } ${isDimmed ? 'border-border/60' : ''} shadow-sm hover:shadow-md`}
         onClick={onClick}
         onMouseEnter={() => { onHover(step.id); if (hasDetail && !connecting) openDetail(); }}
         onMouseLeave={() => { onHover(null); scheduleCloseDetail(); }}
@@ -2166,7 +2013,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         )}
         {/* Everything inside grows back by the zoom-out, so it keeps its size
             on screen and wraps to the narrower card instead. */}
-        <div style={{ zoom: textScale }}>
+        <div style={{ zoom: textScale }} className={`transition-opacity duration-200 ${isDimmed ? 'opacity-30' : ''}`}>
         {detail !== 'compact' && (
         <div className="flex items-center justify-between gap-1.5 mb-1.5">
           <span className="inline-flex min-w-0 max-w-[120px] items-center gap-1.5 text-[11px] font-semibold leading-tight text-foreground">
@@ -2319,23 +2166,16 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         {/* Hover detail panel — kept mounted so it can fade out as well as in */}
         {hasDetail && (
           <div
-            className={`absolute top-0 w-64 bg-popover border border-border rounded-lg shadow-lg p-3 z-[20] transition-[opacity,transform] ease-out ${
-              side === 'right' ? 'left-full ml-2' : 'right-full mr-2'
-            } ${
-              showDetail && !isDragSource
-                ? 'opacity-100 translate-x-0'
-                : `opacity-0 pointer-events-none ${
-                    side === 'right' ? '-translate-x-1' : 'translate-x-1'
-                  }`
+            className={`absolute left-0 top-full mt-2 w-52 bg-popover border border-border rounded-lg shadow-lg p-3 z-[20] transition-[opacity,transform] ease-out ${
+              showDetail
+                ? 'opacity-100 translate-y-0'
+                : 'opacity-0 pointer-events-none -translate-y-1'
             }`}
             style={{
               transitionDuration: `${PANEL_FADE_MS}ms`,
-              // Scaled up from the corner it hangs off, so it stays beside the card.
+              // Scaled up from the corner it hangs off, so it stays under the card.
               ...(panelScale !== 1
-                ? {
-                    transform: `scale(${panelScale})`,
-                    transformOrigin: side === 'right' ? 'top left' : 'top right',
-                  }
+                ? { transform: `scale(${panelScale})`, transformOrigin: 'top left' }
                 : {}),
             }}
             aria-hidden={!showDetail}
