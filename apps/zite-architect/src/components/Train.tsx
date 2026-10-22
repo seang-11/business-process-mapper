@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   X, ArrowLeft, ArrowRight, GraduationCap, Link2, Printer, Zap, CornerDownRight, ExternalLink, Check, Users,
+  Compass, Flag, Hourglass, GitFork,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProcessGraph } from 'zitejs/api';
@@ -17,7 +18,8 @@ import {
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import {
-  buildBrief, buildLesson, rolesOf, type Lesson, type LessonStep, type RoleOption,
+  AUTOMATED_ROLE, UNASSIGNED_ROLE, buildBrief, buildLesson, buildStory, roleKeyOf, rolesOf,
+  type Lesson, type LessonStep, type RoleOption, type Stage,
 } from '@/lib/training';
 import ElementIcon from './ElementIcon';
 
@@ -30,14 +32,18 @@ export interface TrainVersion {
   liveTo: string;
 }
 
+type TrainView = 'process' | 'lesson' | 'brief';
+
 interface Props {
   processName: string;
+  /** What the process is for, in the team's own words. A sentence is written from the map if empty. */
+  processDescription: string;
   versions: TrainVersion[];
   /** Which version to train on first. The live one, unless a link says otherwise. */
   initialVersionId: string;
   /** A role to open straight to, from a shared link. */
   initialRole: string | null;
-  initialView: 'lesson' | 'brief';
+  initialView: TrainView;
   onClose: () => void;
   /** Close Train and show this step on the map. */
   onOpenStep: (step: ProcessStep, versionId: string) => void;
@@ -79,6 +85,10 @@ const tintFor = (name: string) => {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return TINTS[h % TINTS.length];
 };
+/** One colour per role everywhere in Train, so the bar, the story and the cards agree. */
+const roleColor = (key: string, name: string) =>
+  key === AUTOMATED_ROLE ? 'hsl(152 55% 38%)' : key === UNASSIGNED_ROLE ? 'hsl(220 9% 60%)' : tintFor(name).fg;
+
 const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 
@@ -122,7 +132,7 @@ function AppChip({ app }: { app: ElementRef }) {
  * leaving and someone else is arriving. All of it is read straight from the map.
  */
 export default function Train({
-  processName, versions, initialVersionId, initialRole, initialView, onClose, onOpenStep,
+  processName, processDescription, versions, initialVersionId, initialRole, initialView, onClose, onOpenStep,
 }: Props) {
   const [versionId, setVersionId] = useState(initialVersionId);
   const [graph, setGraph] = useState<{ steps: ProcessStep[]; connections: ProcessConnection[] } | null>(null);
@@ -154,9 +164,12 @@ export default function Train({
 
   // Checked against the roles once the version has loaded; an unknown one just shows the picker.
   const [roleKey, setRoleKey] = useState<string | null>(initialRole);
-  const [view, setView] = useState<'lesson' | 'brief'>(initialView);
+  const [view, setView] = useState<TrainView>(initialView);
   /** -1 is the introduction; steps follow; one past the last is the wrap-up. */
   const [idx, setIdx] = useState(-1);
+  /** The whole process, in a panel that can be opened from any lesson screen. */
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const story = useMemo(() => buildStory(outline), [outline]);
 
   const role = roles.find((r) => r.key === roleKey) ?? null;
   const lesson = useMemo(
@@ -176,20 +189,22 @@ export default function Train({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      else if (role && view === 'lesson' && e.key === 'ArrowRight') next();
+      if (e.key === 'Escape') {
+        // The panel closes first, then the training.
+        if (drawerOpen) setDrawerOpen(false);
+        else onClose();
+      } else if (role && view === 'lesson' && e.key === 'ArrowRight') next();
       else if (role && view === 'lesson' && e.key === 'ArrowLeft') back();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [role, view, next, back, onClose]);
+  }, [role, view, next, back, onClose, drawerOpen]);
 
   const copyLink = () => {
-    if (!role) return;
     const url = new URL(window.location.href);
     url.searchParams.delete('lane');
     url.searchParams.delete('by');
-    url.searchParams.set('train', role.key);
+    url.searchParams.set('train', role?.key ?? 'all');
     url.searchParams.set('view', view);
     // So the link teaches the same version it was copied from.
     url.searchParams.set('version', versionId);
@@ -235,19 +250,16 @@ export default function Train({
           </Select>
         )}
 
-        {role && (
-          <div className={`${SEG_TRACK} ml-4`}>
-            <button className={segBtn(view === 'lesson')} onClick={() => setView('lesson')}>Lesson</button>
-            <button className={segBtn(view === 'brief')} onClick={() => setView('brief')}>Handover brief</button>
-          </div>
-        )}
+        <div className={`${SEG_TRACK} ml-4`}>
+          <button className={segBtn(view === 'process')} onClick={() => setView('process')}>The big picture</button>
+          <button className={segBtn(view === 'lesson')} onClick={() => setView('lesson')}>Your role</button>
+          <button className={segBtn(view === 'brief')} onClick={() => setView('brief')}>Handover brief</button>
+        </div>
 
         <div className="ml-auto flex items-center gap-1">
-          {role && (
-            <Button variant="ghost" size="sm" onClick={copyLink}>
-              <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy link
-            </Button>
-          )}
+          <Button variant="ghost" size="sm" onClick={copyLink}>
+            <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy link
+          </Button>
           {role && view === 'brief' && (
             <Button variant="ghost" size="sm" onClick={() => window.print()}>
               <Printer className="mr-1.5 h-3.5 w-3.5" /> Print
@@ -272,7 +284,7 @@ export default function Train({
         />
       )}
 
-      {role && (
+      {role && view !== 'process' && (
         <div className="train-noprint flex items-center gap-2 overflow-x-auto border-b border-border bg-background px-6 py-2">
           <span className="shrink-0 text-xs text-muted-foreground">Your role</span>
           {roles.map((r) => (
@@ -289,6 +301,14 @@ export default function Train({
               {r.name}
             </button>
           ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto h-7 shrink-0 text-xs"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Compass className="mr-1.5 h-3.5 w-3.5" /> See the whole process
+          </Button>
         </div>
       )}
 
@@ -302,8 +322,22 @@ export default function Train({
           <p className="mx-auto max-w-3xl px-6 py-14 text-sm text-muted-foreground">
             This version has no steps yet, so there is nothing to teach. Pick another version above.
           </p>
+        ) : view === 'process' ? (
+          <ProcessOverview
+            processName={processName}
+            description={processDescription}
+            outline={outline}
+            roles={roles}
+            story={story}
+            roleKey={role?.key ?? null}
+            onNext={() => {
+              setView('lesson');
+              setIdx(-1);
+            }}
+            nextLabel={role ? `Next: your part as ${role.name}` : 'Next: find your role'}
+          />
         ) : !role || !lesson || !brief ? (
-          <RolePicker roles={roles} processName={processName} onPick={pickRole} />
+          <RolePicker roles={roles} processName={processName} onPick={pickRole} onBigPicture={() => setView('process')} />
         ) : view === 'brief' ? (
           <BriefView
             lesson={lesson}
@@ -359,6 +393,46 @@ export default function Train({
           </div>
         )}
       </main>
+
+      {drawerOpen && (
+        <div className="train-noprint fixed inset-0 z-[60] flex justify-end">
+          <button
+            type="button"
+            aria-label="Close the whole-process panel"
+            className="flex-1 cursor-default bg-black/20"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <aside className="flex h-full w-full max-w-[440px] flex-col border-l border-border bg-background shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <div>
+                <p className="text-sm font-semibold">The whole process</p>
+                <p className="text-xs text-muted-foreground">
+                  {role ? `${role.name} is highlighted.` : 'Who has the work, from start to finish.'}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(false)} aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <ProcessStory story={story} roleKey={role?.key ?? null} compact />
+            </div>
+            <div className="border-t border-border px-5 py-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  setView('process');
+                }}
+              >
+                Open the big picture
+              </Button>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
@@ -414,12 +488,228 @@ function VersionBanner({ version, live, onSwitchToLive }: {
   );
 }
 
+// --- The big picture ---
+
+/** A small key: which color is which role. */
+function RoleLegend({ items, mineKey }: { items: ProcessStep[]; mineKey: string | null }) {
+  const seen = new Map<string, string>();
+  for (const s of items) {
+    const key = roleKeyOf(s);
+    if (!seen.has(key)) {
+      seen.set(
+        key,
+        key === AUTOMATED_ROLE ? 'Happens automatically' : key === UNASSIGNED_ROLE ? 'Nobody yet' : s.performedBy!.name,
+      );
+    }
+  }
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+      {[...seen.entries()].map(([key, name]) => (
+        <span key={key} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: roleColor(key, name) }} />
+          <span className={key === mineKey ? 'font-semibold text-foreground' : ''}>
+            {name}
+            {key === mineKey ? ' (you)' : ''}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The whole process told as a short story: who has the work, what they do, and
+ * where it goes next. Plain words only. The picked role's stages are marked.
+ */
+function ProcessStory({ story, roleKey, compact }: { story: Stage[]; roleKey: string | null; compact?: boolean }) {
+  return (
+    <ol>
+      {story.map((stage, i) => {
+        const mine = roleKey !== null && stage.roleKey === roleKey;
+        const color = roleColor(stage.roleKey, stage.roleName);
+        return (
+          <li key={stage.id} className="relative pb-4 pl-12 last:pb-0">
+            {i < story.length - 1 && <span className="absolute bottom-0 left-[17px] top-10 w-px bg-border" />}
+            <span
+              className="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-lg text-[12px] font-semibold"
+              style={{ backgroundColor: `${color}1F`, color }}
+            >
+              {stage.automated ? <Zap className="h-4 w-4" /> : initials(stage.roleName)}
+            </span>
+
+            <div
+              className={`rounded-xl border p-3.5 ${
+                mine ? 'border-primary/40 bg-primary/[0.04]' : 'border-border bg-card'
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p className="text-sm font-semibold">{stage.roleName}</p>
+                {stage.automated && stage.tools.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    on its own, using {stage.tools.map((t) => t.name).join(', ')}
+                  </span>
+                )}
+                {mine && (
+                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                    You
+                  </span>
+                )}
+                {stage.branch && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                    <GitFork className="h-3 w-3" /> {stage.branch}
+                  </span>
+                )}
+                {i === 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                    <Flag className="h-3 w-3" /> Starts here
+                  </span>
+                )}
+                {i === story.length - 1 && i !== 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                    <Flag className="h-3 w-3" /> Ends here
+                  </span>
+                )}
+              </div>
+
+              <ul className="mt-2 space-y-1.5">
+                {stage.steps.map((s) => (
+                  <li key={s.id} className="flex items-start gap-2 text-sm">
+                    <span className="mt-0.5 w-5 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+                      {s.number}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      {s.text}
+                      {s.kind === 'choice' && (
+                        <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          A choice
+                        </span>
+                      )}
+                      {s.kind === 'wait' && (
+                        <span className="ml-1.5 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          <Hourglass className="h-2.5 w-2.5" /> A pause
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              {!compact && !stage.automated && stage.tools.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-border/70 pt-2.5">
+                  {stage.tools.map((t) => <AppChip key={t.id} app={t} />)}
+                </div>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Lesson one, for everyone: what the process is, who is in it, and how the work travels. */
+function ProcessOverview({
+  processName, description, outline, roles, story, roleKey, onNext, nextLabel,
+}: {
+  processName: string;
+  description: string;
+  outline: ReturnType<typeof buildOutline>;
+  roles: RoleOption[];
+  story: Stage[];
+  roleKey: string | null;
+  onNext: () => void;
+  nextLabel: string;
+}) {
+  const total = outline.items.length;
+  const people = roles.filter((r) => !r.automated && r.key !== UNASSIGNED_ROLE);
+  const automated = roles.find((r) => r.automated)?.stepCount ?? 0;
+  const sentence =
+    description.trim() ||
+    `${processName} has ${total} steps and involves ${people.length} ${people.length === 1 ? 'role' : 'roles'}${
+      automated > 0 ? `. ${automated} of the steps happen on their own` : ''
+    }.`;
+  const startsWith = story[0];
+  const endsWith = story[story.length - 1];
+
+  return (
+    <div className="mx-auto max-w-3xl px-6 pb-16 pt-8">
+      <p className="text-xs font-medium text-primary">Start here</p>
+      <h2 className="mt-1 text-3xl font-semibold tracking-tight">How {processName} works</h2>
+      <p className="mt-3 text-base leading-relaxed">{sentence}</p>
+      {startsWith && endsWith && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          It starts with {startsWith.automated ? 'something that happens automatically' : startsWith.roleName}
+          {' '}and finishes with {endsWith.automated ? 'something that happens automatically' : endsWith.roleName}.
+        </p>
+      )}
+
+      <div className="mt-5 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full bg-muted px-3 py-1 font-medium">{total} steps</span>
+        <span className="rounded-full bg-muted px-3 py-1 font-medium">
+          {people.length} {people.length === 1 ? 'role' : 'roles'}
+        </span>
+        {automated > 0 && (
+          <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
+            {automated} happen on their own
+          </span>
+        )}
+      </div>
+
+      <div className={`${CARD} mt-6 px-4 py-3`}>
+        <p className="text-xs text-muted-foreground">Every step in order. Each color is a different role.</p>
+        <div className="mt-2 flex items-center gap-[3px]">
+          {outline.items.map((it) => (
+            <span
+              key={it.step.id}
+              title={`${it.number}. ${it.step.title} · ${it.step.performedBy?.name ?? 'Unassigned'}`}
+              className="h-2 flex-1 rounded-full"
+              style={{ backgroundColor: roleColor(roleKeyOf(it.step), it.step.performedBy?.name ?? '') }}
+            />
+          ))}
+        </div>
+        <RoleLegend items={outline.items.map((it) => it.step)} mineKey={roleKey} />
+      </div>
+
+      <h3 className="mt-10 text-sm font-semibold">Who's involved</h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {roles.map((r) => (
+          <div key={r.key} className={`${CARD} flex items-start gap-3 p-3.5`}>
+            <RoleAvatar role={r} size={36} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-tight">{r.automated ? 'Happens automatically' : r.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {r.automated
+                  ? `${r.stepCount} step${r.stepCount === 1 ? '' : 's'} run on their own`
+                  : `Does ${r.stepCount} of the ${total} steps`}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <h3 className="mt-10 text-sm font-semibold">The story, start to finish</h3>
+      <p className="mb-4 mt-1 text-sm text-muted-foreground">
+        Follow the work down the page. Each block is one role, or the automatic part, doing their bit before it
+        moves on.
+      </p>
+      <ProcessStory story={story} roleKey={roleKey} />
+
+      <div className="mt-10 flex justify-end border-t border-border pt-5">
+        <Button onClick={onNext}>
+          {nextLabel} <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // --- Role picker ---
 
-function RolePicker({ roles, processName, onPick }: {
+function RolePicker({ roles, processName, onPick, onBigPicture }: {
   roles: RoleOption[];
   processName: string;
   onPick: (key: string) => void;
+  onBigPicture: () => void;
 }) {
   return (
     <div className="mx-auto max-w-3xl px-6 py-14">
@@ -428,6 +718,13 @@ function RolePicker({ roles, processName, onPick }: {
         Pick the role you're learning, taking over, or rethinking. You'll see exactly what it does in {processName}.
         You can switch any time.
       </p>
+      <button
+        type="button"
+        onClick={onBigPicture}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+      >
+        <Compass className="h-3.5 w-3.5" /> New here? See how the whole process works first
+      </button>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {roles.map((r) => (
           <button
@@ -440,7 +737,7 @@ function RolePicker({ roles, processName, onPick }: {
             <span className="min-w-0 flex-1">
               <span className="block break-words text-sm font-semibold leading-tight">{r.name}</span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                {r.automated ? 'Run by apps' : 'Role'} · {r.stepCount} step{r.stepCount === 1 ? '' : 's'}
+                {r.automated ? 'Happens on its own' : 'Role'} · {r.stepCount} step{r.stepCount === 1 ? '' : 's'}
               </span>
               {r.apps.length > 0 && (
                 <span className="mt-2 flex flex-wrap gap-1">
@@ -475,7 +772,8 @@ function ProcessStrip({ outline, lesson, currentId, onPick }: {
   return (
     <div className={`${CARD} px-4 py-3`}>
       <p className="text-xs text-muted-foreground">
-        The whole process. {lesson.role.automated ? 'The automated' : 'Your'} steps are highlighted.
+        The whole process, start to finish. Each color is a different role, and {lesson.role.automated ? 'the automatic' : 'your'} steps are
+        the bright ones.
       </p>
       <div className="mt-2 flex items-center gap-[3px]">
         {items.map((it) => {
@@ -489,13 +787,18 @@ function ProcessStrip({ outline, lesson, currentId, onPick }: {
               onClick={() => onPick(it.step.id)}
               title={`${it.number}. ${it.step.title} · ${it.step.performedBy?.name ?? 'Unassigned'}`}
               aria-label={`Step ${it.number}: ${it.step.title}`}
+              style={{
+                backgroundColor: roleColor(roleKeyOf(it.step), it.step.performedBy?.name ?? ''),
+                opacity: isMine ? 1 : 0.28,
+              }}
               className={`flex-1 rounded-full transition-all ${isCur ? 'h-3 ring-2 ring-primary/30' : 'h-2'} ${
-                isMine ? 'cursor-pointer bg-primary hover:opacity-80' : 'cursor-default bg-foreground/15'
+                isMine ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
               }`}
             />
           );
         })}
       </div>
+      <RoleLegend items={items.map((it) => it.step)} mineKey={lesson.role.key} />
       <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
         <span className="min-w-0 truncate">{items[0]?.step.title}</span>
         <span className="shrink-0 font-medium text-foreground">
@@ -522,8 +825,8 @@ function Intro({ lesson, processName, onStart }: { lesson: Lesson; processName: 
       </div>
       <p className="mt-4 text-base leading-relaxed">
         {role.automated
-          ? `${steps.length} of the ${totalSteps} steps run on their own. This lesson shows what triggers each one and what it does.`
-          : `You do ${steps.length} of the ${totalSteps} steps. This lesson walks through each one: what starts it, what you do, which tools you use, and where the work goes next.`}
+          ? `${steps.length} of the ${totalSteps} steps happen on their own. This lesson shows what sets each one off and what it does.`
+          : `Now your part. You do ${steps.length} of the ${totalSteps} steps. This lesson walks through each one: what starts it, what you do, which tools you use, and where the work goes next. The bar above always shows where you are in the whole process.`}
       </p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -578,8 +881,8 @@ function StepLesson({ lesson, step, index, onOpen }: {
     <div>
       <p className="text-xs font-medium text-primary">
         {lesson.role.automated ? 'Step' : 'Your step'} {index + 1} of {lesson.steps.length}
-        {s.stepType === 'Decision' && ' · a decision'}
-        {s.stepType === 'Wait' && ' · a wait'}
+        {s.stepType === 'Decision' && ' · a choice'}
+        {s.stepType === 'Wait' && ' · a pause'}
       </p>
       <h2 className="mt-1 text-2xl font-semibold tracking-tight">{step.title}</h2>
       <p className="mt-1.5 text-sm text-muted-foreground">{step.trigger}</p>
@@ -623,7 +926,7 @@ function StepLesson({ lesson, step, index, onOpen }: {
 
         <div className={`${CARD} p-4`}>
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {decision ? 'Your decision' : 'Then it goes to'}
+            {decision ? 'Your choice' : 'Then it goes to'}
           </p>
           <ul className="mt-2 space-y-2 text-sm">
             {step.goesTo.length ? step.goesTo.map((h) => (

@@ -176,6 +176,64 @@ export function buildLesson(
   };
 }
 
+/** One line in the story of the process. */
+export interface StoryStep {
+  id: string;
+  /** Position in the whole process, matching the bar at the top. */
+  number: number;
+  text: string;
+  kind: 'do' | 'choice' | 'wait';
+}
+
+/**
+ * A stretch of the process where one role has the work. A new stage starts
+ * whenever the work passes to someone else, or goes down another branch.
+ */
+export interface Stage {
+  id: string;
+  roleKey: string;
+  roleName: string;
+  automated: boolean;
+  /** "If employee": the path this stage belongs to, when the process splits. */
+  branch: string | null;
+  steps: StoryStep[];
+  tools: ElementRef[];
+}
+
+/** The whole process as a short story, stage by stage, with who has the work at each point. */
+export function buildStory(outline: Outline): Stage[] {
+  const stages: Stage[] = [];
+  for (const it of outline.items) {
+    const s = it.step;
+    const key = roleKeyOf(s);
+    const branch = it.branch?.label ?? null;
+
+    let stage = stages[stages.length - 1];
+    if (!stage || stage.roleKey !== key || stage.branch !== branch) {
+      stage = {
+        id: `${stages.length}-${key}`,
+        roleKey: key,
+        roleName:
+          key === AUTOMATED_ROLE ? 'Happens automatically' : key === UNASSIGNED_ROLE ? 'Nobody yet' : s.performedBy!.name,
+        automated: key === AUTOMATED_ROLE,
+        branch,
+        steps: [],
+        tools: [],
+      };
+      stages.push(stage);
+    }
+
+    stage.steps.push({
+      id: s.id,
+      number: it.number,
+      text: titleOf(s),
+      kind: s.stepType === 'Decision' ? 'choice' : s.stepType === 'Wait' ? 'wait' : 'do',
+    });
+    for (const a of appsOf(s)) if (!stage.tools.some((t) => t.id === a.id)) stage.tools.push(a);
+  }
+  return stages;
+}
+
 export interface Brief {
   headline: string;
   summary: string;

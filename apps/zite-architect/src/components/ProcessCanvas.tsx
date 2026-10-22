@@ -191,7 +191,9 @@ export default function ProcessCanvas() {
 
   // A shared link can open training straight to one role, or its handover brief.
   const trainParam = searchParams.get('train');
-  const trainView = searchParams.get('view') === 'brief' ? 'brief' : 'lesson';
+  const trainViewParam = searchParams.get('view');
+  const trainView: 'process' | 'lesson' | 'brief' =
+    trainViewParam === 'brief' ? 'brief' : trainViewParam === 'lesson' ? 'lesson' : 'process';
   useEffect(() => {
     if (trainParam) setTrainOpen(true);
   }, [trainParam]);
@@ -694,6 +696,7 @@ export default function ProcessCanvas() {
         {trainOpen && process && graph?.version && (
           <Train
             processName={process.name}
+            processDescription={process.description}
             versions={process.versions}
             // Training teaches the live version unless a shared link names another.
             initialVersionId={
