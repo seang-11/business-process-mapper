@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getProcessGraph, matchVersionSteps, setStepMatch } from 'zitejs/api';
-import { X, Zap, ArrowRight, ChevronDown, CornerDownRight, ChevronsUpDown } from 'lucide-react';
+import { getProcessGraph, matchVersionSteps, saveVersion, setStepMatch } from 'zitejs/api';
+import { X, Zap, ArrowRight, ChevronDown, CornerDownRight, ChevronsUpDown, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
+import { Textarea } from '@project/components/ui/textarea';
 import { Switch } from '@project/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@project/components/ui/select';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
@@ -14,6 +15,7 @@ interface VersionOption {
   name: string;
   state: string;
   lastEdited: string;
+  notes?: string;
 }
 
 interface Props {
@@ -131,6 +133,10 @@ export default function CompareVersions({ processName, versions, onClose, embedd
   const [onlyChanges, setOnlyChanges] = useState(false);
   const [filter, setFilter] = useState<Filter | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  /** The note being typed, or null when the "What changes" card is just showing. */
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  /** Notes saved here, so the card updates without reloading the process. */
+  const [savedNotes, setSavedNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!leftId || !rightId || leftId === rightId) return;
@@ -218,6 +224,58 @@ export default function CompareVersions({ processName, versions, onClose, embedd
   const before = useMemo(() => (left ? statsOf(left) : null), [left]);
   const after = useMemo(() => (right ? statsOf(right) : null), [right]);
 
+  // A plain-language read of the difference, written from the numbers, so the
+  // card says something useful before anyone has written a note of their own.
+  const story = useMemo(() => {
+    if (!before || !after || !right) return '';
+    const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const parts: string[] = [
+      before.steps === after.steps
+        ? `Both versions have ${plural(after.steps, 'step')}.`
+        : `The process goes from ${plural(before.steps, 'step')} to ${after.steps}.`,
+    ];
+    if (after.automated !== before.automated) {
+      const counts = new Map<string, number>();
+      for (const s of right.steps) {
+        if (isApp(s.performedBy)) counts.set(s.performedBy!.name, (counts.get(s.performedBy!.name) ?? 0) + 1);
+      }
+      const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      parts.push(
+        `${plural(after.automated, 'step')} now run${after.automated === 1 ? 's' : ''} automatically${top ? `, mostly in ${top}` : ''}.`,
+      );
+    }
+    if (after.byHand !== before.byHand) {
+      parts.push(
+        `Work done by people ${after.byHand < before.byHand ? 'drops' : 'rises'} from ${before.byHand} steps to ${after.byHand}.`,
+      );
+    }
+    if (after.handoffs !== before.handoffs) {
+      parts.push(`Handoffs go from ${before.handoffs} to ${after.handoffs}.`);
+    }
+    if (summary.added > 0 || summary.removed > 0) {
+      const bits = [
+        summary.added > 0 ? `${plural(summary.added, 'step')} added` : '',
+        summary.removed > 0 ? `${plural(summary.removed, 'step')} removed` : '',
+      ].filter(Boolean);
+      parts.push(`${bits.join(' and ')}.`);
+    }
+    return parts.join(' ');
+  }, [before, after, right, summary]);
+
+  const rightNotes = (savedNotes[rightId] ?? versions.find((v) => v.id === rightId)?.notes ?? '').trim();
+
+  const saveNotes = async () => {
+    if (notesDraft === null) return;
+    const text = notesDraft.trim();
+    try {
+      await saveVersion({ id: rightId, notes: text });
+      setSavedNotes((prev) => ({ ...prev, [rightId]: text }));
+      setNotesDraft(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save that.');
+    }
+  };
+
   const changed = (r: Row) => !r.left || !r.right || r.changes.length > 0;
   const anyChange = rows.some(changed);
   const shown = rows.filter((r) => (!onlyChanges || changed(r)) && (!filter || matchesFilter(r, filter)));
@@ -294,8 +352,46 @@ export default function CompareVersions({ processName, versions, onClose, embedd
             <p className="mt-10 text-sm text-muted-foreground">Loading…</p>
           ) : (
             <>
+              <div className="mt-5 rounded-xl border border-border bg-card px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    What changes
+                  </p>
+                  {notesDraft === null && (
+                    <button
+                      type="button"
+                      onClick={() => setNotesDraft(rightNotes)}
+                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      {rightNotes ? 'Edit' : 'Write your own'}
+                    </button>
+                  )}
+                </div>
+                {notesDraft !== null ? (
+                  <div className="mt-2 space-y-2">
+                    <Textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      rows={3}
+                      autoFocus
+                      placeholder={story || 'In a sentence or two, what does the new version change?'}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveNotes}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setNotesDraft(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-1.5 text-base leading-relaxed">{rightNotes || story}</p>
+                    {rightNotes && story && <p className="mt-2 text-sm text-muted-foreground">{story}</p>}
+                  </>
+                )}
+              </div>
+
               {before && after && (
-                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <StatTile label="Steps" before={before.steps} after={after.steps} better="none" />
                   <StatTile label="Done by people" before={before.byHand} after={after.byHand} better="down" />
                   <StatTile label="Automated" before={before.automated} after={after.automated} better="up" />
