@@ -220,13 +220,13 @@ export default function Train({
       role="dialog"
       aria-label={`Train on ${processName}`}
     >
-      <header className="train-noprint flex items-center gap-4 border-b border-border bg-background px-6 py-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <GraduationCap className="h-4 w-4" />
+      <header className="train-noprint flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-8 backdrop-blur">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
+          <GraduationCap className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">Train · {processName}</p>
-          <p className="truncate text-xs text-muted-foreground">{version ? whenText(version) : ''}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Training</p>
+          <p className="truncate text-lg font-semibold leading-tight tracking-tight">{processName}</p>
         </div>
 
         {versions.length > 1 && (
@@ -237,7 +237,7 @@ export default function Train({
               setIdx(-1);
             }}
           >
-            <SelectTrigger className="h-8 w-[260px] text-xs" aria-label="Version to train on">
+            <SelectTrigger className="h-9 w-[260px] rounded-lg bg-background text-sm" aria-label="Version to train on">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -250,14 +250,28 @@ export default function Train({
           </Select>
         )}
 
-        <div className={`${SEG_TRACK} ml-4`}>
-          <button className={segBtn(view === 'process')} onClick={() => setView('process')}>The big picture</button>
-          <button className={segBtn(view === 'lesson')} onClick={() => setView('lesson')}>Your role</button>
-          <button className={segBtn(view === 'brief')} onClick={() => setView('brief')}>Handover brief</button>
+        <div className="ml-2 flex shrink-0 rounded-lg bg-muted p-0.5 text-sm">
+          {(
+            [
+              ['process', 'The big picture'],
+              ['lesson', 'Your role'],
+              ['brief', 'Handover brief'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              className={`rounded-md px-3.5 py-1.5 font-medium transition-all ${
+                view === key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setView(key)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={copyLink}>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9" onClick={copyLink}>
             <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy link
           </Button>
           {role && view === 'brief' && (
@@ -285,8 +299,8 @@ export default function Train({
       )}
 
       {role && view !== 'process' && (
-        <div className="train-noprint flex items-center gap-2 overflow-x-auto border-b border-border bg-background px-6 py-2">
-          <span className="shrink-0 text-xs text-muted-foreground">Your role</span>
+        <div className="train-noprint flex items-center gap-2 overflow-x-auto px-8 pt-3">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">Your role</span>
           {roles.map((r) => (
             <button
               key={r.key}
@@ -453,8 +467,8 @@ function VersionBanner({ version, live, onSwitchToLive }: {
   const when = whenText(version);
 
   const tone = isLive
-    ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200'
-    : 'bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200';
+    ? 'border-emerald-200/70 bg-gradient-to-r from-emerald-50 to-card text-emerald-900 dark:border-emerald-500/20 dark:from-emerald-500/10 dark:to-transparent dark:text-emerald-200'
+    : 'border-amber-200/70 bg-gradient-to-r from-amber-50 to-card text-amber-900 dark:border-amber-500/20 dark:from-amber-500/10 dark:to-transparent dark:text-amber-200';
 
   let headline: string;
   let detail: string;
@@ -476,14 +490,19 @@ function VersionBanner({ version, live, onSwitchToLive }: {
   }
 
   return (
-    <div className={`train-noprint flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border px-6 py-2.5 text-sm ${tone}`}>
-      <span className="font-semibold">{headline}</span>
-      <span className="min-w-0 flex-1 text-xs opacity-90">{detail}</span>
-      {!isLive && live && (
-        <Button size="sm" variant="outline" className="h-7 bg-background text-xs text-foreground" onClick={onSwitchToLive}>
-          Switch to {live.name}
-        </Button>
-      )}
+    <div className="train-noprint shrink-0 px-8 pt-4">
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tone}`}>
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span className={`h-2.5 w-2.5 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+        </span>
+        <span className="font-semibold">{headline}</span>
+        <span className="min-w-0 flex-1 text-xs opacity-80">{detail}</span>
+        {!isLive && live && (
+          <Button size="sm" variant="outline" className="h-8 bg-background text-xs text-foreground" onClick={onSwitchToLive}>
+            Switch to {live.name}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
