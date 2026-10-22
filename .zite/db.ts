@@ -238,6 +238,7 @@ export type StepsRecordType = {
   outgoingConnections?: string | string[];
   /** Links to stepConnections ("Step Connections"). Single record only. "Incoming connections" */
   incomingConnections?: string | string[];
+  walkthroughLine?: string;
 };
 
 /** What you may write when creating or updating a record in the "Steps" table. */
@@ -254,6 +255,7 @@ export type StepsRecordInput = {
   checklist: string | null;
   outgoingConnections: string | string[] | null;
   incomingConnections: string | string[] | null;
+  walkthroughLine: string | null;
 };
 
 /** A record in the "Step Connections" table, as it is read back. */

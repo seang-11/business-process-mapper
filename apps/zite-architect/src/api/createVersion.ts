@@ -65,6 +65,7 @@ export default createEndpoint({
           subProcess: one(s.subProcess) ? [one(s.subProcess) as string] : [],
           sequence: s.sequence ?? 0,
           checklist: s.checklist ?? '',
+          walkthroughLine: s.walkthroughLine ?? '',
         },
       });
       idMap.set(s.id, created.id);

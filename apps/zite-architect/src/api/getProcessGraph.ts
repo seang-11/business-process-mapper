@@ -63,6 +63,7 @@ export default createEndpoint({
         subProcessId: z.string().nullable(),
         subProcessName: z.string(),
         checklist: z.array(z.object({ id: z.string(), text: z.string() })),
+        walkthroughLine: z.string(),
       }),
     ),
     /** Lane order someone dragged into place, per view, as lane ids. Empty = automatic. */
@@ -165,6 +166,7 @@ export default createEndpoint({
           subProcessId,
           subProcessName: subProcessId ? elementById.get(subProcessId)?.name ?? '' : '',
           checklist,
+          walkthroughLine: s.walkthroughLine ?? '',
         };
       })
       .sort((a, b) => a.sequence - b.sequence);

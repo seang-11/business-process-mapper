@@ -20,6 +20,7 @@ export default createEndpoint({
     subProcessId: z.string().nullable().default(null),
     sequence: z.number().default(0),
     checklist: z.array(z.object({ id: z.string(), text: z.string() })).default([]),
+    walkthroughLine: z.string().default(''),
   }),
   outputSchema: z.object({ id: z.string() }),
   execute: async ({ input }) => {
@@ -41,6 +42,7 @@ export default createEndpoint({
       subProcess: input.subProcessId ? [input.subProcessId] : [],
       sequence: input.sequence,
       checklist: input.checklist.length ? JSON.stringify(input.checklist) : '',
+      walkthroughLine: input.walkthroughLine.trim(),
     };
 
     let id = input.id;

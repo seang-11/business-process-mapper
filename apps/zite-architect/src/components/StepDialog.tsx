@@ -299,6 +299,7 @@ export default function StepDialog({
 }: Props) {
   const [title, setTitle] = useState(step?.title ?? '');
   const [description, setDescription] = useState(step?.description ?? '');
+  const [walkthroughLine, setWalkthroughLine] = useState(step?.walkthroughLine ?? '');
   const [stepType, setStepType] = useState(step?.stepType || 'Task');
   const [performedBy, setPerformedBy] = useState<string[]>(
     step?.performedBy ? [step.performedBy.id] : [],
@@ -412,6 +413,7 @@ export default function StepDialog({
         subProcessId: stepType === 'Sub-process' ? subProcessId : null,
         sequence: nextSequence,
         checklist: checklist.filter((c) => c.text.trim()),
+        walkthroughLine,
       });
 
       // Both directions reconcile the same way: drop what was removed, then
@@ -603,6 +605,19 @@ export default function StepDialog({
               placeholder="Anything the person doing this needs to know."
               rows={2}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Walkthrough line</Label>
+            <Textarea
+              value={walkthroughLine}
+              onChange={(e) => setWalkthroughLine(e.target.value)}
+              placeholder={title.trim() || 'The AE turns the deal notes into a scoped SOW.'}
+              rows={2}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Optional. Shown in place of the title when the walkthrough plays.
+            </p>
           </div>
 
           <PathList

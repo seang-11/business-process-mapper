@@ -32,6 +32,8 @@ export interface ProcessStep {
   subProcessId: string | null;
   subProcessName: string;
   checklist: ChecklistItem[];
+  /** Optional wording for the walkthrough; the title is used when empty. */
+  walkthroughLine: string;
 }
 
 export interface ProcessConnection {

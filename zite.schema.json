@@ -715,6 +715,15 @@
               "inverseFieldId": "furj1C9czpn"
             }
           }
+        },
+        {
+          "id": "fdRqvGZCDDU",
+          "sdkName": "walkthroughLine",
+          "definition": {
+            "name": "Walkthrough Line",
+            "type": "long_text",
+            "template": {}
+          }
         }
       ]
     },

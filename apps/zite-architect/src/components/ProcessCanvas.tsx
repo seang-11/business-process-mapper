@@ -11,7 +11,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,7 @@ import type { ElementRef, ElementSummary, ElementType, ProcessStep } from '@/typ
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import LanePanel from './LanePanel';
+import Walkthrough from './Walkthrough';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -61,6 +62,7 @@ export default function ProcessCanvas() {
   const [editingProcess, setEditingProcess] = useState(false);
   /** The lane whose panel is open, in the current view. */
   const [openLane, setOpenLane] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
 
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
@@ -396,6 +398,12 @@ export default function ProcessCanvas() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {steps.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setPlaying(true)}>
+              <Play className="h-3.5 w-3.5 mr-1.5" /> Play walkthrough
+            </Button>
+          )}
+
           <Button size="sm" onClick={openNewStep}>
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Add step
           </Button>
@@ -463,6 +471,15 @@ export default function ProcessCanvas() {
             }}
           />
         </div>
+
+        {playing && (
+          <Walkthrough
+            processName={process?.name ?? 'This process'}
+            steps={steps}
+            connections={connections}
+            onClose={() => setPlaying(false)}
+          />
+        )}
 
         {openLane && !addingStep && !editStep && (
           <LanePanel
