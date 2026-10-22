@@ -19,6 +19,7 @@ import {
   LABEL_PAD_Y,
   type EdgeGeometry,
 } from '@/lib/labelPlacement';
+import { groupOf } from '@/lib/stepGroup';
 import ElementIcon from './ElementIcon';
 import IconStack from './IconStack';
 
@@ -500,13 +501,15 @@ export default function SwimlaneDiagram({
     stepId: string; x: number; y: number; lane: string | null;
     /** Set while the pointer is over another card: where the dragged one would slot in. */
     drop: { targetId: string; position: 'before' | 'after'; left: number; right: number; top: number; height: number } | null;
+    /** The dragged step and the steps tied to it, which all move together. */
+    group: string[];
   } | null>(null);
 
   /** The card under the pointer, and which side of it, for dropping a card before or after another. */
-  const cardUnder = useCallback((x: number, y: number, dragId: string) => {
+  const cardUnder = useCallback((x: number, y: number, group: string[]) => {
     const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-step-card]');
     const targetId = hit?.dataset.stepId;
-    if (!hit || !targetId || targetId === dragId) return null;
+    if (!hit || !targetId || group.includes(targetId)) return null;
     const r = hit.getBoundingClientRect();
     return {
       targetId,
@@ -514,6 +517,13 @@ export default function SwimlaneDiagram({
       left: r.left, right: r.right, top: r.top, height: r.height,
     };
   }, []);
+
+  /** Who moves with a step: its decision branches or its loop. */
+  const groupFor = useCallback(
+    (stepId: string) =>
+      [...groupOf(stepId, connections.map((c) => ({ from: c.fromStepId, to: c.toStepId })), steps.map((s) => s.id)).members],
+    [connections, steps],
+  );
   const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
   // Dragging a lane by its name, to reorder lanes.
   const laneDrag = useRef<{ lane: string; startY: number; moved: boolean } | null>(null);
@@ -1058,7 +1068,8 @@ export default function SwimlaneDiagram({
           try { el.setPointerCapture(pointerIdRef.current); } catch { /* already released */ }
         }
       }
-      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, cd.stepId) : null;
+      const group = groupFor(cd.stepId);
+      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, group) : null;
       setCardDragView({
         stepId: cd.stepId,
         x: e.clientX,
@@ -1066,6 +1077,7 @@ export default function SwimlaneDiagram({
         // Over a card the drop reorders; only open lane space moves it to that lane.
         lane: drop ? null : laneAt(e.clientY),
         drop,
+        group,
       });
       return;
     }
@@ -1089,7 +1101,7 @@ export default function SwimlaneDiagram({
     if (!el) return;
     el.scrollLeft = ds.scrollX - dx;
     el.scrollTop = ds.scrollY - dy;
-  }, [laneAt, laneInsertAt]);
+  }, [laneAt, laneInsertAt, onReorderStep, cardUnder, groupFor]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const ld = laneDrag.current;
@@ -1125,7 +1137,7 @@ export default function SwimlaneDiagram({
       didDragRef.current = true;
       setTimeout(() => { didDragRef.current = false; }, 0);
       const step = steps.find((s) => s.id === cd.stepId);
-      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, cd.stepId) : null;
+      const drop = onReorderStep ? cardUnder(e.clientX, e.clientY, groupFor(cd.stepId)) : null;
       if (step && drop) {
         onReorderStep?.(step, drop.targetId, drop.position);
         return;
@@ -1145,7 +1157,7 @@ export default function SwimlaneDiagram({
     resetDrag();
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
   }, [
-    resetDrag, laneAt, steps, resolveDrop, onMoveStep, onReorderStep, cardUnder,
+    resetDrag, laneAt, steps, resolveDrop, onMoveStep, onReorderStep, cardUnder, groupFor,
     orderedLanes, laneInsertAt, laneIdOf, onReorderLanes, onOpenLane,
   ]);
 
@@ -1697,7 +1709,7 @@ export default function SwimlaneDiagram({
                             hasCrossLaneDep={connections.some(
                               c => isCrossLane(c) && (c.fromStepId === step.id || c.toStepId === step.id)
                             )}
-                            isDragSource={cardDragView?.stepId === step.id}
+                            isDragSource={!!cardDragView?.group.includes(step.id)}
                             detail={detail}
                             textScale={textScale}
                             panelScale={1 / zoom}
@@ -1751,7 +1763,7 @@ export default function SwimlaneDiagram({
         <p className="text-xs font-medium line-clamp-1">{dragStep.title}</p>
         <p className={`mt-1 text-[10px] ${dropLane && !dropOk ? 'text-destructive' : 'text-muted-foreground'}`}>
           {cardDragView.drop
-            ? `Place ${cardDragView.drop.position} “${steps.find((s) => s.id === cardDragView.drop!.targetId)?.title ?? 'step'}”`
+            ? `Place ${cardDragView.drop.position} “${steps.find((s) => s.id === cardDragView.drop!.targetId)?.title ?? 'step'}”${cardDragView.group.length > 1 ? `, with ${cardDragView.group.length - 1} linked` : ''}`
             : dropMove
             ? `Move to ${dropMove.destination}`
             : !dropLane

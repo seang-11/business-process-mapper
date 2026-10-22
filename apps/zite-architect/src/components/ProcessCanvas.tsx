@@ -399,9 +399,11 @@ export default function ProcessCanvas() {
     async (step: ProcessStep, targetId: string, position: 'before' | 'after') => {
       if (!versionId) return;
       try {
-        await reorderStep({ versionId, stepId: step.id, targetId, position });
+        const { moved } = await reorderStep({ versionId, stepId: step.id, targetId, position });
         const target = steps.find((s) => s.id === targetId);
-        toast.success(`Moved "${step.title}" ${position} "${target?.title ?? 'that step'}"`);
+        toast.success(
+          `Moved "${step.title}"${moved > 1 ? ` and ${moved - 1} linked` : ''} ${position} "${target?.title ?? 'that step'}"`,
+        );
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not move that step.');
       } finally {
