@@ -36,6 +36,9 @@ interface DataTableProps {
   groupBy?: GroupByConfig;
   /** localStorage key for persisting group collapse state (e.g. table SDK name) */
   groupStorageKey?: string;
+  /** Lets a parent own the sort (e.g. a Sort dropdown in the toolbar). */
+  sort?: { key: string | null; dir: SortDir };
+  onSortChange?: (key: string | null, dir: SortDir) => void;
 }
 
 // --- Sort helper ---
@@ -340,9 +343,16 @@ export default function DataTable({
   toolbar,
   groupBy,
   groupStorageKey,
+  sort,
+  onSortChange,
 }: DataTableProps) {
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [ownSort, setOwnSort] = useState<{ key: string | null; dir: SortDir }>({ key: null, dir: null });
+  const sortKey = sort ? sort.key : ownSort.key;
+  const sortDir = sort ? sort.dir : ownSort.dir;
+  const applySort = useCallback((key: string | null, dir: SortDir) => {
+    if (onSortChange) onSortChange(key, dir);
+    else setOwnSort({ key, dir });
+  }, [onSortChange]);
 
   // Persist collapsed groups to localStorage
   const collapseKey = groupStorageKey ? `grp_collapsed_${groupStorageKey}` : null;
@@ -357,14 +367,13 @@ export default function DataTable({
 
   const handleSort = useCallback((key: string) => {
     if (sortKey === key) {
-      if (sortDir === 'asc') setSortDir('desc');
-      else if (sortDir === 'desc') { setSortKey(null); setSortDir(null); }
-      else setSortDir('asc');
+      if (sortDir === 'asc') applySort(key, 'desc');
+      else if (sortDir === 'desc') applySort(null, null);
+      else applySort(key, 'asc');
     } else {
-      setSortKey(key);
-      setSortDir('asc');
+      applySort(key, 'asc');
     }
-  }, [sortKey, sortDir]);
+  }, [sortKey, sortDir, applySort]);
 
   const toggleGroupCollapse = useCallback((groupId: string) => {
     setCollapsedGroups(prev => {
@@ -433,14 +442,14 @@ export default function DataTable({
                 {displayColumns.map(col => (
                   <th
                     key={col.key}
-                    className="px-4 py-2.5 font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
+                    className="group px-4 py-2.5 font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
                     onClick={() => handleSort(col.key)}
                   >
                     <span className="inline-flex items-center gap-1">
                       {col.label}
                       {sortKey === col.key && sortDir === 'asc' && <ArrowUp className="h-3 w-3" />}
                       {sortKey === col.key && sortDir === 'desc' && <ArrowDown className="h-3 w-3" />}
-                      {sortKey !== col.key && <ArrowUpDown className="h-3 w-3 opacity-0 group-hover:opacity-30" />}
+                      {sortKey !== col.key && <ArrowUpDown className="h-3 w-3 opacity-0 group-hover:opacity-40" />}
                     </span>
                   </th>
                 ))}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Boxes, Search, X, Rows3, Group } from 'lucide-react';
+import { Boxes, Search, X, Rows3, Group, ArrowDownAZ } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import {
@@ -26,6 +26,15 @@ import { TokenBadge, TokenDot } from './TokenBadge';
 
 const ANY = '__any__';
 
+type SortDir = 'asc' | 'desc' | null;
+
+const SORT_OPTIONS: { value: string; label: string; key: string; dir: 'asc' | 'desc' }[] = [
+  { value: 'name:asc', label: 'Name A to Z', key: 'name', dir: 'asc' },
+  { value: 'name:desc', label: 'Name Z to A', key: 'name', dir: 'desc' },
+  { value: 'usageCount:desc', label: 'Most used', key: 'usageCount', dir: 'desc' },
+  { value: 'usageCount:asc', label: 'Least used', key: 'usageCount', dir: 'asc' },
+];
+
 interface Props {
   elements: ElementSummary[];
   types: ElementType[];
@@ -47,6 +56,10 @@ export default function ElementsTable({
   const [statusFilter, setStatusFilter] = useState<string>(ANY);
   const [usageFilter, setUsageFilter] = useState<string>(ANY);
   const [grouped, setGrouped] = useState(true);
+  // Alphabetical by default; clicking a column header or using the Sort menu changes it.
+  const [sort, setSort] = useState<{ key: string | null; dir: SortDir }>({ key: 'name', dir: 'asc' });
+  const sortValue = sort.key && sort.dir ? `${sort.key}:${sort.dir}` : '';
+  const sortKnown = SORT_OPTIONS.some((o) => o.value === sortValue);
 
   // Processes are elements, but they have their own screen.
   const pool = useMemo(
@@ -238,6 +251,26 @@ export default function ElementsTable({
       </div>
 
       <div className="flex items-center gap-2">
+        <Select
+          value={sortKnown ? sortValue : ''}
+          onValueChange={(v) => {
+            const opt = SORT_OPTIONS.find((o) => o.value === v);
+            if (opt) setSort({ key: opt.key, dir: opt.dir });
+          }}
+        >
+          <SelectTrigger className="h-8 w-[140px] text-xs">
+            <ArrowDownAZ className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground" />
+            <SelectValue placeholder={sort.key ? 'Custom sort' : 'Sort'} />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Button
           variant="outline"
           size="sm"
@@ -267,6 +300,8 @@ export default function ElementsTable({
         toolbar={toolbar}
         columns={columns}
         visibleColumns={visibleColumns}
+        sort={sort}
+        onSortChange={(key, dir) => setSort({ key, dir })}
         records={filtered as unknown as Record<string, unknown>[]}
         onRowClick={(record) => onOpen(String(record.id))}
         onEdit={(record) => onEdit(record as unknown as ElementSummary)}
