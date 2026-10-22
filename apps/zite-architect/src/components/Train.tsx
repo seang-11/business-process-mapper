@@ -158,6 +158,8 @@ export default function Train({
 
   const outline = useMemo(() => buildOutline(steps, connections), [steps, connections]);
   const roles = useMemo(() => rolesOf(outline), [outline]);
+  // Training is for people, so the automatic part and unassigned steps are never offered as a role.
+  const learnableRoles = useMemo(() => roles.filter((r) => !r.automated && r.key !== UNASSIGNED_ROLE), [roles]);
 
   // Checked against the roles once the version has loaded; an unknown one just shows the picker.
   const [roleKey, setRoleKey] = useState<string | null>(initialRole);
@@ -168,7 +170,7 @@ export default function Train({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const story = useMemo(() => buildStory(outline), [outline]);
 
-  const role = roles.find((r) => r.key === roleKey) ?? null;
+  const role = learnableRoles.find((r) => r.key === roleKey) ?? null;
   const lesson = useMemo(
     () => (role ? buildLesson(role, outline, connections) : null),
     [role, outline, connections],
@@ -323,7 +325,7 @@ export default function Train({
       {role && view !== 'process' && (
         <div className="train-noprint flex items-center gap-2 overflow-x-auto px-8 pt-3">
           <span className="shrink-0 text-xs font-medium text-muted-foreground">Your role</span>
-          {roles.map((r) => (
+          {learnableRoles.map((r) => (
             <button
               key={r.key}
               type="button"
@@ -373,7 +375,7 @@ export default function Train({
             nextLabel={role ? `Next: your part as ${role.name}` : 'Next: find your role'}
           />
         ) : !role || !lesson || !brief ? (
-          <RolePicker roles={roles} processName={processName} onPick={pickRole} onBigPicture={() => setView('process')} />
+          <RolePicker roles={learnableRoles} processName={processName} onPick={pickRole} onBigPicture={() => setView('process')} />
         ) : view === 'brief' ? (
           <BriefView
             lesson={lesson}
@@ -716,6 +718,11 @@ function RolePicker({ roles, processName, onPick, onBigPicture }: {
       >
         <Compass className="h-3.5 w-3.5" /> New here? See how the whole process works first
       </button>
+      {roles.length === 0 && (
+        <p className="mt-8 rounded-2xl border border-dashed border-border bg-card/60 px-6 py-10 text-center text-sm text-muted-foreground">
+          No people are assigned to steps in this process yet, so there is no role to train.
+        </p>
+      )}
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {roles.map((r) => (
           <button
