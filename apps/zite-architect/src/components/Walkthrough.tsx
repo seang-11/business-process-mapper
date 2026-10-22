@@ -1,383 +1,478 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
-import { X, Play, Pause, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react';
+import {
+  X, ArrowLeft, ArrowRight, Pencil, Repeat2, CornerDownRight, CornerDownLeft, Flag, Zap, Circle,
+} from 'lucide-react';
 import { Button } from '@project/components/ui/button';
-import type { ProcessConnection, ProcessStep } from '@/types';
-import { AUTOMATED_LANE } from './SwimlaneDiagram';
-import { appsOf, buildWalkthroughMap, type MapCard } from '@/lib/walkthrough';
+import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
+import { appsOf, buildOutline, type OutlineItem } from '@/lib/walkthrough';
 import ElementIcon from './ElementIcon';
 
 interface Props {
   processName: string;
+  processDescription: string;
   versionName: string;
   steps: ProcessStep[];
   connections: ProcessConnection[];
   onClose: () => void;
+  onEditStep: (step: ProcessStep) => void;
+  /** The step editor, docked beside the walkthrough while a step is edited. */
+  editor: React.ReactNode;
 }
 
-// The stage, in its own units; the SVG scales it to fit the screen.
-const LABEL_W = 200;
-const PAD = 28;
-const CARD_W = 210;
-const COL_W = 260;
-const CARD_H = 96;
-const LANE_H = 128;
-/** Room above the first lane for a loop box's label. */
-const TOP_PAD = 36;
-
-// A section holds long enough to take in what's on it.
-const SECTION_BASE_MS = 3500;
-const PER_STEP_MS = 900;
-const SECTION_MAX_MS = 9000;
-const CAMERA_S = 0.9;
-
-const colX = (c: number) => LABEL_W + PAD + c * COL_W;
-const laneY = (l: number) => TOP_PAD + l * LANE_H;
+const isApp = (e: ElementRef | null | undefined): boolean => e?.actorClass === 'System';
+const stepTitle = (s: ProcessStep) => s.walkthroughLine.trim() || s.title;
 
 /**
- * A process played as a short tour of its own map: the map simplified, cut
- * into a few sections, with the camera gliding from one to the next. The
- * section in view is bright and labelled; the rest stays faintly visible so
- * you never lose your place. Arrows, space and Esc drive it too.
+ * A process explained one step at a time, for someone seeing it for the first
+ * time: every step listed on the left so you always know where you are, one
+ * step in full on the right. It only moves when you do. At a decision the
+ * reader picks which way to follow.
  */
-export default function Walkthrough({ processName, versionName, steps, connections, onClose }: Props) {
-  const map = useMemo(() => buildWalkthroughMap(steps, connections), [steps, connections]);
-  const reduceMotion = useReducedMotion() ?? false;
-  const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [elapsed, setElapsed] = useState(0);
+export default function Walkthrough({
+  processName, processDescription, versionName, steps, connections, onClose, onEditStep, editor,
+}: Props) {
+  const outline = useMemo(() => buildOutline(steps, connections), [steps, connections]);
+  /** The step on screen; null is the overview. */
+  const [cur, setCur] = useState<string | null>(null);
+  /** Where you came from, so Back retraces a path you chose. */
+  const [history, setHistory] = useState<(string | null)[]>([]);
 
-  const sections = map.sections;
-  const last = sections.length - 1;
-  const section = sections[index];
-  const duration = section
-    ? Math.min(SECTION_MAX_MS, SECTION_BASE_MS + section.stepIds.size * PER_STEP_MS)
-    : SECTION_BASE_MS;
-  const finished = index === last && elapsed >= duration;
+  const item = cur ? outline.byId.get(cur) ?? null : null;
 
-  const goTo = useCallback(
-    (i: number) => {
-      setIndex(Math.max(0, Math.min(last, i)));
-      setElapsed(0);
+  // A step deleted from the editor drops you back on the overview.
+  useEffect(() => {
+    if (cur && !outline.byId.has(cur)) setCur(null);
+  }, [cur, outline]);
+
+  const go = useCallback(
+    (id: string | null) => {
+      setHistory((h) => [...h, cur]);
+      setCur(id);
     },
-    [last],
+    [cur],
   );
 
-  // The clock: runs while playing; moves on when the section's time is up and
-  // stops at the end rather than looping.
-  const raf = useRef<number>();
-  useEffect(() => {
-    if (!playing || finished) return;
-    let prev = performance.now();
-    const frame = (now: number) => {
-      setElapsed((e) => e + (now - prev));
-      prev = now;
-      raf.current = requestAnimationFrame(frame);
-    };
-    raf.current = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf.current!);
-  }, [playing, finished, index]);
+  const back = useCallback(() => {
+    if (history.length) {
+      setCur(history[history.length - 1]);
+      setHistory((h) => h.slice(0, -1));
+      return;
+    }
+    if (!item) return;
+    const prev = outline.items[item.number - 2];
+    setCur(prev ? prev.step.id : null);
+  }, [history, item, outline]);
 
-  useEffect(() => {
-    if (elapsed < duration) return;
-    if (index < last) goTo(index + 1);
-    else setPlaying(false);
-  }, [elapsed, duration, index, last, goTo]);
+  const next = useCallback(() => {
+    if (!item) {
+      if (outline.items[0]) go(outline.items[0].step.id);
+      return;
+    }
+    if (item.nextId) go(item.nextId);
+  }, [item, outline, go]);
 
+  const editing = !!editor;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (editing) return;
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowRight') goTo(index + 1);
-      else if (e.key === 'ArrowLeft') goTo(index - 1);
-      else if (e.key === ' ') {
-        e.preventDefault();
-        setPlaying((p) => !p);
-      }
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === 'ArrowLeft') back();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [index, goTo, onClose]);
+  }, [editing, next, back, onClose]);
 
-  const replay = () => {
-    goTo(0);
-    setPlaying(true);
-  };
-
-  if (!section) {
-    return (
-      <Shell processName={processName} versionName={versionName} onClose={onClose}>
-        <p className="text-muted-foreground">This version has no steps yet.</p>
-      </Shell>
-    );
-  }
-
-  const viewW = LABEL_W + PAD * 2 + map.maxSectionCols * COL_W - (COL_W - CARD_W);
-  const viewH = TOP_PAD + map.lanes.length * LANE_H;
-  const camX = section.colStart * COL_W;
-  const cardById = new Map(map.cards.map((c) => [c.step.id, c]));
-  const activeLanes = new Set(map.cards.filter((c) => section.stepIds.has(c.step.id)).map((c) => c.lane));
-  // Steps in this section, in order, for staggering their entrance.
-  const order = new Map(
-    map.cards.filter((c) => section.stepIds.has(c.step.id)).map((c, i) => [c.step.id, i]),
-  );
-  const fade = (on: boolean, delay = 0): React.CSSProperties => ({
-    opacity: on ? 1 : 0.14,
-    transition: reduceMotion ? 'none' : `opacity 0.6s ease ${on ? delay : 0}s`,
-  });
-
-  return (
-    <Shell processName={processName} versionName={versionName} onClose={onClose}>
-      <div className="flex h-full w-full flex-col">
-        <div className="mb-4 flex items-baseline gap-3">
-          <span className="text-sm font-semibold text-primary tabular-nums">
-            Part {index + 1} of {sections.length}
-          </span>
-          <span className="truncate text-sm text-muted-foreground">{section.label}</span>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted/40">
-          <svg
-            viewBox={`0 0 ${viewW} ${viewH}`}
-            preserveAspectRatio="xMidYMid meet"
-            className="h-full w-full"
-            role="img"
-            aria-label={`${processName}, part ${index + 1}: ${section.label}`}
-          >
-            <defs>
-              <marker id="wt-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
-                <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--muted-foreground) / 0.6)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-              </marker>
-            </defs>
-
-            {/* Lane bands span the whole process so the camera never runs off them. */}
-            {map.lanes.map((lane, i) => (
-              <rect
-                key={lane}
-                x={0}
-                y={laneY(i)}
-                width={viewW}
-                height={LANE_H}
-                fill={i % 2 ? 'hsl(var(--foreground) / 0.025)' : 'transparent'}
-              />
-            ))}
-
-            <g
-              style={{
-                transform: `translateX(${-camX}px)`,
-                transition: reduceMotion ? 'none' : `transform ${CAMERA_S}s cubic-bezier(0.4, 0, 0.2, 1)`,
-              }}
-            >
-              {map.loops.map((loop) => {
-                const members = loop.stepIds.map((id) => cardById.get(id)).filter(Boolean) as MapCard[];
-                if (members.length < 2) return null;
-                const x0 = Math.min(...members.map((m) => colX(m.col))) - 14;
-                const x1 = Math.max(...members.map((m) => colX(m.col) + CARD_W)) + 14;
-                const y0 = Math.min(...members.map((m) => cardTop(m))) - 30;
-                const y1 = Math.max(...members.map((m) => cardTop(m) + CARD_H)) + 14;
-                const on = members.some((m) => section.stepIds.has(m.step.id));
-                return (
-                  <g key={loop.id} style={fade(on)}>
-                    <rect
-                      x={x0}
-                      y={y0}
-                      width={x1 - x0}
-                      height={y1 - y0}
-                      rx={14}
-                      fill="hsl(var(--primary) / 0.04)"
-                      stroke="hsl(var(--primary) / 0.35)"
-                      strokeWidth={2}
-                      strokeDasharray="8 5"
-                    />
-                    <text x={x0 + 14} y={y0 + 19} fontSize={12} fontWeight={600} fill="hsl(var(--primary) / 0.8)">
-                      {loop.name}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {map.connections.map((c) => {
-                const a = cardById.get(c.fromStepId);
-                const b = cardById.get(c.toStepId);
-                if (!a || !b) return null;
-                const x1 = colX(a.col) + CARD_W;
-                const y1 = cardTop(a) + CARD_H / 2;
-                const x2 = colX(b.col);
-                const y2 = cardTop(b) + CARD_H / 2;
-                const k = Math.max(40, Math.abs(x2 - x1) / 2);
-                const on = section.stepIds.has(a.step.id) || section.stepIds.has(b.step.id);
-                return (
-                  <g key={c.id || `${c.fromStepId}->${c.toStepId}`} style={fade(on)}>
-                    <path
-                      d={`M ${x1} ${y1} C ${x1 + k} ${y1}, ${x2 - k} ${y2}, ${x2} ${y2}`}
-                      fill="none"
-                      stroke="hsl(var(--muted-foreground) / 0.5)"
-                      strokeWidth={1.6}
-                      markerEnd="url(#wt-arrow)"
-                    />
-                    {c.label && (
-                      <foreignObject x={(x1 + x2) / 2 - 80} y={(y1 + y2) / 2 - 13} width={160} height={26}>
-                        <div className="flex h-full items-center justify-center">
-                          <span className="truncate rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                            {c.label}
-                          </span>
-                        </div>
-                      </foreignObject>
-                    )}
-                  </g>
-                );
-              })}
-
-              {map.cards.map((card) => {
-                const on = section.stepIds.has(card.step.id);
-                return (
-                  <foreignObject
-                    key={card.step.id}
-                    x={colX(card.col)}
-                    y={cardTop(card)}
-                    width={CARD_W}
-                    height={CARD_H}
-                    style={fade(on, 0.25 + (order.get(card.step.id) ?? 0) * 0.15)}
-                  >
-                    <StepCard card={card} />
-                  </foreignObject>
-                );
-              })}
-            </g>
-
-            {/* Lane names stay put while the map moves under them. */}
-            <rect x={0} y={0} width={LABEL_W} height={viewH} fill="hsl(var(--card))" />
-            <line x1={LABEL_W} y1={0} x2={LABEL_W} y2={viewH} stroke="hsl(var(--border))" />
-            {map.lanes.map((lane, i) => (
-              <g key={lane} style={fade(activeLanes.has(i))}>
-                <foreignObject x={0} y={laneY(i)} width={LABEL_W} height={LANE_H}>
-                  <div className="flex h-full items-center gap-2 px-5">
-                    {lane === AUTOMATED_LANE && <Zap className="h-4 w-4 shrink-0 text-emerald-600" />}
-                    <span className="truncate text-[15px] font-semibold">{lane}</span>
-                  </div>
-                </foreignObject>
-              </g>
-            ))}
-          </svg>
-        </div>
-
-        <div className="mt-4 flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => goTo(index - 1)} aria-label="Previous" title="Previous (←)">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            {finished ? (
-              <Button size="icon" className="h-10 w-10 rounded-full" onClick={replay} aria-label="Watch again" title="Watch again">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                size="icon"
-                className="h-10 w-10 rounded-full"
-                onClick={() => setPlaying((p) => !p)}
-                aria-label={playing ? 'Pause' : 'Play'}
-                title={playing ? 'Pause (space)' : 'Play (space)'}
-              >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-px" />}
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" onClick={() => goTo(index + 1)} aria-label="Next" title="Next (→)">
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          </div>
-
-          <div className="flex flex-1 items-center gap-1.5">
-            {sections.map((s, i) => {
-              const fill = i < index ? 1 : i > index ? 0 : Math.min(1, elapsed / duration);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => goTo(i)}
-                  className="group h-4 flex-1 py-1.5"
-                  aria-label={`Part ${i + 1}: ${s.label}`}
-                  title={s.label}
-                >
-                  <span className="block h-1 overflow-hidden rounded-full bg-muted group-hover:bg-muted-foreground/30">
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${fill * 100}%` }} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {finished && (
-            <Button size="sm" onClick={onClose}>
-              Back to the map
-            </Button>
-          )}
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
-/** Cards sit vertically centred in their lane. */
-function cardTop(card: MapCard) {
-  return laneY(card.lane) + (LANE_H - CARD_H) / 2;
-}
-
-function Shell({ processName, versionName, onClose, children }: {
-  processName: string;
-  versionName: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" role="dialog" aria-label={`${processName} walkthrough`}>
-      <header className="flex items-center justify-between gap-4 px-6 py-4">
+      <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold">{processName}</p>
+          <p className="truncate text-sm font-semibold">{processName}</p>
           <p className="truncate text-xs text-muted-foreground">Walkthrough · {versionName}</p>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close walkthrough" title="Close (Esc)">
           <X className="h-5 w-5" />
         </Button>
       </header>
-      <main className="flex min-h-0 flex-1 px-6 pb-6">{children}</main>
+
+      <div className="flex min-h-0 flex-1">
+        <StepList outline={outline} cur={cur} onPick={go} />
+
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-2xl px-8 py-10">
+            {item ? (
+              <StepDetail item={item} outline={outline} onGo={go} onEdit={() => onEditStep(item.step)} />
+            ) : (
+              <Overview
+                processName={processName}
+                description={processDescription}
+                versionName={versionName}
+                steps={steps}
+              />
+            )}
+
+            <div className="mt-12 flex items-center justify-between border-t border-border pt-6">
+              <Button variant="ghost" onClick={back} disabled={!item}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <NextButton item={item} outline={outline} hasSteps={outline.items.length > 0} onNext={next} />
+            </div>
+          </div>
+        </main>
+
+        {editor}
+      </div>
     </div>
   );
 }
 
-/** A step as the tour shows it: who, what, and with which apps. */
-function StepCard({ card }: { card: MapCard }) {
-  const { step, automated } = card;
-  const apps = appsOf(step).filter((a) => a.id !== step.performedBy?.id);
-  const color = step.performedBy?.color;
+// --- Step list ---
+
+function StepList({ outline, cur, onPick }: {
+  outline: ReturnType<typeof buildOutline>;
+  cur: string | null;
+  onPick: (id: string | null) => void;
+}) {
+  const active = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    active.current?.scrollIntoView({ block: 'nearest' });
+  }, [cur]);
+
   return (
-    <div
-      className={`flex h-full flex-col rounded-xl border bg-card px-3.5 py-3 shadow-sm ${
-        automated ? 'border-emerald-500/60' : 'border-border'
-      }`}
+    <nav className="hidden w-72 shrink-0 overflow-y-auto border-r border-border bg-muted/30 px-3 py-4 md:block" aria-label="Steps">
+      <ListRow on={cur === null} onClick={() => onPick(null)} buttonRef={cur === null ? active : undefined}>
+        <span className="w-6" />
+        <span className="font-medium">Overview</span>
+      </ListRow>
+      <p className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Steps</p>
+      {outline.items.map((it, i) => {
+        const prev = outline.items[i - 1];
+        const startsBranch = it.branch && it.branch.label !== prev?.branch?.label;
+        const on = it.step.id === cur;
+        return (
+          <div key={it.step.id}>
+            {startsBranch && (
+              <p className="flex items-center gap-1.5 pb-1 pl-9 pr-3 pt-2 text-[11px] italic text-muted-foreground">
+                <CornerDownRight className="h-3 w-3 shrink-0" />
+                <span className="truncate">{it.branch!.label}</span>
+              </p>
+            )}
+            <ListRow on={on} onClick={() => onPick(it.step.id)} indent={!!it.branch} buttonRef={on ? active : undefined}>
+              <span className={`w-6 shrink-0 text-right text-xs tabular-nums ${on ? '' : 'text-muted-foreground'}`}>
+                {it.number}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{stepTitle(it.step)}</span>
+              {isApp(it.step.performedBy) && <Zap className="h-3 w-3 shrink-0 text-emerald-600" aria-label="Automated" />}
+            </ListRow>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+function ListRow({ on, indent, onClick, buttonRef, children }: {
+  on: boolean;
+  indent?: boolean;
+  onClick: () => void;
+  buttonRef?: React.Ref<HTMLButtonElement>;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={onClick}
+      aria-current={on ? 'step' : undefined}
+      className={`flex w-full items-center gap-2.5 rounded-md py-1.5 pr-3 text-left text-sm transition-colors ${
+        indent ? 'pl-6' : 'pl-3'
+      } ${on ? 'bg-primary/10 font-medium text-primary' : 'text-foreground/80 hover:bg-muted'}`}
     >
-      {automated ? (
-        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-          <Zap className="h-3 w-3" /> Automated · {step.performedBy?.name}
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={color ? { color } : undefined}>
-          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color || 'hsl(var(--muted-foreground))' }} />
-          <span className="truncate">{step.performedBy?.name || 'Unassigned'}</span>
-        </span>
+      {children}
+    </button>
+  );
+}
+
+// --- Pieces ---
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
+}
+
+/** A person as a coloured circle with initials; an app as its logo. */
+function Avatar({ who, size = 40 }: { who: ElementRef | null; size?: number }) {
+  if (who && who.actorClass === 'System') {
+    return (
+      <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-card" style={{ width: size, height: size }}>
+        <ElementIcon name={who.name} image={who.image} icon={who.icon} typeIcon={who.typeIcon} color={who.color} size={Math.round(size * 0.5)} />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white"
+      style={{ width: size, height: size, fontSize: size * 0.36, backgroundColor: who?.color || 'hsl(var(--muted-foreground))' }}
+    >
+      {who ? initials(who.name) : '?'}
+    </span>
+  );
+}
+
+function Chip({ el }: { el: ElementRef }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-sm">
+      <ElementIcon name={el.name} image={el.image} icon={el.icon} typeIcon={el.typeIcon} color={el.color} size={14} />
+      {el.name}
+    </span>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</h3>;
+}
+
+// --- Views ---
+
+function Overview({ processName, description, versionName, steps }: {
+  processName: string;
+  description: string;
+  versionName: string;
+  steps: ProcessStep[];
+}) {
+  const { people, apps, automated } = useMemo(() => {
+    const people = new Map<string, ElementRef>();
+    const apps = new Map<string, ElementRef>();
+    let automated = 0;
+    for (const s of steps) {
+      if (s.performedBy && !isApp(s.performedBy)) people.set(s.performedBy.id, s.performedBy);
+      if (isApp(s.performedBy)) automated += 1;
+      for (const a of appsOf(s)) apps.set(a.id, a);
+    }
+    return { people: [...people.values()], apps: [...apps.values()], automated };
+  }, [steps]);
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-primary">Overview · {versionName}</p>
+      <h1 className="mt-2 text-4xl font-semibold tracking-tight">{processName}</h1>
+      {description && <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{description}</p>}
+
+      <div className="mt-8 grid grid-cols-3 gap-3">
+        <Stat value={steps.length} label={steps.length === 1 ? 'step' : 'steps'} />
+        <Stat value={people.length} label={people.length === 1 ? 'person' : 'people'} />
+        <Stat value={automated} label={automated === 1 ? 'automated step' : 'automated steps'} />
+      </div>
+
+      {people.length > 0 && (
+        <section className="mt-10">
+          <Label>Who's involved</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {people.map((p) => (
+              <div key={p.id} className="flex items-center gap-3">
+                <Avatar who={p} size={36} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.typeName}
+                    {p.party === 'External' ? ' · external' : ''}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
-      <p className="mt-1.5 line-clamp-2 text-[14px] font-semibold leading-snug">
-        {step.walkthroughLine.trim() || step.title}
-      </p>
+
       {apps.length > 0 && (
-        <div className="mt-auto flex min-w-0 items-center gap-2 pt-1.5">
-          {apps.slice(0, 3).map((a) => (
-            <span key={a.id} className="inline-flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
-              <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.color} size={13} />
-              <span className="truncate">{a.name}</span>
-            </span>
-          ))}
-          {apps.length > 3 && <span className="text-[11px] text-muted-foreground">+{apps.length - 3}</span>}
-        </div>
+        <section className="mt-10">
+          <Label>Apps</Label>
+          <div className="flex flex-wrap gap-2">
+            {apps.map((a) => (
+              <Chip key={a.id} el={a} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-xl bg-muted/60 px-4 py-3">
+      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function StepDetail({ item, outline, onGo, onEdit }: {
+  item: OutlineItem;
+  outline: ReturnType<typeof buildOutline>;
+  onGo: (id: string) => void;
+  onEdit: () => void;
+}) {
+  const { step } = item;
+  const who = step.performedBy;
+  const automated = isApp(who);
+  const uses = step.uses.filter((u) => u.id !== who?.id);
+  const ref = (id: string) => outline.byId.get(id);
+
+  return (
+    <article>
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+          <span className="tabular-nums">Step {item.number} of {outline.items.length}</span>
+          {item.branch && (
+            <span className="truncate rounded-full bg-muted px-2 py-0.5 text-xs">{item.branch.label}</span>
+          )}
+        </p>
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit step
+        </Button>
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <Avatar who={who} />
+        <div>
+          <p className="font-semibold leading-tight">{who?.name || 'Unassigned'}</p>
+          <p className="text-sm text-muted-foreground">
+            {automated ? 'Runs automatically' : who?.typeName}
+            {who?.party === 'External' ? ' · external' : ''}
+            {step.stepType && step.stepType !== 'Task' ? ` · ${step.stepType}` : ''}
+          </p>
+        </div>
+      </div>
+
+      <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">{stepTitle(step)}</h2>
+      {step.description && <p className="mt-3 text-base leading-relaxed text-muted-foreground">{step.description}</p>}
+
+      {uses.length > 0 && (
+        <section className="mt-8">
+          <Label>Using</Label>
+          <div className="flex flex-wrap gap-2">
+            {uses.map((u) => (
+              <Chip key={u.id} el={u} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(item.needs.length > 0 || step.produces.length > 0) && (
+        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {item.needs.length > 0 && (
+            <section>
+              <Label>
+                <span className="inline-flex items-center gap-1.5"><CornerDownLeft className="h-3.5 w-3.5" /> Needs</span>
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {item.needs.map((n) => (
+                  <Chip key={n.id} el={n} />
+                ))}
+              </div>
+            </section>
+          )}
+          {step.produces.length > 0 && (
+            <section>
+              <Label>
+                <span className="inline-flex items-center gap-1.5"><CornerDownRight className="h-3.5 w-3.5" /> Produces</span>
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {step.produces.map((p) => (
+                  <Chip key={p.id} el={p} />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {step.checklist.length > 0 && (
+        <section className="mt-8">
+          <Label>Checklist</Label>
+          <ul className="space-y-2">
+            {step.checklist.map((c) => (
+              <li key={c.id} className="flex items-start gap-3 text-base">
+                <Circle className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {item.outcomes.length > 0 && (
+        <section className="mt-10">
+          <Label>What happens next?</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {item.outcomes.map((o) => {
+              const target = ref(o.targetId);
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => onGo(o.targetId)}
+                  className="rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                >
+                  <p className="font-semibold">{o.label || 'Otherwise'}</p>
+                  <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
+                    <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {target ? `Step ${target.number} · ${stepTitle(target.step)}` : 'An earlier step'}
+                    </span>
+                  </p>
+                  {o.loopsBack && (
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs text-primary">
+                      <Repeat2 className="h-3.5 w-3.5" /> Goes back round
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {item.loopBackId && ref(item.loopBackId) && (
+        <p className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1.5 text-sm text-primary">
+          <Repeat2 className="h-4 w-4" />
+          Then back to step {ref(item.loopBackId)!.number}, {stepTitle(ref(item.loopBackId)!.step)}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function NextButton({ item, outline, hasSteps, onNext }: {
+  item: OutlineItem | null;
+  outline: ReturnType<typeof buildOutline>;
+  hasSteps: boolean;
+  onNext: () => void;
+}) {
+  if (!item) {
+    return hasSteps ? (
+      <Button onClick={onNext}>
+        Start <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    ) : (
+      <span className="text-sm text-muted-foreground">No steps in this version yet.</span>
+    );
+  }
+  if (!item.nextId) {
+    return (
+      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <Flag className="h-4 w-4" />
+        {item.branch ? 'This path ends here' : 'End of the process'}
+      </span>
+    );
+  }
+  const main = item.outcomes.find((o) => o.main);
+  const target = outline.byId.get(item.nextId);
+  const loopingBack = item.loopBackId === item.nextId;
+  return (
+    <Button onClick={onNext}>
+      {main ? `Continue: ${main.label || 'main path'}` : loopingBack ? `Back to step ${target?.number}` : 'Next'}
+      <ArrowRight className="ml-2 h-4 w-4" />
+    </Button>
   );
 }

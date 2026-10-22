@@ -35,7 +35,6 @@ const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
 import Walkthrough from './Walkthrough';
-import WalkthroughPicker from './WalkthroughPicker';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -63,15 +62,11 @@ export default function ProcessCanvas() {
   const [editingProcess, setEditingProcess] = useState(false);
   /** The lane whose panel is open, in the current view. */
   const [openLane, setOpenLane] = useState<string | null>(null);
-  // The walkthrough plays a version of its own choosing, which may not be the
-  // one open on the map, so it carries its own copy of the steps.
-  const [pickingWalkthrough, setPickingWalkthrough] = useState(false);
-  const [loadingWalkthrough, setLoadingWalkthrough] = useState(false);
-  const [walkthrough, setWalkthrough] = useState<{
-    versionName: string;
-    steps: ProcessStep[];
-    connections: ProcessConnection[];
-  } | null>(null);
+  // The walkthrough plays the version open on the map. A step edited from it
+  // opens in an editor docked inside the walkthrough, keyed by id so it picks
+  // up the saved version after each reload.
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughEditId, setWalkthroughEditId] = useState<string | null>(null);
 
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
@@ -289,31 +284,6 @@ export default function ProcessCanvas() {
   );
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
 
-  const startWalkthrough = useCallback(
-    async (versionId: string) => {
-      // The version on the map is already loaded; any other one is fetched.
-      if (graph?.version?.id === versionId) {
-        setWalkthrough({ versionName: graph.version.name, steps, connections });
-        setPickingWalkthrough(false);
-        return;
-      }
-      setLoadingWalkthrough(true);
-      try {
-        const res = await getProcessGraph({ versionId });
-        setWalkthrough({
-          versionName: res.version?.name ?? '',
-          steps: res.steps as ProcessStep[],
-          connections: res.connections,
-        });
-        setPickingWalkthrough(false);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not load that version.');
-      } finally {
-        setLoadingWalkthrough(false);
-      }
-    },
-    [graph, steps, connections],
-  );
   const laneOrder = graph?.laneOrder ?? NO_LANE_ORDER;
 
   // The new order shows at once; everyone else sees it on their next load.
@@ -433,16 +403,8 @@ export default function ProcessCanvas() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {(steps.length > 0 || process?.versions.some((v) => v.stepCount > 0)) && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                process && process.versions.length > 1
-                  ? setPickingWalkthrough(true)
-                  : graph?.version && startWalkthrough(graph.version.id)
-              }
-            >
+          {steps.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setWalkthroughOpen(true)}>
               <Play className="h-3.5 w-3.5 mr-1.5" /> Play walkthrough
             </Button>
           )}
@@ -514,23 +476,39 @@ export default function ProcessCanvas() {
           />
         </div>
 
-        {pickingWalkthrough && process && (
-          <WalkthroughPicker
-            versions={process.versions}
-            openVersionId={graph?.version?.id ?? null}
-            loading={loadingWalkthrough}
-            onPlay={startWalkthrough}
-            onClose={() => setPickingWalkthrough(false)}
-          />
-        )}
-
-        {walkthrough && (
+        {walkthroughOpen && graph?.version && (
           <Walkthrough
             processName={process?.name ?? 'This process'}
-            versionName={walkthrough.versionName}
-            steps={walkthrough.steps}
-            connections={walkthrough.connections}
-            onClose={() => setWalkthrough(null)}
+            processDescription={process?.description ?? ''}
+            versionName={graph.version.name}
+            steps={steps}
+            connections={connections}
+            onClose={() => {
+              setWalkthroughOpen(false);
+              setWalkthroughEditId(null);
+            }}
+            onEditStep={(s) => setWalkthroughEditId(s.id)}
+            editor={
+              walkthroughEditId && steps.some((s) => s.id === walkthroughEditId) ? (
+                <StepDialog
+                  key={walkthroughEditId}
+                  step={steps.find((s) => s.id === walkthroughEditId)!}
+                  versionId={graph.version.id}
+                  processId={id ?? ''}
+                  elements={elements}
+                  types={types}
+                  allSteps={steps}
+                  connections={connections}
+                  onSaved={load}
+                  onDeleted={(stepId) => {
+                    removeStepLocally(stepId);
+                    setWalkthroughEditId(null);
+                  }}
+                  onClose={() => setWalkthroughEditId(null)}
+                  onCreateElement={handleCreateElement}
+                />
+              ) : null
+            }
           />
         )}
 
