@@ -67,8 +67,10 @@
 //   "ElementsProcessVersions" — columns: "elementsId", "processVersionsId" (joins "Elements" and "Process Versions")
 //   "ProcessVersionsSteps" — columns: "processVersionsId", "stepsId" (joins "Process Versions" and "Steps")
 //   "ElementsSteps" — columns: "elementsId", "stepsId" (joins "Elements" and "Steps")
+//   "PhasesSteps" — columns: "phasesId", "stepsId" (joins "Phases" and "Steps")
 //   "StepConnectionsSteps" — columns: "stepConnectionsId", "stepsId" (joins "Step Connections" and "Steps")
 //   "ProcessVersionsStepConnections" — columns: "processVersionsId", "stepConnectionsId" (joins "Process Versions" and "Step Connections")
+//   "ElementsPhases" — columns: "elementsId", "phasesId" (joins "Elements" and "Phases")
 import { createTableClient, createSqlClient, createAuthClient } from 'zitejs/runtime';
 
 /** An attachment as returned when reading a record. */
@@ -155,6 +157,8 @@ export type ElementsRecordType = {
   stepsProducingThis?: string | string[];
   /** Links to steps ("Steps"). Single record only. "Called from steps" */
   calledFromSteps?: string | string[];
+  /** Links to phases ("Phases"). Single record only. "Phases" */
+  phases?: string | string[];
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -174,6 +178,7 @@ export type ElementsRecordInput = {
   stepsUsingThis: string | string[] | null;
   stepsProducingThis: string | string[] | null;
   calledFromSteps: string | string[] | null;
+  phases: string | string[] | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */
@@ -231,6 +236,8 @@ export type StepsRecordType = {
   outgoingConnections?: string | string[];
   /** Links to stepConnections ("Step Connections"). Single record only. "Incoming connections" */
   incomingConnections?: string | string[];
+  /** Links to phases ("Phases"). Single record only. "Phase" */
+  phase?: string | string[];
 };
 
 /** What you may write when creating or updating a record in the "Steps" table. */
@@ -247,6 +254,7 @@ export type StepsRecordInput = {
   checklist: string | null;
   outgoingConnections: string | string[] | null;
   incomingConnections: string | string[] | null;
+  phase: string | string[] | null;
 };
 
 /** A record in the "Step Connections" table, as it is read back. */
@@ -274,6 +282,27 @@ export type StepConnectionsRecordInput = {
   condition: string | null;
 };
 
+/** A record in the "Phases" table, as it is read back. */
+export type PhasesRecordType = {
+  id: string;
+  /** Primary field. "Name" */
+  name?: string;
+  /** Links to elements ("Elements"). Single record only. "Process" */
+  process?: string | string[];
+  /** "Sort Order". 0 decimal places, format: local (e.g. 1,000,000.50) */
+  sortOrder?: number;
+  /** Links to steps ("Steps"). Single record only. "Steps" */
+  steps?: string | string[];
+};
+
+/** What you may write when creating or updating a record in the "Phases" table. */
+export type PhasesRecordInput = {
+  name: string | null;
+  process: string | string[] | null;
+  sortOrder: string | number | null;
+  steps: string | string[] | null;
+};
+
 export interface ZiteAuthUser {
   id: string;
   name: string;
@@ -289,6 +318,7 @@ export const zite = {
   processVersions: createTableClient<ProcessVersionsRecordType, ProcessVersionsRecordInput>('ProcessVersions'), // "Process Versions"
   steps: createTableClient<StepsRecordType, StepsRecordInput>('Steps'), // "Steps"
   stepConnections: createTableClient<StepConnectionsRecordType, StepConnectionsRecordInput>('StepConnections'), // "Step Connections"
+  phases: createTableClient<PhasesRecordType, PhasesRecordInput>('Phases'), // "Phases"
   sql: createSqlClient(),
   auth: createAuthClient<ZiteAuthUser>(),
 };

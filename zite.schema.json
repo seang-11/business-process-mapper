@@ -387,6 +387,20 @@
               "inverseFieldId": "foFHES5NZGY"
             }
           }
+        },
+        {
+          "id": "fhYkXvizLZL",
+          "sdkName": "phases",
+          "definition": {
+            "name": "Phases",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tfnu6qbCG9S",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fti4PQwrgbB"
+            }
+          }
         }
       ]
     },
@@ -687,6 +701,20 @@
               "inverseFieldId": "furj1C9czpn"
             }
           }
+        },
+        {
+          "id": "f14WaRm8d8E",
+          "sdkName": "phase",
+          "definition": {
+            "name": "Phase",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tfnu6qbCG9S",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "f9S9PxtRmuQ"
+            }
+          }
         }
       ]
     },
@@ -763,6 +791,63 @@
             "name": "Condition",
             "type": "long_text",
             "template": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "tfnu6qbCG9S",
+      "sdkName": "phases",
+      "name": "Phases",
+      "primaryFieldId": "f9HNWSL1yyP",
+      "fields": [
+        {
+          "id": "f9HNWSL1yyP",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fti4PQwrgbB",
+          "sdkName": "process",
+          "definition": {
+            "name": "Process",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "fhYkXvizLZL"
+            }
+          }
+        },
+        {
+          "id": "fqagEYe6BEa",
+          "sdkName": "sortOrder",
+          "definition": {
+            "name": "Sort Order",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
+        },
+        {
+          "id": "f9S9PxtRmuQ",
+          "sdkName": "steps",
+          "definition": {
+            "name": "Steps",
+            "type": "linked_record",
+            "template": {
+              "tableId": "tdSqteA5YSy",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "f14WaRm8d8E"
+            }
           }
         }
       ]

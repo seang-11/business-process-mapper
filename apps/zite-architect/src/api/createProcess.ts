@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
 import { ensureCoreTypes } from '../lib/ensureCoreTypes';
+import { createDefaultPhases } from '../lib/defaultPhases';
 
 export default createEndpoint({
   description: 'Create a process — an element of type Process, plus its first current-state version',
@@ -42,6 +43,8 @@ export default createEndpoint({
         lastEdited: new Date().toISOString(),
       },
     });
+
+    await createDefaultPhases(element.id);
 
     return { processId: element.id, versionId: version.id };
   },

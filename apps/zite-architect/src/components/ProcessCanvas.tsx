@@ -28,7 +28,8 @@ import {
   SelectValue,
 } from '@project/components/ui/select';
 import { toast } from 'sonner';
-import type { ElementRef, ElementSummary, ElementType, ProcessStep } from '@/types';
+import type { ElementRef, ElementSummary, ElementType, Phase, ProcessStep } from '@/types';
+import PhasesDialog from './PhasesDialog';
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -55,6 +56,7 @@ export default function ProcessCanvas() {
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
+  const [editingPhases, setEditingPhases] = useState(false);
 
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
@@ -243,6 +245,7 @@ export default function ProcessCanvas() {
               : {
                   ...s,
                   performedBy: refOf(move.performedById) ?? s.performedBy,
+                  phaseId: move.phaseId !== undefined ? move.phaseId : s.phaseId,
                   uses: move.useIds
                     .map((uid) => s.uses.find((u) => u.id === uid) ?? refOf(uid))
                     .filter((u): u is ElementRef => u !== null),
@@ -257,8 +260,9 @@ export default function ProcessCanvas() {
           versionId,
           performedById: move.performedById,
           useIds: move.useIds,
+          phaseId: move.phaseId,
         });
-        toast.success(`Moved "${step.title}" to ${move.laneName}`);
+        toast.success(`Moved "${step.title}" to ${move.destination}`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not move that step.');
       } finally {
@@ -268,6 +272,12 @@ export default function ProcessCanvas() {
     [versionId, elements, load],
   );
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
+  const phases = useMemo(() => (graph?.phases ?? []) as Phase[], [graph]);
+  const phaseStepCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of steps) if (s.phaseId) m.set(s.phaseId, (m.get(s.phaseId) ?? 0) + 1);
+    return m;
+  }, [steps]);
 
 
   if (loading) {
@@ -419,8 +429,20 @@ export default function ProcessCanvas() {
             onClickStep={openStep}
             onOpenSubProcess={(processId) => navigate(`/process/${processId}`)}
             onMoveStep={handleMoveStep}
+            phases={phases}
+            onEditPhases={() => setEditingPhases(true)}
           />
         </div>
+
+        {editingPhases && id && (
+          <PhasesDialog
+            processId={id}
+            phases={phases}
+            stepCounts={phaseStepCounts}
+            onClose={() => setEditingPhases(false)}
+            onSaved={load}
+          />
+        )}
 
         {(addingStep || editStep) && graph?.version && (
           <StepDialog
