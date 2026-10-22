@@ -5,7 +5,6 @@ import { createCaller } from 'zitejs/caller';
 import type { default as _CreateProcessEp } from '../src/api/createProcess';
 import type { default as _CreateVersionEp } from '../src/api/createVersion';
 import type { default as _DeleteConnectionEp } from '../src/api/deleteConnection';
-import type { default as _DeleteEditorEp } from '../src/api/deleteEditor';
 import type { default as _DeleteElementEp } from '../src/api/deleteElement';
 import type { default as _DeleteElementTypeEp } from '../src/api/deleteElementType';
 import type { default as _DeleteProcessEp } from '../src/api/deleteProcess';
@@ -22,7 +21,6 @@ import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
-import type { default as _SaveEditorEp } from '../src/api/saveEditor';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
@@ -44,11 +42,6 @@ type _DeleteConnectionCfg = typeof _DeleteConnectionEp;
 export type DeleteConnectionInputType = NonNullable<_DeleteConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteConnectionCfg['execute']>[0]['input'];
 export type DeleteConnectionOutputType = Awaited<ReturnType<_DeleteConnectionCfg['execute']>>;
 export const deleteConnection = createCaller<DeleteConnectionInputType, DeleteConnectionOutputType>('deleteConnection');
-
-type _DeleteEditorCfg = typeof _DeleteEditorEp;
-export type DeleteEditorInputType = NonNullable<_DeleteEditorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteEditorCfg['execute']>[0]['input'];
-export type DeleteEditorOutputType = Awaited<ReturnType<_DeleteEditorCfg['execute']>>;
-export const deleteEditor = createCaller<DeleteEditorInputType, DeleteEditorOutputType>('deleteEditor');
 
 type _DeleteElementCfg = typeof _DeleteElementEp;
 export type DeleteElementInputType = NonNullable<_DeleteElementCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_DeleteElementCfg['execute']>[0]['input'];
@@ -130,11 +123,6 @@ export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchem
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
 export const saveConnection = createCaller<SaveConnectionInputType, SaveConnectionOutputType>('saveConnection');
 
-type _SaveEditorCfg = typeof _SaveEditorEp;
-export type SaveEditorInputType = NonNullable<_SaveEditorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveEditorCfg['execute']>[0]['input'];
-export type SaveEditorOutputType = Awaited<ReturnType<_SaveEditorCfg['execute']>>;
-export const saveEditor = createCaller<SaveEditorInputType, SaveEditorOutputType>('saveEditor');
-
 type _SaveElementCfg = typeof _SaveElementEp;
 export type SaveElementInputType = NonNullable<_SaveElementCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveElementCfg['execute']>[0]['input'];
 export type SaveElementOutputType = Awaited<ReturnType<_SaveElementCfg['execute']>>;
@@ -170,7 +158,6 @@ export const api = {
   createProcess,
   createVersion,
   deleteConnection,
-  deleteEditor,
   deleteElement,
   deleteElementType,
   deleteProcess,
@@ -187,7 +174,6 @@ export const api = {
   matchVersionSteps,
   moveStep,
   saveConnection,
-  saveEditor,
   saveElement,
   saveElementType,
   saveLaneOrder,

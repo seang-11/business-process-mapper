@@ -5,7 +5,6 @@ import { Toaster } from '@project/components/ui/sonner';
 import WorkspaceList from '@/components/WorkspaceList';
 import ProcessCanvas from '@/components/ProcessCanvas';
 import ElementDetail from '@/components/ElementDetail';
-import People from '@/components/People';
 import { MeProvider } from '@/lib/me';
 import PreviewSwitcher from '@/components/PreviewSwitcher';
 
@@ -32,7 +31,6 @@ export default function App() {
           <Route path="/" element={<WorkspaceList />} />
           <Route path="/process/:id" element={<ProcessCanvas />} />
           <Route path="/element/:id" element={<ElementDetail />} />
-          <Route path="/people" element={<People />} />
         </Routes>
         <PreviewSwitcher />
       </BrowserRouter>

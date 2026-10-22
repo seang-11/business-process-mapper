@@ -67,7 +67,7 @@ export default function PreviewSwitcher() {
             <Check className={`mt-0.5 h-4 w-4 ${previewing ? 'opacity-0' : ''}`} />
             <span>
               <span className="block text-sm font-medium">You, as admin</span>
-              <span className="block text-xs text-muted-foreground">Everything, including People.</span>
+              <span className="block text-xs text-muted-foreground">Everything, including editing.</span>
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -121,7 +121,7 @@ export default function PreviewSwitcher() {
               })
           )}
           <p className="px-2 pb-1.5 pt-1 text-[11px] leading-snug text-muted-foreground">
-            Anyone not on the People list is a viewer, so pick "A viewer" to see what they see.
+            Anyone not in the Editors table is a viewer, so pick "A viewer" to see what they see.
           </p>
 
           <DropdownMenuSeparator />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getProcesses, getTaxonomy, listEditors, GetProcessesOutputType } from 'zitejs/api';
-import { Workflow, Boxes, Plus, Network, LayoutGrid, List, UsersRound, Search, Check, X } from 'lucide-react';
+import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
+import { Workflow, Boxes, Plus, Network, LayoutGrid, List, Search } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import { Skeleton } from '@project/components/ui/skeleton';
@@ -64,23 +64,19 @@ export default function WorkspaceList() {
   const [deleteProcessTarget, setDeleteProcessTarget] = useState<ProcessRow | null>(null);
   const [editProcessTarget, setEditProcessTarget] = useState<ProcessRow | null>(null);
   /** Cards are the friendly front door; the table is still one click away. */
-  const [view, setView] = useState<'cards' | 'table'>(() => (storedFlag('bpm_home_view') === 'table' ? 'table' : 'cards'));
+  const [viewChoice, setViewChoice] = useState<'cards' | 'table' | null>(() => {
+    const saved = storedFlag('bpm_home_view');
+    return saved === 'cards' || saved === 'table' ? saved : null;
+  });
+  // Editors and admins land on the table; viewers on the friendlier cards. A choice they make sticks.
+  const view = viewChoice ?? (canEdit ? 'table' : 'cards');
   const [query, setQuery] = useState('');
-  const [checklistHidden, setChecklistHidden] = useState(() => storedFlag('bpm_setup_hidden') === '1');
-  const [editorCount, setEditorCount] = useState<number | null>(null);
 
   const chooseView = (next: 'cards' | 'table') => {
-    setView(next);
+    setViewChoice(next);
     storeFlag('bpm_home_view', next);
   };
 
-  // Admins see how many people can edit, for the setup checklist.
-  useEffect(() => {
-    if (!isAdmin) return;
-    listEditors({})
-      .then((r) => setEditorCount(r.people.length))
-      .catch(() => setEditorCount(null));
-  }, [isAdmin]);
 
   const load = useCallback(async () => {
     const [processRes, taxonomy] = await Promise.all([getProcesses({}), getTaxonomy({})]);
@@ -132,24 +128,11 @@ export default function WorkspaceList() {
           <p className="mt-1.5 text-sm text-muted-foreground">
             {canEdit
               ? isAdmin
-                ? "You're an admin. You can edit processes and choose who else can."
+                ? "You're an admin. You can edit everything."
                 : 'You can edit processes. Everyone else can look around and train.'
               : 'What do you want to learn today?'}
           </p>
         </section>
-
-        {isAdmin && !checklistHidden && (
-          <SetupChecklist
-            processes={processes}
-            editorCount={editorCount}
-            onPeople={() => navigate('/people')}
-            onNewProcess={() => setCreating(true)}
-            onHide={() => {
-              setChecklistHidden(true);
-              storeFlag('bpm_setup_hidden', '1');
-            }}
-          />
-        )}
 
         <div className="mb-5 flex items-end justify-between gap-3 border-b border-border">
           <nav className="flex gap-6">
@@ -189,11 +172,6 @@ export default function WorkspaceList() {
                   <List className="h-3.5 w-3.5" /> Table
                 </button>
               </div>
-            )}
-            {isAdmin && (
-              <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => navigate('/people')}>
-                <UsersRound className="mr-1.5 h-3.5 w-3.5" /> People
-              </Button>
             )}
             {canEdit && (
               <Button
@@ -348,72 +326,5 @@ export default function WorkspaceList() {
         <VersionFooter />
       </footer>
     </div>
-  );
-}
-
-/** A short to-do list for admins getting set up. It disappears once it's done, or when dismissed. */
-function SetupChecklist({
-  processes, editorCount, onPeople, onNewProcess, onHide,
-}: {
-  processes: ProcessRow[];
-  editorCount: number | null;
-  onPeople: () => void;
-  onNewProcess: () => void;
-  onHide: () => void;
-}) {
-  const hasProcess = processes.length > 0;
-  const datesSet =
-    hasProcess &&
-    processes.every((p) => {
-      const live = p.versions.find((v) => v.state === 'Current');
-      return !live || !!live.liveFrom;
-    });
-  const invited = editorCount !== null && editorCount > 1;
-
-  const items = [
-    { label: 'Add your first process', done: hasProcess, action: hasProcess ? undefined : onNewProcess, cta: 'New process' },
-    { label: 'Set the live date on each process', done: datesSet, action: undefined, cta: 'Open a process, then ⋯ › Manage versions' },
-    { label: 'Invite a teammate as an editor', done: invited, action: onPeople, cta: 'Open People' },
-  ];
-  if (items.every((i) => i.done)) return null;
-
-  return (
-    <section className="mb-7 rounded-2xl border border-border bg-card p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Setup checklist</p>
-        <button
-          type="button"
-          onClick={onHide}
-          className="text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Hide checklist"
-          title="Hide"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <ul className="mt-3 space-y-2">
-        {items.map((i) => (
-          <li key={i.label} className="flex items-center gap-3 text-sm">
-            <span
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                i.done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border text-transparent'
-              }`}
-            >
-              <Check className="h-3 w-3" />
-            </span>
-            <span className={i.done ? 'text-muted-foreground line-through' : ''}>{i.label}</span>
-            {!i.done && (
-              i.action ? (
-                <button type="button" onClick={i.action} className="ml-auto text-xs font-medium text-primary hover:underline">
-                  {i.cta}
-                </button>
-              ) : (
-                <span className="ml-auto text-xs text-muted-foreground">{i.cta}</span>
-              )
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
