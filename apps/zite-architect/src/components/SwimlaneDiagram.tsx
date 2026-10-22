@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback, forwardRef } from 'react';
 import {
-  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil, GripVertical,
+  Play, Flag, ListChecks, CornerDownRight, ArrowRight, Workflow, Zap, Minus, Plus, Maximize2, Pencil, GripVertical, Hand,
 } from 'lucide-react';
 import type {
   ElementRef,
@@ -1361,6 +1361,24 @@ export default function SwimlaneDiagram({
                   ]
                 : [];
 
+            // The app view answers "what is this tool used for, and by whom":
+            // the app's logo up front, then the people and roles doing steps
+            // in it. A step no app touches reads as work done by hand.
+            const appLane = grouping !== 'people';
+            const isNoApp = appLane && lane === 'No app';
+            const laneUsers = appLane
+              ? [
+                  ...new Map(
+                    laneSteps
+                      .map((s) => s.performedBy)
+                      .filter((e): e is ElementRef => !!e && e.actorClass !== 'System')
+                      .map((e) => [e.id, e]),
+                  ).values(),
+                ]
+              : [];
+            const laneRunsItself =
+              appLane && laneSteps.some((s) => s.performedBy?.actorClass === 'System');
+
             return (
               <div
                 key={lane}
@@ -1391,6 +1409,69 @@ export default function SwimlaneDiagram({
                     onReorderLanes ? 'cursor-pointer active:cursor-grabbing hover:bg-muted' : ''
                   } ${focusLane === lane ? 'shadow-[inset_3px_0_0_hsl(var(--primary))]' : ''}`}
                 >
+                  {appLane ? (
+                  <div style={{ zoom: textScale }}>
+                    <div className="flex items-center gap-2.5">
+                      {onReorderLanes && (
+                        <GripVertical className="h-3 w-3 -ml-3.5 -mr-1 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
+                      )}
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background shadow-sm">
+                        {laneRef ? (
+                          <ElementIcon
+                            name={laneRef.name}
+                            image={laneRef.image}
+                            icon={laneRef.icon}
+                            typeIcon={laneRef.typeIcon}
+                            color={laneRef.color}
+                            size={22}
+                          />
+                        ) : (
+                          <Hand className="h-[18px] w-[18px] text-muted-foreground" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold leading-tight">
+                          {isNoApp ? 'Done by hand' : lane}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {isNoApp ? 'No app involved · ' : ''}
+                          {laneSteps.length} step{laneSteps.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {(laneUsers.length > 0 || laneRunsItself) && (
+                      <div className="mt-3">
+                        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
+                          {isNoApp ? 'Done by' : 'Used by'}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {laneUsers.map((u) => (
+                            <span
+                              key={u.id}
+                              className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[11px]"
+                            >
+                              <ElementIcon
+                                name={u.name}
+                                image={u.image}
+                                icon={u.icon}
+                                typeIcon={u.typeIcon}
+                                color={u.color}
+                                size={11}
+                              />
+                              {u.name}
+                            </span>
+                          ))}
+                          {laneRunsItself && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/[0.06] px-2 py-0.5 text-[11px] text-primary">
+                              <Zap className="h-2.5 w-2.5" />
+                              Runs on its own
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  ) : (
                   <div style={{ zoom: textScale }}>
                   <div className="flex items-center gap-1.5">
                     {onReorderLanes && (
@@ -1417,6 +1498,7 @@ export default function SwimlaneDiagram({
                     </div>
                   )}
                   </div>
+                  )}
                   {onOpenLane && (
                     <button
                       type="button"
