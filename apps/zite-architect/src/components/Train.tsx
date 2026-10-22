@@ -8,13 +8,6 @@ import { getProcessGraph } from 'zitejs/api';
 import { format } from 'date-fns';
 import { Button } from '@project/components/ui/button';
 import { Skeleton } from '@project/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@project/components/ui/select';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import {
@@ -58,6 +51,8 @@ const prettyDay = (value: string) => {
 };
 
 const STATE_LABEL: Record<string, string> = { Current: 'Live', Future: 'Not live yet', Archived: 'Retired' };
+
+const STAGES = ['Big picture', 'Your role', 'Your steps', 'Handover brief'];
 
 /** When a version applies, in words: "Live since Sep 2, 2026", "Not live yet", "Sep 2 to Oct 22, 2026". */
 function whenText(v: TrainVersion): string {
@@ -134,10 +129,12 @@ function AppChip({ app }: { app: ElementRef }) {
 export default function Train({
   processName, processDescription, versions, initialVersionId, initialRole, initialView, onClose, onOpenStep,
 }: Props) {
-  const [versionId, setVersionId] = useState(initialVersionId);
+  // Training teaches the live version, always. Only if nothing is live yet does it fall back.
+  const [versionId] = useState(
+    () => versions.find((v) => v.state === 'Current')?.id ?? initialVersionId,
+  );
   const [graph, setGraph] = useState<{ steps: ProcessStep[]; connections: ProcessConnection[] } | null>(null);
   const version = versions.find((v) => v.id === versionId) ?? versions[0];
-  const live = versions.find((v) => v.state === 'Current') ?? null;
   const versionName = version?.name ?? '';
 
   // Each version is read on its own, so what you learn is exactly what that version says.
@@ -184,6 +181,22 @@ export default function Train({
     setIdx(-1);
   };
 
+  // Where the learner is: 0 big picture, 1 pick a role, 2 their steps, 3 handover brief.
+  const stage = view === 'process' ? 0 : view === 'brief' ? 3 : !role ? 1 : 2;
+  const progress =
+    stage === 0 ? 8
+    : stage === 1 ? 30
+    : stage === 2 ? 40 + 45 * Math.min(1, (idx + 1) / (n + 1))
+    : 100;
+  const goStage = (i: number) => {
+    if (i === 0) setView('process');
+    else if (i === 1) {
+      pickRole(null);
+      setView('lesson');
+    } else if (i === 2) setView('lesson');
+    else if (role) setView('brief');
+  };
+
   const next = useCallback(() => setIdx((i) => Math.min(n, i + 1)), [n]);
   const back = useCallback(() => setIdx((i) => Math.max(-1, i - 1)), []);
 
@@ -220,7 +233,13 @@ export default function Train({
       role="dialog"
       aria-label={`Train on ${processName}`}
     >
-      <header className="train-noprint flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-8 backdrop-blur">
+      <header className="train-noprint relative flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-8 backdrop-blur">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-[-1px] h-0.5 bg-transparent"
+        >
+          <div className="h-full bg-primary transition-all duration-500" style={{ width: `${progress}%` }} />
+        </div>
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
           <GraduationCap className="h-5 w-5" />
         </span>
@@ -245,46 +264,46 @@ export default function Train({
           </div>
         </div>
 
-        {versions.length > 1 && (
-          <Select
-            value={versionId}
-            onValueChange={(v) => {
-              setVersionId(v);
-              setIdx(-1);
-            }}
-          >
-            <SelectTrigger className="h-9 w-[260px] rounded-lg bg-background text-sm" aria-label="Version to train on">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {versions.map((v) => (
-                <SelectItem key={v.id} value={v.id} className="text-xs">
-                  {v.name} · {STATE_LABEL[v.state] ?? v.state}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        <div className="ml-2 flex shrink-0 rounded-lg bg-muted p-0.5 text-sm">
-          {(
-            [
-              ['process', 'The big picture'],
-              ['lesson', 'Your role'],
-              ['brief', 'Handover brief'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              className={`rounded-md px-3.5 py-1.5 font-medium transition-all ${
-                view === key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-              onClick={() => setView(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <nav aria-label="Training progress" className="mx-auto hidden min-w-0 items-center md:flex">
+          {STAGES.map((label, i) => {
+            const done = i < stage;
+            const here = i === stage;
+            const locked = i >= 2 && !role;
+            return (
+              <div key={label} className="flex items-center">
+                {i > 0 && (
+                  <span className={`mx-2 h-px w-6 lg:w-10 ${i <= stage ? 'bg-primary' : 'bg-border'}`} />
+                )}
+                <button
+                  type="button"
+                  disabled={locked}
+                  onClick={() => goStage(i)}
+                  className="flex items-center gap-2 disabled:cursor-default"
+                  aria-current={here ? 'step' : undefined}
+                >
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
+                      done
+                        ? 'bg-primary text-primary-foreground'
+                        : here
+                        ? 'bg-primary/10 text-primary ring-2 ring-primary'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {done ? <Check className="h-3 w-3" /> : i + 1}
+                  </span>
+                  <span
+                    className={`hidden text-sm lg:inline ${
+                      here ? 'font-semibold text-foreground' : done ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </nav>
 
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-9" onClick={copyLink}>
@@ -300,19 +319,6 @@ export default function Train({
           </Button>
         </div>
       </header>
-
-      {version && (
-        <VersionBanner
-          version={version}
-          live={live}
-          onSwitchToLive={() => {
-            if (live) {
-              setVersionId(live.id);
-              setIdx(-1);
-            }
-          }}
-        />
-      )}
 
       {role && view !== 'process' && (
         <div className="train-noprint flex items-center gap-2 overflow-x-auto px-8 pt-3">
@@ -463,62 +469,6 @@ export default function Train({
           </aside>
         </div>
       )}
-    </div>
-  );
-}
-
-// --- Which version you are teaching ---
-
-/**
- * Says plainly which way of working this training describes, so nobody learns a
- * process that isn't the one the team runs. Training should use the live version;
- * a version still being prepared, or an old one, says so and offers the way back.
- */
-function VersionBanner({ version, live, onSwitchToLive }: {
-  version: TrainVersion;
-  live: TrainVersion | null;
-  onSwitchToLive: () => void;
-}) {
-  const isLive = version.state === 'Current';
-  const when = whenText(version);
-
-  const tone = isLive
-    ? 'border-emerald-200/70 bg-gradient-to-r from-emerald-50 to-card text-emerald-900 dark:border-emerald-500/20 dark:from-emerald-500/10 dark:to-transparent dark:text-emerald-200'
-    : 'border-amber-200/70 bg-gradient-to-r from-amber-50 to-card text-amber-900 dark:border-amber-500/20 dark:from-amber-500/10 dark:to-transparent dark:text-amber-200';
-
-  let headline: string;
-  let detail: string;
-  if (isLive) {
-    headline = `You're training on the live version: ${version.name}`;
-    detail = version.liveFrom
-      ? `${when}. This is how the work is done today.`
-      : 'This is how the work is done today.';
-  } else if (version.state === 'Future') {
-    headline = `${version.name} isn't live yet`;
-    detail = live
-      ? `Train people on ${live.name}, which is how the work is done today. Use this version only for people who start after it goes live.`
-      : 'No version is marked live yet, so check this is the one your team uses.';
-  } else {
-    headline = `${version.name} is an old version`;
-    detail = live
-      ? `${when}. It's here for reference. New people should learn ${live.name}.`
-      : `${when}. It's here for reference.`;
-  }
-
-  return (
-    <div className="train-noprint shrink-0 px-8 pt-4">
-      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${tone}`}>
-        <span className="relative flex h-2.5 w-2.5 shrink-0">
-          <span className={`h-2.5 w-2.5 rounded-full ${isLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-        </span>
-        <span className="font-semibold">{headline}</span>
-        <span className="min-w-0 flex-1 text-xs opacity-80">{detail}</span>
-        {!isLive && live && (
-          <Button size="sm" variant="outline" className="h-8 bg-background text-xs text-foreground" onClick={onSwitchToLive}>
-            Switch to {live.name}
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
