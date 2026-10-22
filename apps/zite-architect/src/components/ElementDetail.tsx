@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getElementDetail, getTaxonomy, GetElementDetailOutputType } from 'zitejs/api';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ArrowLeft, ArrowRight, Boxes, ChevronRight, Pencil, Trash2, Workflow } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Skeleton } from '@project/components/ui/skeleton';
 import type { ElementSummary, ElementType } from '@/types';
@@ -16,6 +17,35 @@ type StepRow = Detail['steps'][number];
 type OwnedRow = Detail['owns'][number];
 
 const CAPACITY_ORDER = ['Performs', 'Uses', 'Produces', 'Expands into'];
+
+const CAPACITY_STYLE: Record<string, string> = {
+  Performs: 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  Uses: 'bg-muted text-muted-foreground',
+  Produces: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  'Expands into': 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
+};
+
+const CARD = 'rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
+
+const prettyDate = (value: string) => {
+  const d = value ? new Date(value) : null;
+  return d && !Number.isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : '';
+};
+
+/** One step in one process, with every way this element takes part in it. */
+interface UsedStep {
+  id: string;
+  title: string;
+  versionId: string;
+  versionName: string;
+  capacities: string[];
+}
+
+interface UsedProcess {
+  processId: string;
+  processName: string;
+  steps: UsedStep[];
+}
 
 export default function ElementDetail() {
   const { id } = useParams<{ id: string }>();
@@ -41,17 +71,30 @@ export default function ElementDetail() {
     load();
   }, [load]);
 
-  // One element can appear in a step under more than one capacity, so group by it.
-  const stepsByCapacity = useMemo(() => {
-    const map = new Map<string, StepRow[]>();
-    for (const s of detail?.steps ?? []) {
-      const list = map.get(s.capacity);
-      if (list) list.push(s);
-      else map.set(s.capacity, [s]);
+  // Grouped by process, then by step: one element can take part in a step in
+  // more than one way, and that reads best as tags on a single row.
+  const used = useMemo<UsedProcess[]>(() => {
+    const byProcess = new Map<string, UsedProcess>();
+    for (const s of detail?.steps ?? ([] as StepRow[])) {
+      const key = s.processId ?? 'none';
+      let proc = byProcess.get(key);
+      if (!proc) {
+        proc = { processId: s.processId ?? '', processName: s.processName || 'No process', steps: [] };
+        byProcess.set(key, proc);
+      }
+      let step = proc.steps.find((x) => x.id === s.id);
+      if (!step) {
+        step = { id: s.id, title: s.title, versionId: s.versionId, versionName: s.versionName, capacities: [] };
+        proc.steps.push(step);
+      }
+      step.capacities.push(s.capacity);
     }
-    return [...map.entries()].sort(
-      (a, b) => CAPACITY_ORDER.indexOf(a[0]) - CAPACITY_ORDER.indexOf(b[0]),
-    );
+    for (const proc of byProcess.values()) {
+      for (const st of proc.steps) {
+        st.capacities.sort((a, b) => CAPACITY_ORDER.indexOf(a) - CAPACITY_ORDER.indexOf(b));
+      }
+    }
+    return [...byProcess.values()].sort((a, b) => a.processName.localeCompare(b.processName));
   }, [detail]);
 
   const groupByType = (rows: OwnedRow[]) => {
@@ -65,7 +108,7 @@ export default function ElementDetail() {
   };
 
   // People reporting in and things being looked after are different questions,
-  // so they get their own sections rather than one undifferentiated pile.
+  // so they get their own groups rather than one undifferentiated pile.
   const reports = useMemo(
     () => (detail?.owns ?? []).filter((o) => o.actorClass === 'Human'),
     [detail],
@@ -77,16 +120,16 @@ export default function ElementDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8">
-        <Skeleton className="h-8 w-64 mb-6" />
-        <Skeleton className="h-40 rounded-lg" />
+      <div className="min-h-screen bg-[hsl(220_20%_98.5%)] p-8">
+        <Skeleton className="mb-6 h-8 w-64" />
+        <Skeleton className="h-40 rounded-xl" />
       </div>
     );
   }
 
   if (!detail?.element) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">That element no longer exists.</p>
         <Button variant="outline" size="sm" onClick={() => navigate('/?tab=elements')}>
           Back to elements
@@ -99,148 +142,246 @@ export default function ElementDetail() {
   // The list row carries the reference counts the delete confirmation reads.
   const summary = elements.find((e) => e.id === el.id) ?? null;
 
+  const stepCount = new Set(detail.steps.map((s) => s.id)).size;
+  const performs = new Set(detail.steps.filter((s) => s.capacity === 'Performs').map((s) => s.id)).size;
+  const tint = el.color ? `${el.color}1A` : undefined;
+  const from = prettyDate(el.effectiveFrom);
+  const to = prettyDate(el.effectiveTo);
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-8 py-4 flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => navigate('/?tab=elements')}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <ElementIcon
-          name={el.name}
-          image={el.image}
-          icon={el.icon}
-          typeIcon={el.typeIcon}
-          color={el.color}
-          size={22}
-        />
-        <div className="min-w-0">
-          <h1 className="text-base font-semibold truncate">{el.name}</h1>
-          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-            <span className="text-[11px] text-muted-foreground">{el.typeName}</span>
-            {el.party && <TokenBadge token={partyToken(el.party)} />}
-            {el.status && <TokenBadge token={statusToken(el.status)} />}
-            {el.ownerName && (
-              <span className="text-[11px] text-muted-foreground">
-                {ownerPhrase(el.actorClass, el.ownerName)}
-              </span>
+    <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 text-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate('/?tab=elements')}
+            aria-label="Back to elements"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <button
+            type="button"
+            onClick={() => navigate('/?tab=elements')}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Elements
+          </button>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="truncate font-medium">{el.name}</span>
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+            </Button>
+            {summary && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-destructive hover:text-destructive"
+                onClick={() => setDeleting(true)}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+              </Button>
             )}
           </div>
         </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-          </Button>
-          {summary && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-destructive hover:text-destructive"
-              onClick={() => setDeleting(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
-            </Button>
-          )}
-        </div>
       </header>
 
-      <div className="px-8 py-6 space-y-8 max-w-4xl">
-        {el.description && (
-          <p className="text-sm text-muted-foreground leading-relaxed">{el.description}</p>
-        )}
+      <div className="mx-auto max-w-5xl space-y-6 px-8 py-8">
+        {/* Who or what this is */}
+        <section className={`${CARD} flex items-start gap-5 p-6`}>
+          <span
+            className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl border border-border/70"
+            style={{ backgroundColor: tint ?? 'hsl(var(--muted))' }}
+          >
+            <ElementIcon
+              name={el.name}
+              image={el.image}
+              icon={el.icon}
+              typeIcon={el.typeIcon}
+              color={el.color}
+              size={40}
+            />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-3xl font-semibold tracking-tight">{el.name}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium">
+                <ElementIcon name={el.typeName} typeIcon={el.typeIcon} color={el.color} size={12} />
+                {el.typeName || 'No type'}
+              </span>
+              {el.party && <TokenBadge token={partyToken(el.party)} />}
+              {el.status && <TokenBadge token={statusToken(el.status)} />}
+              {el.ownerName && (
+                <span className="text-xs text-muted-foreground">{ownerPhrase(el.actorClass, el.ownerName)}</span>
+              )}
+            </div>
+            {el.description ? (
+              <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">{el.description}</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="mt-4 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Add a description
+              </button>
+            )}
+          </div>
+        </section>
 
-        {detail.owns.length === 0 && (
+        {/* The shape of its role in the business */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Processes" value={used.filter((u) => u.processId).length} />
+          <Stat label="Steps" value={stepCount} />
+          <Stat label="Performs" value={performs} />
+          <Stat label="Owns" value={detail.owns.length} />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Accountable for
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Nothing reports to this element, and it owns nothing.
-            </p>
-          </section>
-        )}
-
-        {[
-          { key: 'reports', heading: 'Direct reports', rows: reports },
-          { key: 'owns', heading: 'Owns', rows: owned },
-        ]
-          .filter((s) => s.rows.length > 0)
-          .map((section) => (
-            <section key={section.key}>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                {section.heading} ({section.rows.length})
-              </h2>
+            <h2 className="mb-3 text-sm font-semibold">Where it's used</h2>
+            {used.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-card/60 px-6 py-12 text-center">
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Boxes className="h-5 w-5" />
+                </span>
+                <p className="mt-3 text-sm font-medium">Not used in any process yet</p>
+                <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground">
+                  Add it to a step and every process it takes part in will show up here.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate('/')}>
+                  Browse processes
+                </Button>
+              </div>
+            ) : (
               <div className="space-y-4">
-                {groupByType(section.rows).map(([typeName, items]) => (
-                  <div key={typeName}>
-                    <p className="text-[11px] text-muted-foreground mb-1.5">{typeName}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {items.map((o) => (
-                        <button
-                          key={o.id}
-                          onClick={() => navigate(`/element/${o.id}`)}
-                          className="text-xs px-2 py-1 rounded border border-border hover:border-primary/40 transition-colors inline-flex items-center gap-1.5"
-                          style={o.color ? { backgroundColor: `${o.color}1A` } : undefined}
-                        >
-                          <ElementIcon
-                            name={o.name}
-                            image={o.image}
-                            icon={o.icon}
-                            typeIcon={o.typeIcon}
-                            color={o.color}
-                            size={13}
-                          />
-                          {o.name}
-                        </button>
+                {used.map((proc) => (
+                  <div key={proc.processId || 'none'} className={`${CARD} overflow-hidden`}>
+                    <button
+                      type="button"
+                      disabled={!proc.processId}
+                      onClick={() => navigate(`/process/${proc.processId}`)}
+                      className="group flex w-full items-center gap-2.5 border-b border-border/70 bg-muted/30 px-4 py-2.5 text-left transition-colors enabled:hover:bg-muted/60"
+                    >
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
+                        <Workflow className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{proc.processName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {proc.steps.length} step{proc.steps.length === 1 ? '' : 's'}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-enabled:group-hover:translate-x-0.5" />
+                    </button>
+                    <ul className="divide-y divide-border/70">
+                      {proc.steps.map((st) => (
+                        <li key={st.id}>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/process/${proc.processId}?version=${st.versionId}`)}
+                            className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm">{st.title}</span>
+                              {st.versionName && (
+                                <span className="block truncate text-[11px] text-muted-foreground">{st.versionName}</span>
+                              )}
+                            </span>
+                            <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                              {st.capacities.map((c) => (
+                                <span
+                                  key={c}
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CAPACITY_STYLE[c] ?? CAPACITY_STYLE.Uses}`}
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </span>
+                          </button>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 ))}
               </div>
-            </section>
-          ))}
+            )}
+          </section>
 
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            Appears in {detail.steps.length} step{detail.steps.length === 1 ? '' : 's'}
-          </h2>
-          {detail.steps.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              This element is not used in any process yet.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {stepsByCapacity.map(([capacity, items]) => (
-                <div key={capacity}>
-                  <p className="text-[11px] text-muted-foreground mb-1.5">
-                    {capacity} ({items.length})
-                  </p>
-                  <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-                    {items.map((s) => (
-                      <button
-                        key={`${s.id}-${s.capacity}`}
-                        onClick={() =>
-                          navigate(`/process/${s.processId}?version=${s.versionId}`)
-                        }
-                        className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
-                      >
-                        <span className="text-xs truncate">{s.title}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {s.processName}
-                        </span>
-                      </button>
+          <aside className="space-y-4">
+            <section className={`${CARD} p-4`}>
+              <h2 className="text-sm font-semibold">Details</h2>
+              <dl className="mt-3 space-y-2.5 text-sm">
+                <Row label="Type">{el.typeName || '—'}</Row>
+                <Row label="Party">{el.party || '—'}</Row>
+                <Row label="Status">{el.status || '—'}</Row>
+                <Row label={el.actorClass === 'Human' ? 'Reports to' : 'Owner'}>
+                  {el.ownerId ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/element/${el.ownerId}`)}
+                      className="text-primary underline-offset-2 hover:underline"
+                    >
+                      {el.ownerName}
+                    </button>
+                  ) : (
+                    '—'
+                  )}
+                </Row>
+                {(from || to) && <Row label="Active">{from || 'Always'} to {to || 'now'}</Row>}
+              </dl>
+            </section>
+
+            <section className={`${CARD} p-4`}>
+              <h2 className="text-sm font-semibold">Accountable for</h2>
+              {detail.owns.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Nothing reports to this element, and it owns nothing.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-4">
+                  {[
+                    { key: 'reports', heading: 'Direct reports', rows: reports },
+                    { key: 'owns', heading: 'Owns', rows: owned },
+                  ]
+                    .filter((s) => s.rows.length > 0)
+                    .map((section) => (
+                      <div key={section.key}>
+                        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          {section.heading} ({section.rows.length})
+                        </p>
+                        {groupByType(section.rows).map(([typeName, items]) => (
+                          <div key={typeName} className="mb-2">
+                            <p className="mb-1 text-[11px] text-muted-foreground">{typeName}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {items.map((o) => (
+                                <button
+                                  key={o.id}
+                                  onClick={() => navigate(`/element/${o.id}`)}
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs transition-colors hover:border-primary/40"
+                                >
+                                  <ElementIcon
+                                    name={o.name}
+                                    image={o.image}
+                                    icon={o.icon}
+                                    typeIcon={o.typeIcon}
+                                    color={o.color}
+                                    size={13}
+                                  />
+                                  {o.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ))}
-                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+              )}
+            </section>
+          </aside>
+        </div>
       </div>
 
       {editing && (
@@ -273,6 +414,26 @@ export default function ElementDetail() {
           onDeleted={() => navigate('/?tab=elements')}
         />
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={`${CARD} px-4 py-3`}>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${value === 0 ? 'text-muted-foreground/60' : ''}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 truncate text-right font-medium">{children}</dd>
     </div>
   );
 }

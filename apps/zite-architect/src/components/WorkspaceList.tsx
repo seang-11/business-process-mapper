@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
-import { Workflow, Boxes, Plus } from 'lucide-react';
+import { Workflow, Boxes, Plus, Network } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Skeleton } from '@project/components/ui/skeleton';
 import type { ElementSummary, ElementType } from '@/types';
@@ -66,11 +66,11 @@ export default function WorkspaceList() {
   return (
     <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Workflow className="h-4 w-4" />
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
+            <Network className="h-5 w-5" />
           </span>
-          <h1 className="text-[15px] font-semibold tracking-tight">Business Process Mapper</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Business Process Mapper</h1>
         </div>
       </header>
 

@@ -102,21 +102,12 @@ export default function ProcessesTable({ processes, onOpen, onEdit, onDelete }: 
     () => ({
       name: {
         render: (_value, record) => {
-          const versionCount = Array.isArray(record.versions) ? record.versions.length : 0;
           return (
             <span className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground">
                 <ElementIcon name={String(record.name ?? '')} typeIcon="Workflow" size={14} />
               </span>
               <span className="truncate font-medium">{String(record.name ?? '')}</span>
-              {versionCount > 1 && (
-                <span
-                  className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
-                  title="Has a future version to compare"
-                >
-                  {versionCount} versions
-                </span>
-              )}
             </span>
           );
         },
