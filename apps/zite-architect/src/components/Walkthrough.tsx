@@ -332,6 +332,17 @@ function StepDetail({ item, outline, onGo, onEdit }: {
         </Button>
       </div>
 
+      {/* Hard to miss, so nobody reads an automated step as a job to do. */}
+      {automated && (
+        <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+          <Zap className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Automated step</p>
+            <p className="text-sm">{who?.name} runs this on its own. Nobody needs to do it by hand.</p>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 flex items-center gap-3">
         <Avatar who={who} />
         <div>
