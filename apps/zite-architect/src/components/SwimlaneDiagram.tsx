@@ -20,6 +20,7 @@ import {
   type EdgeGeometry,
 } from '@/lib/labelPlacement';
 import ElementIcon from './ElementIcon';
+import IconStack from './IconStack';
 
 /**
  * Two ways to read a process: who does the work, or what runs it.
@@ -50,6 +51,10 @@ interface Props {
   onReorderLanes?: (order: string[]) => void;
   /** Changes when a different process or version opens, which refits the view. */
   viewKey?: string;
+  /** The lane whose panel is open; everything else on the map fades back. */
+  focusLane?: string | null;
+  /** Clicking a lane name, to open its panel. */
+  onOpenLane?: (lane: string) => void;
 }
 
 /** What a lane change means for the step: who does it, and its apps in order. */
@@ -326,9 +331,9 @@ function assignColumns(
  * (Zapier creating a record, Stripe clearing a payment) shares one lane, so
  * the view still answers "who does what" without apps posing as teammates.
  */
-const AUTOMATED_LANE = 'Automated';
+export const AUTOMATED_LANE = 'Automated';
 
-function getLaneKey(step: ProcessStep, grouping: LaneGrouping): string {
+export function getLaneKey(step: ProcessStep, grouping: LaneGrouping): string {
   if (grouping === 'people') {
     if (step.performedBy?.actorClass === 'System') return AUTOMATED_LANE;
     return step.performedBy?.name || 'Unassigned';
@@ -490,6 +495,8 @@ export default function SwimlaneDiagram({
   laneOrder,
   onReorderLanes,
   viewKey,
+  focusLane = null,
+  onOpenLane,
 }: Props) {
   const elementsById = useMemo(
     () => new Map(elements.map((e) => [e.id, e])),
@@ -1074,7 +1081,11 @@ export default function SwimlaneDiagram({
         try { el.releasePointerCapture(pointerIdRef.current); } catch { /* ok */ }
       }
       resetDrag();
-      if (!ld.moved) return;
+      // A press that never moved is a click: open the lane's panel.
+      if (!ld.moved) {
+        onOpenLane?.(ld.lane);
+        return;
+      }
       const from = orderedLanes.indexOf(ld.lane);
       const at = laneInsertAt(e.clientY);
       const next = orderedLanes.filter((l) => l !== ld.lane);
@@ -1112,7 +1123,7 @@ export default function SwimlaneDiagram({
     if (ds.moved) setTimeout(() => { didDragRef.current = false; }, 0);
   }, [
     resetDrag, laneAt, steps, resolveDrop, onMoveStep,
-    orderedLanes, laneInsertAt, laneIdOf, onReorderLanes,
+    orderedLanes, laneInsertAt, laneIdOf, onReorderLanes, onOpenLane,
   ]);
 
   const handlePointerCancel = useCallback(() => {
@@ -1135,6 +1146,19 @@ export default function SwimlaneDiagram({
       : null;
   const dropMove = dragStep && cardDragView ? resolveDrop(dragStep, cardDragView.lane) : null;
   const dropOk = dropMove !== null;
+
+  // With a lane's panel open, its steps and the arrows touching them stay
+  // bright and the rest fades back. Hovering a card still wins while it lasts.
+  const focusIds = useMemo(
+    () => (focusLane ? new Set(steps.filter((s) => stepLaneMap.get(s.id) === focusLane).map((s) => s.id)) : null),
+    [focusLane, steps, stepLaneMap],
+  );
+  const isEdgeDimmed = (key: string, highlighted: boolean) => {
+    if (hoveredStepId !== null) return !highlighted;
+    if (!focusIds) return false;
+    const [from, to] = key.split('->');
+    return !focusIds.has(from) && !focusIds.has(to);
+  };
 
   const handleClickStep = useCallback((step: ProcessStep) => {
     if (didDragRef.current) return;
@@ -1187,7 +1211,7 @@ export default function SwimlaneDiagram({
 
           {loopArcs.map((arc) => {
             const highlighted = highlightedConnections.has(arc.key);
-            const dimmed = hoveredStepId !== null && !highlighted;
+            const dimmed = isEdgeDimmed(arc.key, highlighted);
             return (
               <g
                 key={arc.key}
@@ -1228,7 +1252,7 @@ export default function SwimlaneDiagram({
             const key = `${c.fromStepId}->${c.toStepId}`;
             if (loopEdgeKeys.has(key)) return null;
             const highlighted = highlightedConnections.has(key);
-            const dimmed = hoveredStepId !== null && !highlighted;
+            const dimmed = isEdgeDimmed(key, highlighted);
 
             const ends = edgeEnds(fromRect, toRect);
             const { x1, y1, x2, y2 } = ends;
@@ -1292,7 +1316,7 @@ export default function SwimlaneDiagram({
         >
           {loopArcs.map((arc) => {
             const highlighted = highlightedConnections.has(arc.key);
-            const dimmed = hoveredStepId !== null && !highlighted;
+            const dimmed = isEdgeDimmed(arc.key, highlighted);
             return (
               <foreignObject
                 key={arc.key}
@@ -1320,7 +1344,7 @@ export default function SwimlaneDiagram({
 
           {labelPlacements.map((l) => {
             const highlighted = highlightedConnections.has(l.key);
-            const dimmed = hoveredStepId !== null && !highlighted;
+            const dimmed = isEdgeDimmed(l.key, highlighted);
             return (
               <g
                 key={l.key}
@@ -1410,6 +1434,21 @@ export default function SwimlaneDiagram({
                 : null;
             const personName = person && person.name !== lane ? person.name : '';
 
+            // The tools behind a lane, so you can tell at a glance what it runs
+            // on: the apps doing the work in the automated lane, the apps a
+            // person uses in theirs.
+            const laneApps =
+              grouping === 'people'
+                ? [
+                    ...new Map(
+                      laneSteps
+                        .flatMap((s) => (isAutomated ? [s.performedBy, ...s.uses] : s.uses))
+                        .filter((e): e is ElementRef => e?.actorClass === 'System')
+                        .map((e) => [e.id, e]),
+                    ).values(),
+                  ]
+                : [];
+
             return (
               <div
                 key={lane}
@@ -1434,10 +1473,10 @@ export default function SwimlaneDiagram({
                 <div
                   data-lane-handle
                   data-lane={lane}
-                  title={onReorderLanes ? 'Drag to reorder' : undefined}
-                  className={`group w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15] ${
-                    onReorderLanes ? 'cursor-grab active:cursor-grabbing' : ''
-                  }`}
+                  title={onReorderLanes ? 'Click for details, drag to reorder' : undefined}
+                  className={`group w-44 shrink-0 border-r border-border bg-card px-4 py-4 sticky left-0 z-[15] transition-shadow ${
+                    onReorderLanes ? 'cursor-pointer active:cursor-grabbing hover:bg-muted' : ''
+                  } ${focusLane === lane ? 'shadow-[inset_3px_0_0_hsl(var(--primary))]' : ''}`}
                 >
                   <div className="flex items-center gap-1.5">
                     {onReorderLanes && (
@@ -1458,6 +1497,11 @@ export default function SwimlaneDiagram({
                     {laneSteps.length} step{laneSteps.length !== 1 ? 's' : ''}
                     {isExternal ? ' · external' : ''}
                   </p>
+                  {laneApps.length > 0 && (
+                    <div className="mt-2">
+                      <IconStack items={laneApps} max={6} size={14} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Faint banding so a row stays trackable across a wide diagram. */}
@@ -1496,7 +1540,11 @@ export default function SwimlaneDiagram({
                             onHover={setHoveredStepId}
                             onDetailChange={handleDetailChange}
                             isHighlighted={hoveredStepId === step.id}
-                            isDimmed={hoveredStepId !== null && !highlightedSteps.has(step.id)}
+                            isDimmed={
+                              hoveredStepId !== null
+                                ? !highlightedSteps.has(step.id)
+                                : !!focusIds && !focusIds.has(step.id)
+                            }
                             isStart={startStepIds.has(step.id)}
                             isEnd={endStepIds.has(step.id)}
                             inLoop={loopMemberIds.has(step.id)}

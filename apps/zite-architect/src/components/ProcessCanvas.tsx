@@ -33,6 +33,7 @@ import type { ElementRef, ElementSummary, ElementType, ProcessStep } from '@/typ
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
+import LanePanel from './LanePanel';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -58,22 +59,27 @@ export default function ProcessCanvas() {
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
+  /** The lane whose panel is open, in the current view. */
+  const [openLane, setOpenLane] = useState<string | null>(null);
 
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
   const openNewStep = useCallback(() => {
     setEditStep(null);
+    setOpenLane(null);
     setAddingStep(true);
   }, []);
 
   const openStep = useCallback((s: ProcessStep) => {
     setAddingStep(false);
+    setOpenLane(null);
     setEditStep(s);
   }, []);
 
   const closeEditor = useCallback(() => {
     setEditStep(null);
     setAddingStep(false);
+    setOpenLane(null);
   }, []);
 
   /**
@@ -329,7 +335,11 @@ export default function ProcessCanvas() {
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
-              onClick={() => setLaneGrouping(mode)}
+              onClick={() => {
+                setLaneGrouping(mode);
+                // Lanes mean something else in the other view.
+                setOpenLane(null);
+              }}
             >
               {mode === 'people' ? 'By person' : 'By app'}
             </button>
@@ -445,8 +455,25 @@ export default function ProcessCanvas() {
             laneOrder={laneOrder[laneGrouping]}
             onReorderLanes={handleReorderLanes}
             viewKey={graph?.version?.id ?? id}
+            focusLane={openLane}
+            onOpenLane={(lane) => {
+              setEditStep(null);
+              setAddingStep(false);
+              setOpenLane((current) => (current === lane ? null : lane));
+            }}
           />
         </div>
+
+        {openLane && !addingStep && !editStep && (
+          <LanePanel
+            lane={openLane}
+            grouping={laneGrouping}
+            steps={steps}
+            connections={connections}
+            onClose={() => setOpenLane(null)}
+            onOpenStep={openStep}
+          />
+        )}
 
         {(addingStep || editStep) && graph?.version && (
           <StepDialog
