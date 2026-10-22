@@ -24,7 +24,7 @@ import {
 import { TYPE_KEYS } from '@/lib/typeKeys';
 import DataTable from './DataTable';
 import ElementIcon from './ElementIcon';
-import { TokenBadge, TokenDot } from './TokenBadge';
+import { TokenBadge } from './TokenBadge';
 
 const ANY = '__any__';
 
@@ -233,13 +233,11 @@ export default function ElementsTable({
   // The toolbar is just three things: search, Filter, View. Everything else lives inside them.
   const usageLabel = usageFilter === 'used' ? 'In a process' : usageFilter === 'unused' ? 'Unused' : '';
   const activeChips: { key: string; label: string; clear: () => void }[] = [
-    categoryFilter !== ANY && { key: 'category', label: `Category: ${categoryFilter}`, clear: () => setCategoryFilter(ANY) },
-    typeFilter !== ANY && { key: 'type', label: `Type: ${typeFilter}`, clear: () => setTypeFilter(ANY) },
     partyFilter !== ANY && { key: 'party', label: `Party: ${partyFilter}`, clear: () => setPartyFilter(ANY) },
     statusFilter !== ANY && { key: 'status', label: `Status: ${statusFilter}`, clear: () => setStatusFilter(ANY) },
     usageFilter !== ANY && { key: 'usage', label: usageLabel, clear: () => setUsageFilter(ANY) },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
-  const filterCount = activeChips.length;
+  const moreCount = (partyFilter !== ANY ? 1 : 0) + (statusFilter !== ANY ? 1 : 0) + (usageFilter !== ANY ? 1 : 0);
 
   const toolbar = (
     <>
@@ -253,72 +251,65 @@ export default function ElementsTable({
         />
       </div>
 
+      {hasCategories && (
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-8 w-[210px] text-xs" aria-label="Kind of tool">
+            <SelectValue placeholder="Kind of tool" />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value={ANY} className="text-xs">
+              All kinds of tool
+            </SelectItem>
+            {categoryCounts.map(([name, count]) => {
+              const style = categoryStyle(name);
+              return (
+                <SelectItem key={name} value={name} className="text-xs">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
+                    {name}
+                    <span className="text-muted-foreground">{count}</span>
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      )}
+
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 text-xs">
-            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" /> Filter
-            {filterCount > 0 && (
+            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" /> More filters
+            {moreCount > 0 && (
               <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                {filterCount}
+                {moreCount}
               </span>
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="max-h-[70vh] w-[min(440px,92vw)] space-y-4 overflow-y-auto p-4">
-          {hasCategories && (
-            <FilterSection title="Kind of tool">
-              {categoryCounts.map(([name, count]) => {
-                const style = categoryStyle(name);
-                return (
-                  <Pick
-                    key={name}
-                    active={categoryFilter === name}
-                    onClick={() => setCategoryFilter(categoryFilter === name ? ANY : name)}
-                    activeStyle={{ backgroundColor: style.bg, borderColor: style.dot, color: style.fg }}
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: style.dot }} />
-                    {name}
-                    <span className="tabular-nums opacity-60">{count}</span>
-                  </Pick>
-                );
-              })}
-            </FilterSection>
-          )}
-          <FilterSection title="Type">
-            {selectableTypes.map((t) => (
-              <Pick key={t.id} active={typeFilter === t.name} onClick={() => setTypeFilter(typeFilter === t.name ? ANY : t.name)}>
-                {t.name}
-              </Pick>
-            ))}
-          </FilterSection>
-          <FilterSection title="Party">
-            {PARTY_VALUES.map((v) => (
-              <Pick key={v} active={partyFilter === v} onClick={() => setPartyFilter(partyFilter === v ? ANY : v)}>
-                <TokenDot token={partyToken(v)} />
-                {v}
-              </Pick>
-            ))}
-          </FilterSection>
-          <FilterSection title="Status">
-            {STATUS_VALUES.map((v) => (
-              <Pick key={v} active={statusFilter === v} onClick={() => setStatusFilter(statusFilter === v ? ANY : v)}>
-                <TokenDot token={statusToken(v)} />
-                {v}
-              </Pick>
-            ))}
-          </FilterSection>
-          <FilterSection title="Use">
-            <Pick active={usageFilter === 'used'} onClick={() => setUsageFilter(usageFilter === 'used' ? ANY : 'used')}>
-              In a process
-            </Pick>
-            <Pick active={usageFilter === 'unused'} onClick={() => setUsageFilter(usageFilter === 'unused' ? ANY : 'unused')}>
-              Unused
-            </Pick>
-          </FilterSection>
-          {filterCount > 0 && (
+        <PopoverContent align="start" className="w-64 space-y-3 p-4">
+          <LabeledSelect label="Party" value={partyFilter} onChange={setPartyFilter} options={PARTY_VALUES.map((v) => [v, v])} anyLabel="Internal or external" />
+          <LabeledSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_VALUES.map((v) => [v, v])} anyLabel="Any status" />
+          <LabeledSelect
+            label="Use"
+            value={usageFilter}
+            onChange={setUsageFilter}
+            options={[['used', 'In a process'], ['unused', 'Not used yet']]}
+            anyLabel="Used or not"
+          />
+          {moreCount > 0 && (
             <div className="flex justify-end border-t border-border pt-3">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAll}>
-                Clear all filters
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setPartyFilter(ANY);
+                  setStatusFilter(ANY);
+                  setUsageFilter(ANY);
+                }}
+              >
+                Clear
               </Button>
             </div>
           )}
@@ -374,6 +365,32 @@ export default function ElementsTable({
 
   return (
     <div>
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {[{ name: ANY, label: 'All', count: pool.length }, ...selectableTypes.map((t) => ({
+          name: t.name,
+          label: t.name === 'Role' ? 'Roles' : t.name === 'Person' ? 'People' : t.name === 'App' ? 'Apps' : t.name === 'Document' ? 'Documents' : t.name === 'Location' ? 'Locations' : t.name,
+          count: pool.filter((e) => e.typeId === t.id).length,
+        }))].map((tab) => (
+          <button
+            key={tab.name}
+            type="button"
+            onClick={() => {
+              setTypeFilter(tab.name);
+              // Kinds of tool only make sense for apps.
+              if (tab.name !== ANY && tab.name !== 'App') setCategoryFilter(ANY);
+            }}
+            aria-pressed={typeFilter === tab.name}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              typeFilter === tab.name
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-foreground hover:bg-muted'
+            }`}
+          >
+            {tab.label}
+            <span className={`text-xs tabular-nums ${typeFilter === tab.name ? 'opacity-80' : 'text-muted-foreground'}`}>{tab.count}</span>
+          </button>
+        ))}
+      </div>
       {activeChips.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {activeChips.map((c) => (
@@ -433,38 +450,28 @@ export default function ElementsTable({
   );
 }
 
-function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
-    </div>
-  );
-}
-
-/** A choice you tap on or off. Selected ones fill in. */
-function Pick({ active, onClick, activeStyle, children }: {
-  active: boolean;
-  onClick: () => void;
-  activeStyle?: React.CSSProperties;
-  children: React.ReactNode;
+function LabeledSelect({ label, value, onChange, options, anyLabel }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: (readonly [string, string])[];
+  anyLabel: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      style={active ? activeStyle : undefined}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-        active
-          ? activeStyle
-            ? ''
-            : 'border-primary/40 bg-primary/10 text-primary'
-          : 'border-border bg-card text-foreground hover:bg-muted'
-      }`}
-    >
-      {children}
-    </button>
+    <div>
+      <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY} className="text-xs">{anyLabel}</SelectItem>
+          {options.map(([v, l]) => (
+            <SelectItem key={v} value={v} className="text-xs">{l}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
