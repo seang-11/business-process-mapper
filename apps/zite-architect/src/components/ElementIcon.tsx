@@ -106,6 +106,17 @@ const LOGO_ALIASES: Record<string, string> = {
   highlevel: 'gohighlevel',
   'go high level': 'gohighlevel',
   ghl: 'gohighlevel',
+  gemini: 'googlegemini',
+  'google gemini': 'googlegemini',
+  'notebook lm': 'notebooklm',
+  'google notebooklm': 'notebooklm',
+  notebook: 'notebooklm',
+  'exa ai': 'exa',
+  'exa.ai': 'exa',
+  'lovable.dev': 'lovable',
+  'eleven labs': 'elevenlabs',
+  '11labs': 'elevenlabs',
+  'higgsfield ai': 'higgsfield',
 };
 
 function stemFromPath(path: string): string {
