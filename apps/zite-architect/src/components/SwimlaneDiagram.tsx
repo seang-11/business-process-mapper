@@ -1904,15 +1904,18 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         <div style={{ zoom: textScale }}>
         {detail !== 'compact' && (
         <div className="flex items-center justify-between gap-1.5 mb-1.5">
-          <span
-            className="text-[10px] font-medium px-1.5 py-0.5 rounded break-words leading-tight max-w-[120px]"
-            style={
-              color
-                ? { backgroundColor: `${color}26`, color }
-                : undefined
-            }
-          >
-            {performer?.name || 'Unassigned'}
+          <span className="inline-flex min-w-0 max-w-[120px] items-center gap-1.5 text-[11px] font-semibold leading-tight text-foreground">
+            {performer && (
+              <ElementIcon
+                name={performer.name}
+                image={performer.image}
+                icon={performer.icon}
+                typeIcon={performer.typeIcon}
+                color={performer.color}
+                size={14}
+              />
+            )}
+            <span className="break-words">{performer?.name || 'Unassigned'}</span>
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {isDecision ? (
@@ -2078,7 +2081,17 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
           >
             {detail !== 'full' && (
               <div className="mb-2 border-b border-border pb-2">
-                <p className="mb-1 text-[10px] font-medium" style={color ? { color } : undefined}>
+                <p className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  {performer && (
+                    <ElementIcon
+                      name={performer.name}
+                      image={performer.image}
+                      icon={performer.icon}
+                      typeIcon={performer.typeIcon}
+                      color={performer.color}
+                      size={16}
+                    />
+                  )}
                   {performer?.name || 'Unassigned'}
                 </p>
                 <p className="text-sm font-semibold leading-snug">{step.title}</p>
@@ -2094,8 +2107,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
                   {step.uses.map(u => (
                     <span
                       key={u.id}
-                      className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded"
-                      style={u.color ? { backgroundColor: `${u.color}26`, color: u.color } : undefined}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground"
                     >
                       <ElementIcon
                         name={u.name}
@@ -2118,8 +2130,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
                   {step.produces.map(p => (
                     <span
                       key={p.id}
-                      className="text-[10px] px-1.5 py-0.5 rounded"
-                      style={p.color ? { backgroundColor: `${p.color}26`, color: p.color } : undefined}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground"
                     >
                       {p.name}
                     </span>
