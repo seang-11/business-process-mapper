@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
-import { Workflow, Boxes, Plus, Network, LayoutGrid, Table2, Columns3, Grid3x3, Search } from 'lucide-react';
+import { Workflow, Boxes, Plus, LayoutGrid, Table2, Columns3, Grid3x3, Search } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import { Skeleton } from '@project/components/ui/skeleton';
@@ -20,7 +20,6 @@ import ProcessGrid from './ProcessGrid';
 import Welcome from './Welcome';
 import { PageError } from './PageState';
 import TalkItThrough from './TalkItThrough';
-import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
@@ -126,7 +125,7 @@ export default function WorkspaceList() {
 
   if (loadFailed && processes.length === 0) {
     return (
-      <div className="min-h-screen p-8">
+      <div className="min-h-full p-8">
         <PageError
           onRetry={() => {
             setLoading(true);
@@ -139,7 +138,7 @@ export default function WorkspaceList() {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8">
+      <div className="min-h-full p-8">
         <Skeleton className="h-8 w-64 mb-6" />
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
@@ -151,20 +150,7 @@ export default function WorkspaceList() {
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3">
-          {/* The sidebar carries the name on wider screens. */}
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)] md:hidden">
-            <Network className="h-5 w-5" />
-          </span>
-          <h1 className="text-lg font-semibold tracking-tight md:hidden">Business Process Mapper</h1>
-          <div className="ml-auto">
-            <PreviewSwitcher />
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-full bg-[hsl(220_20%_98.5%)]">
       <div className="mx-auto max-w-[1400px] px-8 py-6">
         <section className="mb-7">
           <h2 className="text-3xl font-semibold tracking-tight">

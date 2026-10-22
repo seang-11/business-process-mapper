@@ -4,6 +4,7 @@ import { ExternalLink } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { PageError, PageLoading } from './PageState';
 import { useMe } from '@/lib/me';
+import VersionFooter from './VersionFooter';
 
 type Person = ListEditorsOutputType['people'][number];
 
@@ -89,6 +90,10 @@ export default function TeamAccess() {
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="mt-10 border-t border-border pt-4">
+        <VersionFooter />
       </div>
     </div>
   );

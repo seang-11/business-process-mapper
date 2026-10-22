@@ -73,7 +73,6 @@ import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
 import Train from './Train';
-import PreviewSwitcher from './PreviewSwitcher';
 import ShareDialog from './ShareDialog';
 import { useMe } from '@/lib/me';
 import StepDialog from './StepDialog';
@@ -390,14 +389,14 @@ export default function ProcessCanvas() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <Skeleton className="w-96 h-64 rounded-lg" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background">
       <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-6 py-3">
         <Button
           variant="ghost"
@@ -472,8 +471,6 @@ export default function ProcessCanvas() {
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {viewAs && <PreviewSwitcher />}
-
           {canEdit && graph?.version?.state === 'Future' && (
             <Button size="sm" variant="outline" className="h-8" onClick={openMakeLive}>
               <Radio className="mr-1.5 h-3.5 w-3.5" /> Make live

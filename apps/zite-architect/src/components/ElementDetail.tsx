@@ -12,7 +12,6 @@ import ElementIcon from './ElementIcon';
 import { TokenBadge } from './TokenBadge';
 import ElementDialog from './ElementDialog';
 import DeleteElementDialog from './DeleteElementDialog';
-import PreviewSwitcher from './PreviewSwitcher';
 import { useMe } from '@/lib/me';
 
 type Detail = GetElementDetailOutputType;
@@ -131,7 +130,7 @@ export default function ElementDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[hsl(220_20%_98.5%)] p-8">
+      <div className="min-h-full bg-[hsl(220_20%_98.5%)] p-8">
         <Skeleton className="mb-6 h-8 w-64" />
         <Skeleton className="h-40 rounded-xl" />
       </div>
@@ -140,7 +139,7 @@ export default function ElementDetail() {
 
   if (failed) {
     return (
-      <div className="min-h-screen bg-[hsl(220_20%_98.5%)] p-8">
+      <div className="min-h-full bg-[hsl(220_20%_98.5%)] p-8">
         <PageError
           onRetry={() => {
             setLoading(true);
@@ -153,7 +152,7 @@ export default function ElementDetail() {
 
   if (!detail?.element) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+      <div className="flex min-h-full flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">That element no longer exists.</p>
         <Button variant="outline" size="sm" onClick={() => navigate('/?tab=elements')}>
           Back to elements
@@ -173,7 +172,7 @@ export default function ElementDetail() {
   const to = prettyDate(el.effectiveTo);
 
   return (
-    <div className="min-h-screen bg-[hsl(220_20%_98.5%)]">
+    <div className="min-h-full bg-[hsl(220_20%_98.5%)]">
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-8 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 text-sm">
           <Button
@@ -196,7 +195,6 @@ export default function ElementDetail() {
           <span className="truncate font-medium">{el.name}</span>
 
           <div className="ml-auto flex items-center gap-2">
-            <PreviewSwitcher />
             {canEdit && (
               <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditing(true)}>
                 <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
