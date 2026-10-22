@@ -11,7 +11,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GitCompare } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +35,7 @@ const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 import SwimlaneDiagram, { type LaneGrouping, type StepMove } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
 import ProcessTimeline from './ProcessTimeline';
+import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
@@ -60,6 +61,7 @@ export default function ProcessCanvas() {
   const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>('people');
   /** The whole process as one scrolling timeline instead of the map. */
   const [showOverview, setShowOverview] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
@@ -451,6 +453,12 @@ export default function ProcessCanvas() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {process && process.versions.length > 1 && (
+            <Button size="sm" variant="outline" onClick={() => setComparing(true)}>
+              <GitCompare className="h-3.5 w-3.5 mr-1.5" /> Compare
+            </Button>
+          )}
+
           {steps.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setWalkthroughOpen(true)}>
               <Play className="h-3.5 w-3.5 mr-1.5" /> Play walkthrough
@@ -527,6 +535,14 @@ export default function ProcessCanvas() {
           />
           )}
         </div>
+
+        {comparing && process && (
+          <CompareVersions
+            processName={process.name}
+            versions={process.versions}
+            onClose={() => setComparing(false)}
+          />
+        )}
 
         {walkthroughOpen && graph?.version && (
           <Walkthrough

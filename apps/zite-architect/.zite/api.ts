@@ -15,6 +15,7 @@ import type { default as _GetElementDetailEp } from '../src/api/getElementDetail
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetTaxonomyEp } from '../src/api/getTaxonomy';
+import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
@@ -22,6 +23,7 @@ import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
+import type { default as _SetStepMatchEp } from '../src/api/setStepMatch';
 
 type _CreateProcessCfg = typeof _CreateProcessEp;
 export type CreateProcessInputType = NonNullable<_CreateProcessCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_CreateProcessCfg['execute']>[0]['input'];
@@ -88,6 +90,11 @@ export type GetTaxonomyInputType = NonNullable<_GetTaxonomyCfg['inputSchema']> e
 export type GetTaxonomyOutputType = Awaited<ReturnType<_GetTaxonomyCfg['execute']>>;
 export const getTaxonomy = createCaller<GetTaxonomyInputType, GetTaxonomyOutputType>('getTaxonomy');
 
+type _MatchVersionStepsCfg = typeof _MatchVersionStepsEp;
+export type MatchVersionStepsInputType = NonNullable<_MatchVersionStepsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MatchVersionStepsCfg['execute']>[0]['input'];
+export type MatchVersionStepsOutputType = Awaited<ReturnType<_MatchVersionStepsCfg['execute']>>;
+export const matchVersionSteps = createCaller<MatchVersionStepsInputType, MatchVersionStepsOutputType>('matchVersionSteps');
+
 type _MoveStepCfg = typeof _MoveStepEp;
 export type MoveStepInputType = NonNullable<_MoveStepCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_MoveStepCfg['execute']>[0]['input'];
 export type MoveStepOutputType = Awaited<ReturnType<_MoveStepCfg['execute']>>;
@@ -123,6 +130,11 @@ export type SaveVersionInputType = NonNullable<_SaveVersionCfg['inputSchema']> e
 export type SaveVersionOutputType = Awaited<ReturnType<_SaveVersionCfg['execute']>>;
 export const saveVersion = createCaller<SaveVersionInputType, SaveVersionOutputType>('saveVersion');
 
+type _SetStepMatchCfg = typeof _SetStepMatchEp;
+export type SetStepMatchInputType = NonNullable<_SetStepMatchCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetStepMatchCfg['execute']>[0]['input'];
+export type SetStepMatchOutputType = Awaited<ReturnType<_SetStepMatchCfg['execute']>>;
+export const setStepMatch = createCaller<SetStepMatchInputType, SetStepMatchOutputType>('setStepMatch');
+
 
 export const api = {
   createProcess,
@@ -138,6 +150,7 @@ export const api = {
   getProcessGraph,
   getProcesses,
   getTaxonomy,
+  matchVersionSteps,
   moveStep,
   saveConnection,
   saveElement,
@@ -145,4 +158,5 @@ export const api = {
   saveLaneOrder,
   saveStep,
   saveVersion,
+  setStepMatch,
 };
