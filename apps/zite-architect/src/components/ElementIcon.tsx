@@ -99,6 +99,13 @@ const LOGO_ALIASES: Record<string, string> = {
   'microsoft word': 'microsoftword',
   sharepoint: 'microsoftsharepoint',
   'microsoft sharepoint': 'microsoftsharepoint',
+  'air call': 'aircall',
+  'smart sheet': 'smartsheet',
+  'adp workforce now': 'adp',
+  'adp run': 'adp',
+  highlevel: 'gohighlevel',
+  'go high level': 'gohighlevel',
+  ghl: 'gohighlevel',
 };
 
 function stemFromPath(path: string): string {
