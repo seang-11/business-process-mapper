@@ -20,7 +20,10 @@ interface VersionOption {
 interface Props {
   processName: string;
   versions: VersionOption[];
-  onClose: () => void;
+  /** Full-screen only: closes the overlay. */
+  onClose?: () => void;
+  /** Sit inside the Overview instead of covering the screen. */
+  embedded?: boolean;
 }
 
 interface Side {
@@ -68,7 +71,7 @@ function changesBetween(l: ProcessStep, r: ProcessStep): Change[] {
  * see at a glance what a future version changes: what gets automated, cut,
  * added, or handed to someone else.
  */
-export default function CompareVersions({ processName, versions, onClose }: Props) {
+export default function CompareVersions({ processName, versions, onClose, embedded }: Props) {
   const defaults = useMemo(() => {
     const current = versions.find((v) => v.state === 'Current') ?? versions[0];
     const future =
@@ -111,10 +114,11 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
   }, [load]);
 
   useEffect(() => {
+    if (embedded || !onClose) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   const rows = useMemo<Row[]>(() => {
     if (!left || !right) return [];
@@ -178,7 +182,12 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label={`Compare versions of ${processName}`}>
+    <div
+      className={embedded ? 'flex h-full flex-col bg-background' : 'fixed inset-0 z-50 flex flex-col bg-background'}
+      role={embedded ? undefined : 'dialog'}
+      aria-label={`Compare versions of ${processName}`}
+    >
+      {!embedded && (
       <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{processName}</p>
@@ -188,6 +197,7 @@ export default function CompareVersions({ processName, versions, onClose }: Prop
           <X className="h-5 w-5" />
         </Button>
       </header>
+      )}
 
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-6 py-6">

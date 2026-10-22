@@ -11,7 +11,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GitCompare } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,8 +60,9 @@ export default function ProcessCanvas() {
   const [addingStep, setAddingStep] = useState(false);
   const [laneGrouping, setLaneGrouping] = useState<LaneGrouping>('people');
   /** The whole process as one scrolling timeline instead of the map. */
-  const [showOverview, setShowOverview] = useState(false);
-  const [comparing, setComparing] = useState(false);
+  const [showOverview, setShowOverview] = useState(true);
+  /** Inside the Overview: one version, or Current and Future side by side. */
+  const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('single');
   const [managingVersions, setManagingVersions] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState(false);
@@ -372,6 +373,17 @@ export default function ProcessCanvas() {
         <span className="h-5 w-px bg-border shrink-0" aria-hidden="true" />
 
         <div className="flex border border-border rounded-md overflow-hidden text-xs shrink-0">
+          <button
+            className={`px-3 py-1.5 font-medium transition-colors ${
+              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => {
+              setShowOverview(true);
+              setOpenLane(null);
+            }}
+          >
+            Overview
+          </button>
           {(['people', 'app'] as LaneGrouping[]).map((mode) => (
             <button
               key={mode}
@@ -390,17 +402,6 @@ export default function ProcessCanvas() {
               {mode === 'people' ? 'By person' : 'By app'}
             </button>
           ))}
-          <button
-            className={`px-3 py-1.5 font-medium transition-colors ${
-              showOverview ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => {
-              setShowOverview(true);
-              setOpenLane(null);
-            }}
-          >
-            Overview
-          </button>
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -452,12 +453,6 @@ export default function ProcessCanvas() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {process && process.versions.length > 1 && (
-            <Button size="sm" variant="outline" onClick={() => setComparing(true)}>
-              <GitCompare className="h-3.5 w-3.5 mr-1.5" /> Compare
-            </Button>
-          )}
 
           {steps.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setWalkthroughOpen(true)}>
@@ -514,7 +509,35 @@ export default function ProcessCanvas() {
         {/* Depth comes from the gap between this and the white cards on it. */}
         <div className="flex-1 bg-muted overflow-hidden min-w-0">
           {showOverview ? (
-            <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
+            <div className="flex h-full flex-col">
+              {/* Only worth showing once there is a second version to put beside the first. */}
+              {process && process.versions.length > 1 && (
+                <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2">
+                  <div className="flex overflow-hidden rounded-md border border-border text-xs">
+                    {([['single', 'One version'], ['side', 'Side by side']] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        className={`px-3 py-1.5 font-medium transition-colors ${
+                          overviewMode === mode
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setOverviewMode(mode)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="min-h-0 flex-1">
+                {overviewMode === 'side' && process && process.versions.length > 1 ? (
+                  <CompareVersions embedded processName={process.name} versions={process.versions} />
+                ) : (
+                  <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
+                )}
+              </div>
+            </div>
           ) : (
           <SwimlaneDiagram
             steps={steps}
@@ -535,14 +558,6 @@ export default function ProcessCanvas() {
           />
           )}
         </div>
-
-        {comparing && process && (
-          <CompareVersions
-            processName={process.name}
-            versions={process.versions}
-            onClose={() => setComparing(false)}
-          />
-        )}
 
         {walkthroughOpen && graph?.version && (
           <Walkthrough
