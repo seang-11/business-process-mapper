@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
-import { ArrowLeftRight, BarChart3, Boxes, GraduationCap, Home, Keyboard, LogOut, Plus, Undo2, Users } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, Boxes, GraduationCap, Home, Keyboard, LogOut, Plus, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@project/components/ui/dialog';
 import {
   Command,
@@ -36,7 +36,6 @@ const ITEM = 'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm';
  */
 export default function CommandMenu({ open, onOpenChange, processes, onShowShortcuts }: Props) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { canEdit, isRealAdmin } = useMe();
   const [query, setQuery] = useState('');
   const [elements, setElements] = useState<ElementSummary[] | null>(null);
@@ -59,7 +58,6 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
     setTimeout(fn, 0);
   };
 
-  const onProcessPage = location.pathname.startsWith('/process/');
   const matches = (e: ElementSummary) => e.name.toLowerCase().includes(query.trim().toLowerCase());
   const shownElements = query.trim() && elements ? elements.filter(matches).slice(0, 12) : [];
 
@@ -112,15 +110,6 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
                   onSelect={() => run(() => navigate('/?new=process'))}
                 >
                   <Plus className="h-4 w-4 text-muted-foreground" /> New process
-                </CommandItem>
-              )}
-              {canEdit && onProcessPage && (
-                <CommandItem
-                  className={ITEM}
-                  value="undo last change move connection"
-                  onSelect={() => run(() => window.dispatchEvent(new CustomEvent('bpm:undo')))}
-                >
-                  <Undo2 className="h-4 w-4 text-muted-foreground" /> Undo the last change
                 </CommandItem>
               )}
               <CommandItem className={ITEM} value="keyboard shortcuts help" onSelect={() => run(onShowShortcuts)}>

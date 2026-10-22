@@ -24,7 +24,6 @@ import type { default as _GetWorkspaceLinkEp } from '../src/api/getWorkspaceLink
 import type { default as _GoLiveEp } from '../src/api/goLive';
 import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
-import type { default as _RestoreEdgesEp } from '../src/api/restoreEdges';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
@@ -144,11 +143,6 @@ export type MatchVersionStepsInputType = NonNullable<_MatchVersionStepsCfg['inpu
 export type MatchVersionStepsOutputType = Awaited<ReturnType<_MatchVersionStepsCfg['execute']>>;
 export const matchVersionSteps = createCaller<MatchVersionStepsInputType, MatchVersionStepsOutputType>('matchVersionSteps');
 
-type _RestoreEdgesCfg = typeof _RestoreEdgesEp;
-export type RestoreEdgesInputType = NonNullable<_RestoreEdgesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_RestoreEdgesCfg['execute']>[0]['input'];
-export type RestoreEdgesOutputType = Awaited<ReturnType<_RestoreEdgesCfg['execute']>>;
-export const restoreEdges = createCaller<RestoreEdgesInputType, RestoreEdgesOutputType>('restoreEdges');
-
 type _SaveConnectionCfg = typeof _SaveConnectionEp;
 export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveConnectionCfg['execute']>[0]['input'];
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
@@ -213,7 +207,6 @@ export const api = {
   goLive,
   listEditors,
   matchVersionSteps,
-  restoreEdges,
   saveConnection,
   saveElement,
   saveElementType,

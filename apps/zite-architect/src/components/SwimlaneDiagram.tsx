@@ -19,7 +19,6 @@ import {
   LABEL_PAD_Y,
   type EdgeGeometry,
 } from '@/lib/labelPlacement';
-import { connectProblem } from '@/lib/connectRules';
 import ElementIcon from './ElementIcon';
 import IconStack from './IconStack';
 
@@ -44,10 +43,6 @@ interface Props {
   onClickStep: (step: ProcessStep) => void;
   /** Drill into the process a sub-process step expands into. */
   onOpenSubProcess: (processId: string) => void;
-  /** Dragging a card's pin onto another card. Without it, cards show no pin. */
-  onConnectSteps?: (from: ProcessStep, to: ProcessStep) => void;
-  /** Taking an arrow away, from the list a click on a card's pin opens. */
-  onRemoveConnection?: (connection: ProcessConnection) => void;
   /** Lane ids in the order someone dragged them into, for this view. */
   laneOrder: string[];
   /** Dragging a lane name. Without it, lanes keep their automatic order. */
@@ -456,8 +451,6 @@ export default function SwimlaneDiagram({
   elements,
   onClickStep,
   onOpenSubProcess,
-  onConnectSteps,
-  onRemoveConnection,
   laneOrder,
   onReorderLanes,
   viewKey,
@@ -486,79 +479,6 @@ export default function SwimlaneDiagram({
   const dragState = useRef<{ active: boolean; startX: number; startY: number; scrollX: number; scrollY: number; moved: boolean } | null>(null);
   const didDragRef = useRef(false);
 
-  // Dragging a card's pin to another card draws a new arrow. Kept apart from
-  // card and lane dragging: the pin has its own listeners, so a press on it can
-  // never pan the map or lift the card.
-  const [connectView, setConnectView] = useState<{
-    fromId: string; sx: number; sy: number; x: number; y: number;
-    overId: string | null; problem: string | null;
-  } | null>(null);
-  // A click on the pin (no drag) lists the arrows into and out of that step.
-  const [pinPanel, setPinPanel] = useState<{ stepId: string; left: number; top: number } | null>(null);
-  const links = useMemo(() => connections.map((c) => ({ from: c.fromStepId, to: c.toStepId })), [connections]);
-
-  const startConnect = useCallback(
-    (step: ProcessStep, e: React.PointerEvent<HTMLElement>) => {
-      if (!onConnectSteps || e.button !== 0 || laneDrag.current) return;
-      e.stopPropagation();
-      e.preventDefault();
-      const r = e.currentTarget.getBoundingClientRect();
-      const sx = r.left + r.width / 2;
-      const sy = r.top + r.height / 2;
-      const startX = e.clientX;
-      const startY = e.clientY;
-      let moved = false;
-
-      const probe = (x: number, y: number) => {
-        const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-step-card]');
-        const overId = hit?.dataset.stepId ?? null;
-        return { overId, problem: overId ? connectProblem(links, step.id, overId) : null };
-      };
-      const stop = () => {
-        window.removeEventListener('pointermove', move, true);
-        window.removeEventListener('pointerup', up, true);
-        window.removeEventListener('pointercancel', cancel, true);
-        window.removeEventListener('keydown', key, true);
-        setConnectView(null);
-      };
-      const move = (ev: PointerEvent) => {
-        if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) <= DRAG_THRESHOLD) return;
-        moved = true;
-        setConnectView({ fromId: step.id, sx, sy, x: ev.clientX, y: ev.clientY, ...probe(ev.clientX, ev.clientY) });
-      };
-      const up = (ev: PointerEvent) => {
-        stop();
-        if (!moved) {
-          setPinPanel({ stepId: step.id, left: sx, top: sy });
-          return;
-        }
-        // Swallow the click that follows letting go, so it doesn't open a step.
-        didDragRef.current = true;
-        setTimeout(() => { didDragRef.current = false; }, 0);
-        const { overId } = probe(ev.clientX, ev.clientY);
-        const to = overId ? steps.find((s) => s.id === overId) : null;
-        if (to) onConnectSteps(step, to);
-      };
-      const cancel = () => stop();
-      const key = (ev: KeyboardEvent) => {
-        if (ev.key === 'Escape') stop();
-      };
-      window.addEventListener('pointermove', move, true);
-      window.addEventListener('pointerup', up, true);
-      window.addEventListener('pointercancel', cancel, true);
-      window.addEventListener('keydown', key, true);
-    },
-    [onConnectSteps, steps, links],
-  );
-
-  useEffect(() => {
-    if (!pinPanel) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPinPanel(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [pinPanel]);
   const laneEls = useRef<Map<string, HTMLDivElement>>(new Map());
   // Dragging a lane by its name, to reorder lanes.
   const laneDrag = useRef<{ lane: string; startY: number; moved: boolean } | null>(null);
@@ -1686,14 +1606,6 @@ export default function SwimlaneDiagram({
                             detail={detail}
                             textScale={textScale}
                             panelScale={1 / zoom}
-                            canConnect={!!onConnectSteps}
-                            connecting={connectView !== null}
-                            connectMark={
-                              connectView && connectView.overId === step.id
-                                ? connectView.problem ? 'bad' : 'ok'
-                                : null
-                            }
-                            onPinDown={startConnect}
                             ref={(el) => setCardRef(step.id, el)}
                           />
                         ) : (
@@ -1721,102 +1633,6 @@ export default function SwimlaneDiagram({
         {laneDragView.lane}
       </div>
     )}
-
-    {/* The line that follows the pointer while a pin is dragged. */}
-    {connectView && (
-      <>
-        <svg className="pointer-events-none fixed inset-0 z-50 h-screen w-screen" aria-hidden="true">
-          <line
-            x1={connectView.sx} y1={connectView.sy} x2={connectView.x} y2={connectView.y}
-            stroke={connectView.problem ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'}
-            strokeWidth={2} strokeDasharray="6 4" strokeLinecap="round"
-          />
-          <circle cx={connectView.sx} cy={connectView.sy} r={4} fill="hsl(var(--primary))" />
-          <circle
-            cx={connectView.x} cy={connectView.y} r={5}
-            fill={connectView.problem ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'}
-          />
-        </svg>
-        <div
-          className={`pointer-events-none fixed z-50 rounded-md border bg-card px-2 py-1 text-[11px] font-medium shadow-lg ${
-            connectView.problem ? 'border-destructive/40 text-destructive' : 'border-primary/40 text-foreground'
-          }`}
-          style={{ left: connectView.x + 14, top: connectView.y + 12 }}
-        >
-          {connectView.problem ?? (connectView.overId ? 'Let go to connect' : 'Drop on a step to connect')}
-        </div>
-      </>
-    )}
-
-    {/* A click on a pin lists the arrows into and out of that step. */}
-    {pinPanel && (() => {
-      const owner = steps.find((s) => s.id === pinPanel.stepId);
-      if (!owner) return null;
-      const titleOf = (id: string) => steps.find((s) => s.id === id)?.title ?? 'Step';
-      const goesTo = connections.filter((c) => c.fromStepId === owner.id);
-      const comesFrom = connections.filter((c) => c.toStepId === owner.id);
-      const row = (c: ProcessConnection, otherId: string) => (
-        <li key={c.id || `${c.fromStepId}->${c.toStepId}`} className="flex items-center gap-2 text-xs">
-          <span className="min-w-0 flex-1 truncate">{titleOf(otherId)}</span>
-          {c.label && (
-            <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {c.label}
-            </span>
-          )}
-          {onRemoveConnection && (
-            <button
-              type="button"
-              aria-label={`Remove the connection to ${titleOf(otherId)}`}
-              title="Remove this connection"
-              onClick={() => {
-                setPinPanel(null);
-                onRemoveConnection(c);
-              }}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </li>
-      );
-      return (
-        <div className="fixed inset-0 z-50" onPointerDown={() => setPinPanel(null)}>
-          <div
-            className="absolute w-72 rounded-xl border border-border bg-popover p-3 shadow-xl"
-            style={{
-              left: Math.max(8, Math.min(pinPanel.left + 14, window.innerWidth - 296)),
-              top: Math.max(8, Math.min(pinPanel.top - 20, window.innerHeight - 320)),
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 text-sm font-semibold leading-snug">{owner.title}</p>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setPinPanel(null)}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">Drag the dot onto another step to connect them.</p>
-            <p className="mb-1 mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Goes to</p>
-            {goesTo.length ? (
-              <ul className="space-y-1.5">{goesTo.map((c) => row(c, c.toStepId))}</ul>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nothing yet. The process ends here.</p>
-            )}
-            <p className="mb-1 mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Comes from</p>
-            {comesFrom.length ? (
-              <ul className="space-y-1.5">{comesFrom.map((c) => row(c, c.fromStepId))}</ul>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nothing before it. The process starts here.</p>
-            )}
-          </div>
-        </div>
-      );
-    })()}
 
     <div className="absolute bottom-4 right-4 z-30 flex items-center gap-0.5 rounded-full border border-border bg-card/95 p-1 shadow-md backdrop-blur">
       <button
@@ -1882,14 +1698,6 @@ interface StepCardProps {
   textScale: number;
   /** Undoes the zoom on the hover panel, so its details are always full size. */
   panelScale: number;
-  /** This card is the one being dragged; the ghost stands in for it. */
-  /** Shows the pin on the card's right edge. */
-  canConnect: boolean;
-  /** A pin is being dragged somewhere on the map: hold the hover panel back. */
-  connecting: boolean;
-  /** While a pin is dragged over this card: whether letting go here would connect. */
-  connectMark: 'ok' | 'bad' | null;
-  onPinDown: (step: ProcessStep, e: React.PointerEvent<HTMLElement>) => void;
 }
 
 /** Logos shown beside a step's main app before the rest fold into "+N". */
@@ -1912,10 +1720,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
       textScale,
       panelScale,
       hasCrossLaneDep,
-      canConnect,
-      connecting,
-      connectMark,
-      onPinDown,
     },
     ref,
   ) => {
@@ -1976,7 +1780,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
         ref={setRefs}
         data-step-card
         data-step-id={step.id}
-        className={`group/card w-52 shrink-0 rounded-lg bg-card p-3 ${connectMark === 'ok' ? 'ring-2 ring-primary ring-offset-2' : connectMark === 'bad' ? 'ring-2 ring-destructive/60 ring-offset-2 cursor-not-allowed' : ''} cursor-pointer pointer-events-auto transition-all duration-200 relative ${
+        className={`group/card w-52 shrink-0 rounded-lg bg-card p-3 cursor-pointer pointer-events-auto transition-all duration-200 relative ${
           isHighlighted
             ? 'border-2 border-primary shadow-sm'
             : hasCrossLaneDep
@@ -1984,7 +1788,7 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             : 'border border-border'
         } ${isDimmed ? 'border-border/60' : ''} shadow-sm hover:shadow-md`}
         onClick={onClick}
-        onMouseEnter={() => { onHover(step.id); if (hasDetail && !connecting) openDetail(); }}
+        onMouseEnter={() => { onHover(step.id); if (hasDetail) openDetail(); }}
         onMouseLeave={() => { onHover(null); scheduleCloseDetail(); }}
       >
         {detail === 'compact' && (
@@ -1993,23 +1797,6 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             className="absolute inset-x-0 top-0 h-1.5 rounded-t-lg"
             style={{ backgroundColor: color || 'hsl(var(--border))' }}
           />
-        )}
-        {/* The pin: press and drag it onto another step to connect them. */}
-        {canConnect && (
-          <button
-            type="button"
-            data-no-drag
-            data-pin
-            aria-label={`Connect "${step.title}" to another step`}
-            title="Drag to another step to connect. Click to see its connections."
-            onPointerDown={(e) => onPinDown(step, e)}
-            onClick={(e) => e.stopPropagation()}
-            className={`absolute -right-2.5 top-1/2 z-[21] flex h-5 w-5 -translate-y-1/2 cursor-crosshair touch-none items-center justify-center rounded-full border-2 border-primary bg-background shadow-sm transition-opacity hover:scale-110 ${
-              isHighlighted || connectMark ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100'
-            }`}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          </button>
         )}
         {/* Everything inside grows back by the zoom-out, so it keeps its size
             on screen and wraps to the narrower card instead. */}
