@@ -93,6 +93,8 @@ const LOGO_ALIASES: Record<string, string> = {
   'linkedin ads': 'linkedinads',
   'linkedin campaign manager': 'linkedinads',
   'square pos': 'square',
+  'ashby hq': 'ashby',
+  ashbyhq: 'ashby',
 };
 
 function stemFromPath(path: string): string {
