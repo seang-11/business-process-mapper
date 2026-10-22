@@ -118,6 +118,31 @@
   }
 }
 
+/* Printing a handover brief: show only the brief, flowing over as many pages as it needs. */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .train-print,
+  .train-print * {
+    visibility: visible !important;
+  }
+  .train-shell {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .train-shell main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .train-noprint {
+    display: none !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

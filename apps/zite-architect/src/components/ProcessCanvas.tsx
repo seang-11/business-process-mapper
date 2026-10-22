@@ -11,7 +11,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, FilePlus, MoreHorizontal, Layers, Trash2, Settings, Play, GraduationCap } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +44,7 @@ import LaneDialog from './LaneDialog';
 import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
+import Train from './Train';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -79,6 +80,8 @@ export default function ProcessCanvas() {
   // opens in an editor docked inside the walkthrough, keyed by id so it picks
   // up the saved version after each reload.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  /** Role training for the version on screen. */
+  const [trainOpen, setTrainOpen] = useState(false);
   const [walkthroughEditId, setWalkthroughEditId] = useState<string | null>(null);
 
   // The panel shows one thing at a time, so opening either view closes the
@@ -171,6 +174,24 @@ export default function ProcessCanvas() {
     setLaneGrouping(byParam === 'app' ? 'app' : 'people');
     setOpenLane(laneParam);
   }, [laneParam, byParam]);
+
+  // A shared link can open training straight to one role, or its handover brief.
+  const trainParam = searchParams.get('train');
+  const trainView = searchParams.get('view') === 'brief' ? 'brief' : 'lesson';
+  useEffect(() => {
+    if (trainParam) setTrainOpen(true);
+  }, [trainParam]);
+
+  const closeTrain = useCallback(() => {
+    setTrainOpen(false);
+    // Drop the link's role so a reload doesn't reopen it.
+    if (searchParams.has('train') || searchParams.has('view')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('train');
+      next.delete('view');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const closeLane = useCallback(() => {
     setOpenLane(null);
@@ -456,6 +477,12 @@ export default function ProcessCanvas() {
           </DropdownMenu>
 
           {steps.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setTrainOpen(true)}>
+              <GraduationCap className="h-3.5 w-3.5 mr-1.5" /> Train
+            </Button>
+          )}
+
+          {steps.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setWalkthroughOpen(true)}>
               <Play className="h-3.5 w-3.5 mr-1.5" /> Play walkthrough
             </Button>
@@ -568,6 +595,22 @@ export default function ProcessCanvas() {
           />
           )}
         </div>
+
+        {trainOpen && graph?.version && (
+          <Train
+            processName={process?.name ?? 'This process'}
+            versionName={graph.version.name}
+            steps={steps}
+            connections={connections}
+            initialRole={trainParam}
+            initialView={trainView}
+            onClose={closeTrain}
+            onOpenStep={(s) => {
+              closeTrain();
+              openStep(s);
+            }}
+          />
+        )}
 
         {walkthroughOpen && graph?.version && (
           <Walkthrough
