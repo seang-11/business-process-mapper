@@ -130,7 +130,7 @@ function detectBackEdges(
 // Loops used to be authored by hand. Now every back-edge in the graph implies one:
 // its members are the steps that sit on a path from the re-entry point back to the
 // step that closes the cycle.
-function deriveLoops(steps: ProcessStep[], connections: ProcessConnection[]): ProcessLoop[] {
+export function deriveLoops(steps: ProcessStep[], connections: ProcessConnection[]): ProcessLoop[] {
   const stepIds = new Set(steps.map(s => s.id));
   const adj = new Map<string, string[]>();
   const rev = new Map<string, string[]>();
@@ -186,7 +186,7 @@ function deriveLoops(steps: ProcessStep[], connections: ProcessConnection[]): Pr
 // predecessor, so the map always reads left to right, start to finish.
 // Connections that are backward paths of loops OR back-edges in cycles
 // are excluded so the layout always proceeds left-to-right.
-function assignColumns(
+export function assignColumns(
   steps: ProcessStep[],
   connections: ProcessConnection[],
   loops: ProcessLoop[] = [],

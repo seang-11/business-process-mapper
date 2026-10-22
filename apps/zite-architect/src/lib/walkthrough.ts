@@ -1,33 +1,10 @@
-import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
-
-/** One way out of a decision, as the fork scene shows it. */
-export interface ForkOption {
-  key: string;
-  /** The edge's label, or empty when it has none. */
-  label: string;
-  targetTitle: string;
-  /** Leads back round to an earlier step, so it can happen more than once. */
-  repeats: boolean;
-  /** The way the walkthrough carries on. */
-  main: boolean;
-}
-
-export type Scene =
-  | { kind: 'intro' }
-  | {
-      kind: 'step';
-      step: ProcessStep;
-      /** 1-based position among the step scenes. */
-      number: number;
-      total: number;
-      /** The step the work goes to next on the path played, if any. */
-      handoffTo: ProcessStep | null;
-      /** Filled for a decision: every way out of it. */
-      forks: ForkOption[];
-      /** The step this one can send work back to, when it closes a loop. */
-      loopBack: { title: string; label: string } | null;
-    }
-  | { kind: 'outro' };
+import type { ElementRef, ProcessConnection, ProcessLoop, ProcessStep } from '@/types';
+import {
+  AUTOMATED_LANE,
+  assignColumns,
+  deriveLoops,
+  getLaneKey,
+} from '../components/SwimlaneDiagram';
 
 const isApp = (e: ElementRef | null | undefined): e is ElementRef => e?.actorClass === 'System';
 
@@ -37,132 +14,99 @@ export function appsOf(step: ProcessStep): ElementRef[] {
   return [...new Map(all.map((e) => [e.id, e])).values()];
 }
 
+export interface MapCard {
+  step: ProcessStep;
+  lane: number;
+  col: number;
+  /** Run by an app on its own. */
+  automated: boolean;
+}
+
+export interface Section {
+  /** "First step → Last step", so nothing has to be named by hand. */
+  label: string;
+  colStart: number;
+  colEnd: number;
+  stepIds: Set<string>;
+}
+
+export interface WalkthroughMap {
+  lanes: string[];
+  cards: MapCard[];
+  connections: ProcessConnection[];
+  loops: ProcessLoop[];
+  columns: number;
+  sections: Section[];
+  /** The widest section, in columns: what the camera has to fit. */
+  maxSectionCols: number;
+}
+
+/** Roughly how many steps one section should hold. */
+const STEPS_PER_SECTION = 4;
+const MAX_SECTIONS = 6;
+
 /**
- * The walkthrough plays one path through the process, start to finish.
- *
- * Arrows that loop back are set aside first, so what's left only runs
- * forwards. At each decision the way with the most process still ahead of it
- * is the main one and the others are left out, along with any step that can
- * only be reached through them; the decision's own scene still shows every
- * option. Everything else plays in flow order, earlier-saved steps first when
- * two could go next, so parallel work still gets its own scenes.
+ * The process laid out the same way as the map (people lanes, left to right),
+ * then cut into a handful of sections the walkthrough moves through one at a
+ * time. Cuts fall between columns, so a section is always one unbroken
+ * stretch of the map.
  */
-export function buildScenes(steps: ProcessStep[], connections: ProcessConnection[]): Scene[] {
-  const byId = new Map(steps.map((s) => [s.id, s]));
+export function buildWalkthroughMap(steps: ProcessStep[], connections: ProcessConnection[]): WalkthroughMap {
+  const loops = deriveLoops(steps, connections);
+  const colOf = assignColumns(steps, connections, loops);
   const seq = new Map(steps.map((s, i) => [s.id, i]));
-  const edges = connections.filter((c) => byId.has(c.fromStepId) && byId.has(c.toStepId));
-  const outs = new Map<string, ProcessConnection[]>(steps.map((s) => [s.id, []]));
-  for (const c of edges) outs.get(c.fromStepId)!.push(c);
+  const ordered = [...steps].sort(
+    (a, b) => (colOf.get(a.id) ?? 0) - (colOf.get(b.id) ?? 0) || (seq.get(a.id) ?? 0) - (seq.get(b.id) ?? 0),
+  );
 
-  // Back-edges by depth-first search, starting from steps nothing leads into.
-  const keyOf = (c: ProcessConnection) => `${c.fromStepId}->${c.toStepId}`;
-  const back = new Set<string>();
-  const state = new Map<string, 1 | 2>();
-  const visit = (id: string) => {
-    state.set(id, 1);
-    for (const c of outs.get(id)!) {
-      const s = state.get(c.toStepId);
-      if (s === 1) back.add(keyOf(c));
-      else if (!s) visit(c.toStepId);
+  // Lanes in the order people first appear, with the automated lane last.
+  const lanes: string[] = [];
+  for (const s of ordered) {
+    const lane = getLaneKey(s, 'people');
+    if (!lanes.includes(lane)) lanes.push(lane);
+  }
+  const autoAt = lanes.indexOf(AUTOMATED_LANE);
+  if (autoAt >= 0) lanes.push(...lanes.splice(autoAt, 1));
+
+  const cards = ordered.map((step) => ({
+    step,
+    lane: lanes.indexOf(getLaneKey(step, 'people')),
+    col: colOf.get(step.id) ?? 0,
+    automated: isApp(step.performedBy),
+  }));
+  const columns = cards.length ? Math.max(...cards.map((c) => c.col)) + 1 : 0;
+
+  // Fill each section column by column until it holds its share of steps.
+  const count = Math.max(1, Math.min(MAX_SECTIONS, Math.round(steps.length / STEPS_PER_SECTION)));
+  const share = Math.ceil(steps.length / count);
+  const byCol = Array.from({ length: columns }, (_, c) => cards.filter((k) => k.col === c));
+  const sections: Section[] = [];
+  let start = 0;
+  let held: MapCard[] = [];
+  for (let c = 0; c < columns; c += 1) {
+    held.push(...byCol[c]);
+    const last = c === columns - 1;
+    if (last || (held.length >= share && sections.length < count - 1)) {
+      const first = held[0]?.step.title ?? '';
+      const end = held[held.length - 1]?.step.title ?? '';
+      sections.push({
+        label: held.length > 1 ? `${first} → ${end}` : first,
+        colStart: start,
+        colEnd: c,
+        stepIds: new Set(held.map((k) => k.step.id)),
+      });
+      start = c + 1;
+      held = [];
     }
-    state.set(id, 2);
+  }
+
+  return {
+    lanes,
+    cards,
+    connections: connections.filter((c) => colOf.has(c.fromStepId) && colOf.has(c.toStepId)),
+    loops,
+    columns,
+    sections,
+    maxSectionCols: Math.max(1, ...sections.map((s) => s.colEnd - s.colStart + 1)),
   };
-  const hasIncoming = new Set(edges.map((c) => c.toStepId));
-  for (const s of steps) if (!hasIncoming.has(s.id) && !state.get(s.id)) visit(s.id);
-  for (const s of steps) if (!state.get(s.id)) visit(s.id);
-
-  const forward = (id: string) => outs.get(id)!.filter((c) => !back.has(keyOf(c)));
-
-  // How many steps lie ahead of each one, at most.
-  const ahead = new Map<string, number>();
-  const reach = (id: string): number => {
-    const known = ahead.get(id);
-    if (known != null) return known;
-    const n = 1 + Math.max(0, ...forward(id).map((c) => reach(c.toStepId)));
-    ahead.set(id, n);
-    return n;
-  };
-
-  const mainOf = new Map<string, string>();
-  const dropped = new Set<string>();
-  for (const s of steps) {
-    const ways = forward(s.id);
-    if (s.stepType !== 'Decision' || ways.length < 2) continue;
-    const main = [...ways].sort(
-      (a, b) => reach(b.toStepId) - reach(a.toStepId) || (seq.get(a.toStepId) ?? 0) - (seq.get(b.toStepId) ?? 0),
-    )[0];
-    mainOf.set(s.id, keyOf(main));
-    for (const c of ways) if (c !== main) dropped.add(keyOf(c));
-  }
-
-  const kept = edges.filter((c) => !back.has(keyOf(c)) && !dropped.has(keyOf(c)));
-  const forwardIn = new Set(edges.filter((c) => !back.has(keyOf(c))).map((c) => c.toStepId));
-  const starts = steps.filter((s) => !forwardIn.has(s.id)).map((s) => s.id);
-
-  // What's still reachable once the side branches are gone.
-  const keptOut = new Map<string, string[]>(steps.map((s) => [s.id, []]));
-  for (const c of kept) keptOut.get(c.fromStepId)!.push(c.toStepId);
-  const reachable = new Set<string>();
-  const stack = [...starts];
-  while (stack.length) {
-    const id = stack.pop()!;
-    if (reachable.has(id)) continue;
-    reachable.add(id);
-    stack.push(...keptOut.get(id)!);
-  }
-
-  // Flow order, earliest-saved first among the steps that are ready.
-  const waiting = new Map<string, number>([...reachable].map((id) => [id, 0]));
-  for (const c of kept) {
-    if (reachable.has(c.fromStepId) && reachable.has(c.toStepId)) {
-      waiting.set(c.toStepId, (waiting.get(c.toStepId) ?? 0) + 1);
-    }
-  }
-  const ready = [...reachable].filter((id) => waiting.get(id) === 0);
-  const order: string[] = [];
-  while (ready.length) {
-    ready.sort((a, b) => (seq.get(a) ?? 0) - (seq.get(b) ?? 0));
-    const id = ready.shift()!;
-    order.push(id);
-    for (const next of keptOut.get(id)!) {
-      if (!reachable.has(next)) continue;
-      const left = (waiting.get(next) ?? 1) - 1;
-      waiting.set(next, left);
-      if (left === 0) ready.push(next);
-    }
-  }
-
-  const position = new Map(order.map((id, i) => [id, i]));
-  const repeats = (c: ProcessConnection) =>
-    back.has(keyOf(c)) || outs.get(c.toStepId)!.some((o) => back.has(keyOf(o)));
-
-  const stepScenes: Scene[] = order.map((id, i) => {
-    const step = byId.get(id)!;
-    const nextId = [...keptOut.get(id)!]
-      .filter((n) => position.has(n))
-      .sort((a, b) => position.get(a)! - position.get(b)!)[0];
-    const closing = outs.get(id)!.find((c) => back.has(keyOf(c)));
-    return {
-      kind: 'step',
-      step,
-      number: i + 1,
-      total: order.length,
-      handoffTo: nextId ? byId.get(nextId)! : null,
-      forks: mainOf.has(id)
-        ? outs.get(id)!.map((c) => ({
-            key: keyOf(c),
-            label: c.label || c.condition || '',
-            targetTitle: byId.get(c.toStepId)!.title,
-            repeats: repeats(c),
-            main: keyOf(c) === mainOf.get(id),
-          }))
-        : [],
-      loopBack:
-        closing && !mainOf.has(id)
-          ? { title: byId.get(closing.toStepId)!.title, label: closing.label || '' }
-          : null,
-    };
-  });
-
-  return [{ kind: 'intro' }, ...stepScenes, { kind: 'outro' }];
 }
