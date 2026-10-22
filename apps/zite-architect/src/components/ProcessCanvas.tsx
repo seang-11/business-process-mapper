@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getProcessGraph,
@@ -9,6 +9,7 @@ import {
   goLive,
   moveStep,
   reorderStep,
+  restoreEdges,
   saveLaneOrder,
   GetProcessGraphOutputType,
   GetProcessesOutputType,
@@ -42,6 +43,8 @@ import {
 } from '@project/components/ui/select';
 import { toast } from 'sonner';
 import type { ElementRef, ElementSummary, ElementType, ProcessConnection, ProcessStep } from '@/types';
+import { applyOps, planReorder } from '@/lib/planReorder';
+import { buildOutline } from '@/lib/walkthrough';
 
 const NO_LANE_ORDER = { people: [] as string[], app: [] as string[] };
 
@@ -385,7 +388,19 @@ export default function ProcessCanvas() {
           performedById: move.performedById,
           useIds: move.useIds,
         });
-        toast.success(`Moved "${step.title}" to ${move.destination}`);
+        const prevPerformer = step.performedBy?.id;
+        const prevUses = step.uses.map((u) => u.id);
+        if (prevPerformer) {
+          undoStack.current.push({
+            label: `Moved "${step.title}" to ${move.destination}`,
+            run: async () => {
+              await moveStep({ id: step.id, versionId, performedById: prevPerformer, useIds: prevUses });
+            },
+          });
+        }
+        toast.success(`Moved "${step.title}" to ${move.destination}`, {
+          action: { label: 'Undo', onClick: () => undoLast() },
+        });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not move that step.');
       } finally {
@@ -394,24 +409,106 @@ export default function ProcessCanvas() {
     },
     [versionId, elements, load],
   );
-  /** A card dropped before or after another. The server rewires the arrows; then the map reloads. */
+  // Everything that can be undone, newest last. Cmd/Ctrl+Z takes the latest off.
+  const undoStack = useRef<{ label: string; run: () => Promise<void> }[]>([]);
+  const undoLast = useCallback(async () => {
+    const entry = undoStack.current.pop();
+    if (!entry) {
+      toast('Nothing to undo');
+      return;
+    }
+    try {
+      await entry.run();
+      toast.success(`Undid: ${entry.label}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not undo that.');
+    } finally {
+      load();
+    }
+  }, [load]);
+  useEffect(() => {
+    undoStack.current = [];
+  }, [id]);
+  useEffect(() => {
+    if (!canEdit) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      // Typing in a field keeps its own undo.
+      if (t?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      e.preventDefault();
+      undoLast();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canEdit, undoLast]);
+
+  /** A drop waiting for a yes: shows how the process will read afterwards. */
+  const [pendingMove, setPendingMove] = useState<{
+    step: ProcessStep;
+    targetId: string;
+    targetTitle: string;
+    position: 'before' | 'after';
+    linked: number;
+    preview: { id: string; number: number; title: string; moved: boolean }[];
+  } | null>(null);
+  const [movingBusy, setMovingBusy] = useState(false);
+
+  // A drop never changes anything by itself. It first works out the result, so a
+  // move that can't work is refused here, and one that can is shown for approval.
   const handleReorderStep = useCallback(
-    async (step: ProcessStep, targetId: string, position: 'before' | 'after') => {
-      if (!versionId) return;
+    (step: ProcessStep, targetId: string, position: 'before' | 'after') => {
+      if (!graph?.version) return;
+      const edges = graph.connections.map((c) => ({ id: c.id, from: c.fromStepId, to: c.toStepId, label: c.label }));
       try {
-        const { moved } = await reorderStep({ versionId, stepId: step.id, targetId, position });
-        const target = steps.find((s) => s.id === targetId);
-        toast.success(
-          `Moved "${step.title}"${moved > 1 ? ` and ${moved - 1} linked` : ''} ${position} "${target?.title ?? 'that step'}"`,
-        );
+        const { ops, moved } = planReorder(edges, steps.map((s) => s.id), step.id, targetId, position);
+        const next = applyOps(edges, ops).map((e) => ({
+          id: e.id, fromStepId: e.from, toStepId: e.to, label: e.label, condition: '',
+        })) as ProcessConnection[];
+        const movedSet = new Set(moved);
+        setPendingMove({
+          step,
+          targetId,
+          targetTitle: steps.find((s) => s.id === targetId)?.title ?? 'that step',
+          position,
+          linked: moved.length - 1,
+          preview: buildOutline(steps, next).items.map((it) => ({
+            id: it.step.id, number: it.number, title: it.step.title, moved: movedSet.has(it.step.id),
+          })),
+        });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not move that step.');
-      } finally {
-        load();
+        toast.error(err instanceof Error ? err.message : 'That move is not possible.');
       }
     },
-    [versionId, steps, load],
+    [graph, steps],
   );
+
+  const confirmMove = useCallback(async () => {
+    if (!pendingMove || !graph?.version) return;
+    const vId = graph.version.id;
+    const before = graph.connections.map((c) => ({ from: c.fromStepId, to: c.toStepId, label: c.label, condition: c.condition }));
+    const { step, targetId, position, targetTitle } = pendingMove;
+    setMovingBusy(true);
+    try {
+      const { moved } = await reorderStep({ versionId: vId, stepId: step.id, targetId, position });
+      undoStack.current.push({
+        label: `Moved "${step.title}"`,
+        run: async () => {
+          await restoreEdges({ versionId: vId, edges: before });
+        },
+      });
+      toast.success(
+        `Moved "${step.title}"${moved > 1 ? ` and ${moved - 1} linked` : ''} ${position} "${targetTitle}"`,
+        { action: { label: 'Undo', onClick: () => undoLast() } },
+      );
+      setPendingMove(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not move that step. Nothing was changed.');
+    } finally {
+      setMovingBusy(false);
+      load();
+    }
+  }, [pendingMove, graph, undoLast, load]);
   const connections = useMemo(() => graph?.connections ?? [], [graph]);
 
   const laneOrder = graph?.laneOrder ?? NO_LANE_ORDER;
@@ -650,6 +747,46 @@ export default function ProcessCanvas() {
             </Button>
           )}
         </div>
+      )}
+
+      {pendingMove && (
+        <Dialog open onOpenChange={(o) => !o && !movingBusy && setPendingMove(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base">
+                Move “{pendingMove.step.title}” {pendingMove.position} “{pendingMove.targetTitle}”?
+              </DialogTitle>
+              <DialogDescription>
+                {pendingMove.linked > 0
+                  ? `${pendingMove.linked} linked step${pendingMove.linked === 1 ? '' : 's'} move with it, so nothing is left half connected. `
+                  : ''}
+                This is how the process will read afterwards. You can undo it with Cmd+Z.
+              </DialogDescription>
+            </DialogHeader>
+            <ol className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2 text-sm">
+              {pendingMove.preview.map((p) => (
+                <li
+                  key={p.id}
+                  className={`flex items-center gap-2 rounded-md px-2 py-1 ${
+                    p.moved ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  <span className="w-5 shrink-0 text-right text-[11px] tabular-nums">{p.number}</span>
+                  <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                  {p.moved && <span className="shrink-0 text-[10px] font-semibold text-primary">Moved</span>}
+                </li>
+              ))}
+            </ol>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" disabled={movingBusy} onClick={() => setPendingMove(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" autoFocus disabled={movingBusy} onClick={confirmMove}>
+                {movingBusy ? 'Moving…' : 'Move it'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {makeLiveOpen && graph?.version && (

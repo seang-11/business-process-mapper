@@ -88,9 +88,21 @@ export function planReorder(
       for (const ex of g.exits) remove(ex);
     }
   } else {
-    for (const feed of edges.filter((e) => e.to === targetId && !inGroup(e.from))) retarget(feed, head);
+    // Arrows looping back to the target stay on it; only the way in is rerouted.
+    for (const feed of edges.filter((e) => e.to === targetId && !inGroup(e.from) && !g.back.has(e))) retarget(feed, head);
     joinTails(targetId);
   }
 
   return { ops, moved: [...g.members] };
+}
+
+/** The arrows as they would be once the changes are made. Used to preview a move and to check it. */
+export function applyOps(input: PlanEdge[], ops: Op[]): PlanEdge[] {
+  const edges = input.map((e) => ({ ...e }));
+  for (const op of ops) {
+    if (op.kind === 'add') edges.push({ id: `new-${edges.length}`, from: op.from, to: op.to, label: op.label });
+    else if (op.kind === 'remove') edges.splice(edges.findIndex((e) => e.id === op.id), 1);
+    else edges.find((e) => e.id === op.id)!.to = op.to;
+  }
+  return edges;
 }

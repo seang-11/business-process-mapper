@@ -22,6 +22,7 @@ import type { default as _ListEditorsEp } from '../src/api/listEditors';
 import type { default as _MatchVersionStepsEp } from '../src/api/matchVersionSteps';
 import type { default as _MoveStepEp } from '../src/api/moveStep';
 import type { default as _ReorderStepEp } from '../src/api/reorderStep';
+import type { default as _RestoreEdgesEp } from '../src/api/restoreEdges';
 import type { default as _SaveConnectionEp } from '../src/api/saveConnection';
 import type { default as _SaveElementEp } from '../src/api/saveElement';
 import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
@@ -130,6 +131,11 @@ export type ReorderStepInputType = NonNullable<_ReorderStepCfg['inputSchema']> e
 export type ReorderStepOutputType = Awaited<ReturnType<_ReorderStepCfg['execute']>>;
 export const reorderStep = createCaller<ReorderStepInputType, ReorderStepOutputType>('reorderStep');
 
+type _RestoreEdgesCfg = typeof _RestoreEdgesEp;
+export type RestoreEdgesInputType = NonNullable<_RestoreEdgesCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_RestoreEdgesCfg['execute']>[0]['input'];
+export type RestoreEdgesOutputType = Awaited<ReturnType<_RestoreEdgesCfg['execute']>>;
+export const restoreEdges = createCaller<RestoreEdgesInputType, RestoreEdgesOutputType>('restoreEdges');
+
 type _SaveConnectionCfg = typeof _SaveConnectionEp;
 export type SaveConnectionInputType = NonNullable<_SaveConnectionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SaveConnectionCfg['execute']>[0]['input'];
 export type SaveConnectionOutputType = Awaited<ReturnType<_SaveConnectionCfg['execute']>>;
@@ -187,6 +193,7 @@ export const api = {
   matchVersionSteps,
   moveStep,
   reorderStep,
+  restoreEdges,
   saveConnection,
   saveElement,
   saveElementType,

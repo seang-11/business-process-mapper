@@ -14,6 +14,8 @@ export interface StepGroup<E extends GroupEdge> {
   exits: E[];
   /** Steps in the group with nothing after them. */
   tails: string[];
+  /** Arrows that loop back to an earlier step. Moving a step never reroutes these. */
+  back: Set<E>;
   /** Why this group can't be moved, if it can't. */
   error: string | null;
 }
@@ -118,5 +120,5 @@ export function groupOf<E extends GroupEdge>(startId: string, edges: E[], order:
   else if (exitTargets.size > 1) error = "These steps lead on to more than one place, so they can't be moved as a group.";
   const head = heads[0] ?? [...members].sort((a, b) => (disc.get(a) ?? 0) - (disc.get(b) ?? 0))[0] ?? null;
 
-  return { members, head, entering, exits, tails, error };
+  return { members, head, entering, exits, tails, back, error };
 }
