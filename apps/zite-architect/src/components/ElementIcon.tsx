@@ -53,6 +53,11 @@ const LOGO_ALIASES: Record<string, string> = {
   youtube: 'youtube',
   '1password': '1password',
   '1 password': '1password',
+  'google ads': 'googleads',
+  'google adwords': 'googleads',
+  'meta ads': 'metaads',
+  'facebook ads': 'metaads',
+  meta: 'metaads',
 };
 
 function stemFromPath(path: string): string {
