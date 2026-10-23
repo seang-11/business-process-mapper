@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
-import { ArrowLeft, Download, GraduationCap, Link2, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, GraduationCap, Link2, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
 import { buildBrief, type Neighbour } from '@/lib/roleBrief';
@@ -55,6 +55,8 @@ export default function RoleBrief() {
   const navigate = useNavigate();
   const [data, setData] = useState<GetBrainOutputType | null>(null);
   const [failed, setFailed] = useState(false);
+  /** The process opened in place. One at a time keeps the page short. */
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setFailed(false);
@@ -188,32 +190,67 @@ export default function RoleBrief() {
       )}
 
       <Section title="The work, process by process">
-        <div className="space-y-6">
-          {brief.processes.map(({ p, steps }) => (
-            <article key={p.id} className="brief-process overflow-hidden rounded-2xl border border-border bg-card">
-              <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-5 py-3.5">
-                <h3 className="text-base font-semibold tracking-tight">{p.name}</h3>
-                {p.department && (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ backgroundColor: `hsl(${hueFor(p.department)} 80% 93%)`, color: `hsl(${hueFor(p.department)} 45% 32%)` }}
-                  >
-                    {p.department}
+        <p className="-mt-1 mb-3 text-xs text-muted-foreground print:hidden">Click a process to see this role's steps in it.</p>
+        <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-1">
+          {brief.processes.map(({ p, steps }) => {
+            const open = openId === p.id;
+            const hand = steps.filter((x) => x.step.stepType !== 'Decision' && x.step.stepType !== 'Wait').length;
+            const decide = steps.filter((x) => x.step.stepType === 'Decision').length;
+            const apps = [...new Map(steps.flatMap((x) => x.step.uses).filter((u) => u.kind === 'app').map((u) => [u.id, u])).values()];
+            return (
+              <article
+                key={p.id}
+                className={`brief-process overflow-hidden rounded-2xl border bg-card transition-shadow print:col-span-1 ${
+                  open ? 'border-primary/40 shadow-[0_8px_24px_rgba(16,24,40,0.08)] sm:col-span-2' : 'border-border hover:shadow-[0_4px_14px_rgba(16,24,40,0.06)]'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : p.id)}
+                  aria-expanded={open}
+                  className="flex w-full flex-col gap-2 p-4 text-left"
+                >
+                  <span className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug tracking-tight">{p.name}</span>
+                    <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform print:hidden ${open ? 'rotate-180' : ''}`} />
                   </span>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {plural(steps.length, 'step')} of {p.stepCount} are this role's
-                </span>
-                {p.live && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/process/${p.id}?train=${encodeURIComponent(who.id)}&view=lesson`)}
-                    className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted print:hidden"
-                  >
-                    <GraduationCap className="h-3.5 w-3.5" /> Train on this
-                  </button>
-                )}
-              </div>
+                  <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    {p.department && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ backgroundColor: `hsl(${hueFor(p.department)} 80% 93%)`, color: `hsl(${hueFor(p.department)} 45% 32%)` }}
+                      >
+                        {p.department}
+                      </span>
+                    )}
+                    {steps.length} of {p.stepCount} steps
+                    {hand > 0 && ` · ${hand} by hand`}
+                    {decide > 0 && ` · ${plural(decide, 'decision')}`}
+                  </span>
+                  {apps.length > 0 && (
+                    <span className="flex flex-wrap items-center gap-1">
+                      {apps.slice(0, 7).map((u) => (
+                        <span key={u.id} title={u.name} className="rounded-md border border-border bg-background p-1">
+                          <RoleAvatar w={u} size={12} />
+                        </span>
+                      ))}
+                      {apps.length > 7 && <span className="text-[10px] text-muted-foreground">+{apps.length - 7}</span>}
+                    </span>
+                  )}
+                </button>
+                {/* Closed cards still print their steps, so the PDF has everything. */}
+                <div className={open ? 'border-t border-border' : 'hidden border-t border-border print:block'}>
+                  {p.live && (
+                    <div className="flex justify-end px-5 pt-3 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/process/${p.id}?train=${encodeURIComponent(who.id)}&view=lesson`)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+                      >
+                        <GraduationCap className="h-3.5 w-3.5" /> Train on this
+                      </button>
+                    </div>
+                  )}
               <ol className="divide-y divide-border">
                 {steps.map(({ step: s, number, before, after }) => (
                   <li key={s.id} className="brief-step px-5 py-4">
@@ -267,8 +304,10 @@ export default function RoleBrief() {
                   </li>
                 ))}
               </ol>
-            </article>
-          ))}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </Section>
 
