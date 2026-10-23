@@ -81,9 +81,17 @@ export default createEndpoint({
     };
     const stepsOf = (versionId: string) =>
       stepRes.records.filter((s) => one(s.version) === versionId).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-    // A step a person does. Waiting costs no one time, and a sub-process step's time is counted in that process.
-    const isPeopleStep = (s: (typeof stepRes.records)[number]) =>
-      classOf(one(s.performedBy)) === 'Human' && s.stepType !== 'Wait' && !one(s.subProcess);
+    // A step someone on the team does. Waiting costs no one time, a sub-process step's time is counted in
+    // that process, and a client's or prospect's time is theirs, not the team's.
+    const isPeopleStep = (s: (typeof stepRes.records)[number]) => {
+      const performer = one(s.performedBy);
+      return (
+        classOf(performer) === 'Human' &&
+        elementById.get(performer!)?.party !== 'External' &&
+        s.stepType !== 'Wait' &&
+        !one(s.subProcess)
+      );
+    };
     const hoursOf = (minutes: number, runs: number | null) => (runs ? (minutes * runs) / 60 : 0);
 
     // Per role: hours now, and in processes that have a future version, hours now and hours then.
