@@ -513,7 +513,7 @@ const TOUR: TourStep[] = [
   {
     anchor: '[data-tour="lens"]',
     title: 'Apps and people',
-    text: 'Click an app or a person to spotlight every step they are part of. Click a person to see their profile.',
+    text: 'Click an app or a person to spotlight every step they are part of, and open their profile on the right.',
   },
 ];
 
@@ -838,8 +838,8 @@ export default function Brain() {
       return;
     }
     setLens({ kind, who, ids: new Set(ids), pinned: true });
-    // A person opens their profile; the process panel steps aside.
-    if (kind === 'person') setSelected(null);
+    // Their profile opens on the right; the process panel steps aside.
+    setSelected(null);
     if (onlyLens) setAfter({ fit: true });
   };
 
@@ -919,6 +919,7 @@ export default function Brain() {
     let decide = 0;
     const depts = new Set<string>();
     const apps = new Map<string, Who>();
+    const people = new Map<string, Who>();
     const perProcess: { p: Proc; n: number }[] = [];
     for (const p of procs) {
       if (!pinned.ids.has(p.id)) continue;
@@ -935,9 +936,20 @@ export default function Brain() {
           const a = appById.get(u);
           if (a && a.id !== pinned.who.id) apps.set(a.id, a);
         }
+        // For an app: the people who work in it, and any app doing the step it is used in.
+        if (s.who && s.who.id !== pinned.who.id) {
+          if (s.who.kind === 'person') people.set(s.who.id, s.who);
+          else if (s.who.kind === 'app') apps.set(s.who.id, s.who);
+        }
       }
     }
-    return { steps, auto, hand, decide, depts: [...depts].sort(), apps: [...apps.values()], perProcess };
+    return {
+      steps, auto, hand, decide,
+      depts: [...depts].sort(),
+      apps: [...apps.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      perProcess,
+    };
   }, [pinned, procs, appById]);
 
   // --- Department leads ---
@@ -961,8 +973,8 @@ export default function Brain() {
   const level: 'far' | 'mid' | 'near' = view.z < FAR ? 'far' : view.z < NEAR ? 'mid' : 'near';
   const sel = selected ? byId.get(selected) ?? null : null;
   const runBy = sel ? (procs ?? []).filter((p) => p.runs.some((r) => r.processId === sel.id)) : [];
-  const personPanel = !sel && pinned?.kind === 'person' ? pinned : null;
-  const panelOpen = !!sel || !!personPanel;
+  const profile = !sel ? pinned : null;
+  const panelOpen = !!sel || !!profile;
 
   if (failed) return <div className="mx-auto max-w-xl px-8 py-16"><PageError onRetry={load} /></div>;
   if (procs === null) return <div className="mx-auto max-w-5xl px-8 py-8"><PageLoading blocks={2} height="h-64" /></div>;
@@ -1224,7 +1236,7 @@ export default function Brain() {
           </div>
           <p className="px-3 pb-1 text-[10px] text-muted-foreground">
             {tab === 'apps'
-              ? 'Click an app to spotlight every step it is part of.'
+              ? 'Click an app to spotlight its steps and see its profile.'
               : 'Click a person to spotlight their steps and see their profile.'}
           </p>
           <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
@@ -1298,102 +1310,148 @@ export default function Brain() {
         </div>
       )}
 
-      {/* Right: a person's profile. */}
-      {personPanel && spot && (
-        <aside
-          data-ui
-          className="absolute bottom-4 right-4 top-4 z-20 flex w-[340px] cursor-default flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
-        >
-          <div
-            className="relative px-5 pb-5 pt-6"
-            style={{ background: `linear-gradient(180deg, hsl(${hueFor(personPanel.who.name)} 85% 95%), transparent)` }}
+      {/* Right: the profile of the app or person in the spotlight. */}
+      {profile && spot && (() => {
+        const isApp = profile.kind === 'app';
+        const hue = isApp ? 217 : hueFor(profile.who.name);
+        const tiles: [number, string][] = isApp
+          ? [[spot.steps, 'steps'], [spot.auto, 'on its own'], [spot.hand, 'by hand in it']]
+          : [[spot.steps, 'steps'], [spot.hand, 'by hand'], [spot.decide, 'decisions']];
+        return (
+          <aside
+            data-ui
+            className="absolute bottom-4 right-4 top-4 z-20 flex w-[340px] cursor-default flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
           >
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={clearLens}
-              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-white/60 hover:text-foreground"
+            <div
+              className="relative px-5 pb-5 pt-6"
+              style={{ background: `linear-gradient(180deg, hsl(${hue} 85% 95%), transparent)` }}
             >
-              <X className="h-4 w-4" />
-            </button>
-            <Icon w={personPanel.who} size={52} />
-            <h2 className="mt-3 text-lg font-semibold leading-snug tracking-tight">{personPanel.who.name}</h2>
-            <p className="text-xs text-muted-foreground">{personPanel.who.typeName || 'Person'}</p>
-            {spot.depts.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {spot.depts.map((d) => (
-                  <span
-                    key={d}
-                    className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                    style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
-                  >
-                    {d}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5">
-            <section className="grid grid-cols-3 gap-2 text-center">
-              {[
-                [spot.steps, 'steps'],
-                [spot.hand, 'by hand'],
-                [spot.decide, 'decisions'],
-              ].map(([n, label]) => (
-                <div key={label as string} className="rounded-xl bg-muted/50 px-2 py-2.5">
-                  <p className="text-xl font-semibold tabular-nums">{n as number}</p>
-                  <p className="text-[10px] text-muted-foreground">{label as string}</p>
-                </div>
-              ))}
-            </section>
-            <section>
-              <MixBar a={0} r={spot.decide} m={spot.hand} />
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                {spot.hand > 0
-                  ? `${plural(spot.hand, 'step')} done by hand. Those are the first place to look for time to win back.`
-                  : 'No hand work in their steps.'}
-              </p>
-            </section>
-
-            {spot.apps.length > 0 && (
-              <section>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Works in</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {spot.apps.map((a) => (
-                    <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
-                      <Icon w={a} size={13} /> {a.name}
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={clearLens}
+                className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-white/60 hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              {isApp ? (
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-background shadow-sm">
+                  <Icon w={profile.who} size={30} />
+                </span>
+              ) : (
+                <Icon w={profile.who} size={52} />
+              )}
+              <h2 className="mt-3 text-lg font-semibold leading-snug tracking-tight">{profile.who.name}</h2>
+              <p className="text-xs text-muted-foreground">{isApp ? 'App' : profile.who.typeName || 'Person'}</p>
+              {spot.depts.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {spot.depts.map((d) => (
+                    <span
+                      key={d}
+                      className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                      style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
+                    >
+                      {d}
                     </span>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </div>
 
-            <section>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Their processes</p>
-              <ul className="space-y-1.5">
-                {spot.perProcess.map(({ p, n }) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => (board.flows.has(p.id) ? flyTo(p.id) : openFlow(p.id))}
-                      className="flex w-full items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-left text-xs transition-colors hover:border-primary/30 hover:bg-muted/40"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold">{p.name}</span>
-                        <span className="text-muted-foreground">
-                          {n} of {p.steps.length} steps{p.department ? ` · ${p.department}` : ''}
-                        </span>
-                      </span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    </button>
-                  </li>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5">
+              <section className="grid grid-cols-3 gap-2 text-center">
+                {tiles.map(([n, label]) => (
+                  <div key={label} className="rounded-xl bg-muted/50 px-2 py-2.5">
+                    <p className="text-xl font-semibold tabular-nums">{n}</p>
+                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                  </div>
                 ))}
-              </ul>
-            </section>
-          </div>
-        </aside>
-      )}
+              </section>
+              <section>
+                {isApp ? <MixBar a={spot.auto} r={spot.decide} m={spot.hand} /> : <MixBar a={0} r={spot.decide} m={spot.hand} />}
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  {isApp
+                    ? spot.hand > 0
+                      ? `${plural(spot.hand, 'step')} still done by hand in ${profile.who.name}. Those could be the next to automate.`
+                      : `Everything in ${profile.who.name} runs on its own or is a decision.`
+                    : spot.hand > 0
+                    ? `${plural(spot.hand, 'step')} done by hand. Those are the first place to look for time to win back.`
+                    : 'No hand work in their steps.'}
+                </p>
+              </section>
+
+              {isApp && spot.people.length > 0 && (
+                <section>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">People who use it</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {spot.people.map((w) => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => {
+                          setTab('people');
+                          pinLens('person', w, lenses.people.find((l) => l.who.id === w.id)?.ids ?? []);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs hover:border-primary/40 hover:bg-primary/5"
+                      >
+                        <Icon w={w} size={13} /> {w.name}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {spot.apps.length > 0 && (
+                <section>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {isApp ? 'Works alongside' : 'Works in'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {spot.apps.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => {
+                          setTab('apps');
+                          pinLens('app', a, lenses.apps.find((l) => l.who.id === a.id)?.ids ?? []);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs hover:border-primary/40 hover:bg-primary/5"
+                      >
+                        <Icon w={a} size={13} /> {a.name}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {isApp ? 'Processes that use it' : 'Their processes'}
+                </p>
+                <ul className="space-y-1.5">
+                  {spot.perProcess.map(({ p, n }) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => (board.flows.has(p.id) ? flyTo(p.id) : openFlow(p.id))}
+                        className="flex w-full items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-left text-xs transition-colors hover:border-primary/30 hover:bg-muted/40"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold">{p.name}</span>
+                          <span className="text-muted-foreground">
+                            {n} of {p.steps.length} steps{p.department ? ` · ${p.department}` : ''}
+                          </span>
+                        </span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          </aside>
+        );
+      })()}
 
       {/* Right: the process you clicked. */}
       {sel && (
