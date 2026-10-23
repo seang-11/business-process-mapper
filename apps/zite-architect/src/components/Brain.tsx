@@ -1,65 +1,127 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
-import { Brain as BrainIcon, Search } from 'lucide-react';
-import { Input } from '@project/components/ui/input';
+import {
+  ArrowRight, Brain as BrainIcon, GraduationCap, Maximize, Minus, Plus, Search, Workflow, X, Zap,
+} from 'lucide-react';
+import { Button } from '@project/components/ui/button';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import ElementIcon from './ElementIcon';
 
 type Proc = GetBrainOutputType['processes'][number];
 type Who = Proc['people'][number];
 
-type GroupBy = 'department' | 'owner' | 'person' | 'app';
-const MODES: { key: GroupBy; label: string }[] = [
-  { key: 'department', label: 'Department' },
-  { key: 'owner', label: 'Owner' },
-  { key: 'person', label: 'Person' },
-  { key: 'app', label: 'App' },
-];
+// --- Board geometry, in board units. Zoom scales all of it together. ---
+const CARD_W = 300;
+const CARD_H = 264;
+const CARD_GAP = 32;
+const FRAME_PAD = 40;
+const FRAME_HEAD = 76;
+const FRAME_GAP = 120;
+const ROW_MAX = 2300;
 
-// The same three colors as the Overview page.
+const Z_MIN = 0.12;
+const Z_MAX = 2.5;
+/** Below this the cards show just their name, big; above NEAR they list every step. */
+const FAR = 0.45;
+const NEAR = 1.1;
+
+// The same three colors used for the kind of work everywhere in the app.
 const AUTOMATED = 'hsl(152 55% 42%)';
 const REVIEW = 'hsl(38 92% 52%)';
 const MANUAL = 'hsl(220 9% 62%)';
 
+const HUES = [217, 262, 152, 24, 336, 188, 45];
+const hueFor = (name: string) => {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return HUES[h % HUES.length];
+};
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-interface Group {
+interface Frame {
   key: string;
   title: string;
-  who: Who | null;
-  procs: Proc[];
+  hue: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  count: number;
 }
 
-/** Processes sorted into the sections of the chosen grouping. */
-function groupsFor(procs: Proc[], by: GroupBy): Group[] {
-  const map = new Map<string, Group>();
-  const put = (key: string, title: string, who: Who | null, p: Proc) => {
-    const g = map.get(key);
-    if (g) g.procs.push(p);
-    else map.set(key, { key, title, who, procs: [p] });
-  };
+/**
+ * Lays the board out: one frame per department, processes in a tidy grid
+ * inside, frames packed left to right in rows. Always the same answer for the
+ * same processes, so the board doesn't shuffle between visits.
+ */
+function layoutBoard(procs: Proc[]) {
+  const byDept = new Map<string, Proc[]>();
   for (const p of procs) {
-    if (by === 'department') put(p.department || '~none', p.department || 'No department yet', null, p);
-    else if (by === 'owner') put(p.ownerName || '~none', p.ownerName || 'No owner yet', null, p);
-    else if (by === 'person') for (const w of p.people) put(w.id, w.name, w, p);
-    else for (const a of p.apps) put(a.id, a.name, a, p);
+    const key = p.department || '';
+    const list = byDept.get(key);
+    if (list) list.push(p);
+    else byDept.set(key, [p]);
   }
-  // Named groups first, A to Z. "Nothing yet" comes last. People and apps with the most processes first.
-  return [...map.values()].sort((a, b) => {
-    const none = (g: Group) => (g.key === '~none' ? 1 : 0);
-    if (none(a) !== none(b)) return none(a) - none(b);
-    if (by === 'person' || by === 'app') return b.procs.length - a.procs.length || a.title.localeCompare(b.title);
-    return a.title.localeCompare(b.title);
-  });
+  const keys = [...byDept.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
+
+  const frames: Frame[] = [];
+  const cards = new Map<string, { x: number; y: number }>();
+  let x = 0;
+  let y = 0;
+  let rowH = 0;
+  for (const key of keys) {
+    const list = byDept.get(key)!;
+    const cols = list.length <= 2 ? list.length : list.length <= 4 ? 2 : 3;
+    const rows = Math.ceil(list.length / cols);
+    const w = FRAME_PAD * 2 + cols * CARD_W + (cols - 1) * CARD_GAP;
+    const h = FRAME_HEAD + FRAME_PAD + rows * CARD_H + (rows - 1) * CARD_GAP;
+    if (x > 0 && x + w > ROW_MAX) {
+      x = 0;
+      y += rowH + FRAME_GAP;
+      rowH = 0;
+    }
+    frames.push({ key: key || '~none', title: key || 'No department yet', hue: key ? hueFor(key) : 220, x, y, w, h, count: list.length });
+    list.forEach((p, i) => {
+      cards.set(p.id, {
+        x: x + FRAME_PAD + (i % cols) * (CARD_W + CARD_GAP),
+        y: y + FRAME_HEAD + Math.floor(i / cols) * (CARD_H + CARD_GAP),
+      });
+    });
+    x += w + FRAME_GAP;
+    rowH = Math.max(rowH, h);
+  }
+  const width = Math.max(0, ...frames.map((f) => f.x + f.w));
+  const height = Math.max(0, ...frames.map((f) => f.y + f.h));
+  return { frames, cards, width, height };
 }
 
-function MixBar({ p }: { p: Proc }) {
+/** A curved arrow from one card to another, leaving and arriving on the sides that face each other. */
+function arrowPath(a: { x: number; y: number }, b: { x: number; y: number }) {
+  if (b.x >= a.x + CARD_W) {
+    const x1 = a.x + CARD_W, y1 = a.y + CARD_H / 2, x2 = b.x, y2 = b.y + CARD_H / 2;
+    const c = Math.max(60, (x2 - x1) / 2);
+    return `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
+  }
+  if (b.x + CARD_W <= a.x) {
+    const x1 = a.x, y1 = a.y + CARD_H / 2, x2 = b.x + CARD_W, y2 = b.y + CARD_H / 2;
+    const c = Math.max(60, (x1 - x2) / 2);
+    return `M ${x1} ${y1} C ${x1 - c} ${y1}, ${x2 + c} ${y2}, ${x2} ${y2}`;
+  }
+  const down = b.y > a.y;
+  const x1 = a.x + CARD_W / 2, y1 = down ? a.y + CARD_H : a.y, x2 = b.x + CARD_W / 2, y2 = down ? b.y : b.y + CARD_H;
+  const c = Math.max(50, Math.abs(y2 - y1) / 2) * (down ? 1 : -1);
+  return `M ${x1} ${y1} C ${x1} ${y1 + c}, ${x2} ${y2 - c}, ${x2} ${y2}`;
+}
+
+function MixBar({ p, thick }: { p: Proc; thick?: boolean }) {
   const total = p.automated + p.review + p.manual;
-  if (total === 0) return <div className="h-1.5 rounded-full bg-muted" />;
+  const h = thick ? 'h-3' : 'h-1.5';
+  if (total === 0) return <div className={`${h} rounded-full bg-muted`} />;
   const part = (n: number, color: string) => n > 0 && <div style={{ width: `${(n / total) * 100}%`, backgroundColor: color }} />;
   return (
-    <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full" title={`${p.automated} automated, ${p.review} review, ${p.manual} by hand`}>
+    <div className={`flex ${h} gap-0.5 overflow-hidden rounded-full`}>
       {part(p.automated, AUTOMATED)}
       {part(p.review, REVIEW)}
       {part(p.manual, MANUAL)}
@@ -67,95 +129,121 @@ function MixBar({ p }: { p: Proc }) {
   );
 }
 
-function Card({ p, names, setRef, dim, lit, onHover, onOpen }: {
-  p: Proc;
-  names: Map<string, string>;
-  setRef: (el: HTMLButtonElement | null) => void;
-  dim: boolean;
-  lit: boolean;
-  onHover: (id: string | null) => void;
-  onOpen: () => void;
-}) {
+const Icon = ({ w, size }: { w: Who; size: number }) => (
+  <ElementIcon name={w.name} image={w.image} icon={w.icon} typeIcon={w.typeIcon} color={w.color} size={size} />
+);
+
+/** One process on the board. What it shows depends on how close you are. */
+function Card({ p, level, names }: { p: Proc; level: 'far' | 'mid' | 'near'; names: Map<string, string> }) {
+  if (level === 'far') {
+    return (
+      <div className="flex h-full flex-col justify-between p-6">
+        <p className="text-[26px] font-semibold leading-tight tracking-tight">{p.name}</p>
+        <MixBar p={p} thick />
+      </div>
+    );
+  }
+
+  const header = (
+    <div className="flex items-start gap-2">
+      <p className="min-w-0 flex-1 text-[15px] font-semibold leading-snug tracking-tight">{p.name}</p>
+      <span
+        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+        }`}
+      >
+        {p.live ? 'Live' : 'Draft'}
+      </span>
+    </div>
+  );
+
+  if (level === 'near') {
+    const shown = p.steps.slice(0, 9);
+    return (
+      <div className="flex h-full flex-col p-4">
+        {header}
+        <ol className="mt-2.5 min-h-0 flex-1 space-y-[3px]">
+          {shown.map((s, i) => (
+            <li key={s.id} className="flex items-center gap-1.5 text-[10.5px] leading-[15px]">
+              <span className="w-3.5 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
+              {s.who ? <Icon w={s.who} size={11} /> : <span className="h-[11px] w-[11px]" />}
+              <span className="min-w-0 flex-1 truncate">{s.title}</span>
+              {s.automated && <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: AUTOMATED }} />}
+              {s.stepType === 'Decision' && <span className="h-1.5 w-1.5 shrink-0 rotate-45 border border-amber-500" />}
+            </li>
+          ))}
+        </ol>
+        {p.steps.length > shown.length && (
+          <p className="text-[10px] text-muted-foreground">and {p.steps.length - shown.length} more steps</p>
+        )}
+        <div className="mt-2">
+          <MixBar p={p} />
+        </div>
+      </div>
+    );
+  }
+
   const runs = [...new Set(p.runs.map((r) => names.get(r.processId)).filter(Boolean))] as string[];
   return (
-    <button
-      type="button"
-      ref={setRef}
-      data-card={p.id}
-      onClick={onOpen}
-      onMouseEnter={() => onHover(p.id)}
-      onMouseLeave={() => onHover(null)}
-      onFocus={() => onHover(p.id)}
-      onBlur={() => onHover(null)}
-      className={`group relative flex min-w-0 flex-col rounded-2xl border bg-card p-4 text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,24,40,0.08)] ${
-        lit ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/30'
-      } ${dim ? 'opacity-40' : ''}`}
-    >
-      <span className="flex items-start gap-2">
-        <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{p.name}</span>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-            p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-          }`}
-        >
-          {p.live ? 'Live' : 'Draft'}
-        </span>
-      </span>
-      <span className="mt-0.5 text-[11px] text-muted-foreground">
+    <div className="flex h-full flex-col p-5">
+      {header}
+      <p className="mt-1 text-[11px] text-muted-foreground">
         {plural(p.stepCount, 'step')}
         {p.ownerName ? ` · ${p.ownerName}` : ''}
-      </span>
-      <span className="mt-3 block">
+      </p>
+      <div className="mt-4">
         <MixBar p={p} />
-      </span>
-      <span className="mt-3 flex items-center justify-between gap-2">
-        <span className="flex -space-x-1.5">
-          {p.people.slice(0, 4).map((w) => (
-            <span key={w.id} title={w.name} className="rounded-full bg-background p-0.5 ring-2 ring-card">
-              <ElementIcon name={w.name} image={w.image} icon={w.icon} typeIcon={w.typeIcon} color={w.color} size={14} />
-            </span>
-          ))}
-          {p.people.length > 4 && <span className="pl-2 text-[10px] text-muted-foreground">+{p.people.length - 4}</span>}
-        </span>
-        <span className="flex items-center gap-1">
-          {p.apps.slice(0, 5).map((a) => (
-            <span key={a.id} title={a.name} className="rounded-md border border-border bg-background p-0.5">
-              <ElementIcon name={a.name} image={a.image} icon={a.icon} typeIcon={a.typeIcon} color={a.color} size={13} />
-            </span>
-          ))}
-          {p.apps.length > 5 && <span className="text-[10px] text-muted-foreground">+{p.apps.length - 5}</span>}
-        </span>
-      </span>
-      {runs.length > 0 && (
-        <span className="mt-3 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">
-          Runs <span className="font-medium text-foreground">{runs.join(', ')}</span>
-        </span>
-      )}
-    </button>
+        <p className="mt-1.5 text-[10px] text-muted-foreground">
+          {p.automated} on its own · {p.review} decided by a person · {p.manual} by hand
+        </p>
+      </div>
+      <div className="mt-auto space-y-2.5">
+        {p.people.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {p.people.slice(0, 6).map((w) => (
+              <span key={w.id} title={w.name} className="rounded-full border border-border bg-background p-1">
+                <Icon w={w} size={13} />
+              </span>
+            ))}
+            {p.people.length > 6 && <span className="text-[10px] text-muted-foreground">+{p.people.length - 6}</span>}
+          </div>
+        )}
+        {p.apps.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {p.apps.slice(0, 8).map((a) => (
+              <span key={a.id} title={a.name} className="rounded-md border border-border bg-background p-1">
+                <Icon w={a} size={13} />
+              </span>
+            ))}
+            {p.apps.length > 8 && <span className="text-[10px] text-muted-foreground">+{p.apps.length - 8}</span>}
+          </div>
+        )}
+        {runs.length > 0 && (
+          <p className="border-t border-border/70 pt-2 text-[11px] text-muted-foreground">
+            Runs <span className="font-medium text-foreground">{runs.join(', ')}</span>
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
-interface Line {
-  id: string;
-  from: string;
-  to: string;
-  path: string;
+interface View {
+  x: number;
+  y: number;
+  z: number;
 }
 
 /**
- * The company brain: every process on one page, in sections by department,
- * owner, person or app. Where one process runs another through a sub-process
- * step, an arrow joins them, so you can see how the pieces of the business
- * connect. Point at a process to light up what it runs and what runs it.
+ * The company brain: a board with every process on it, like a whiteboard you
+ * can move around. Departments are frames. Zoom out for the bird's-eye view,
+ * zoom in to read each process step by step. Point at an app or a person on the
+ * left to see every process they are part of. Click a process for its details.
  */
 export default function Brain() {
   const navigate = useNavigate();
   const [procs, setProcs] = useState<Proc[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [by, setBy] = useState<GroupBy>('department');
-  const [query, setQuery] = useState('');
-  const [hover, setHover] = useState<string | null>(null);
-  const [lines, setLines] = useState<Line[]>([]);
 
   const load = useCallback(() => {
     setFailed(false);
@@ -168,219 +256,561 @@ export default function Brain() {
     load();
   }, [load]);
 
+  const board = useMemo(() => layoutBoard(procs ?? []), [procs]);
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return procs ?? [];
-    return (procs ?? []).filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.department.toLowerCase().includes(q) ||
-        p.ownerName.toLowerCase().includes(q) ||
-        p.people.some((w) => w.name.toLowerCase().includes(q)) ||
-        p.apps.some((a) => a.name.toLowerCase().includes(q)),
-    );
-  }, [procs, query]);
-  const groups = useMemo(() => groupsFor(visible, by), [visible, by]);
+  const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
 
-  // Who is linked to whom, for lighting up neighbours on hover.
+  // Every app and person on the board, with the processes they are part of.
+  const lenses = useMemo(() => {
+    const build = (pick: (p: Proc) => Who[]) => {
+      const map = new Map<string, { who: Who; ids: string[] }>();
+      for (const p of procs ?? []) {
+        for (const w of pick(p)) {
+          const cur = map.get(w.id);
+          if (cur) cur.ids.push(p.id);
+          else map.set(w.id, { who: w, ids: [p.id] });
+        }
+      }
+      return [...map.values()].sort((a, b) => b.ids.length - a.ids.length || a.who.name.localeCompare(b.who.name));
+    };
+    return { apps: build((p) => p.apps), people: build((p) => p.people) };
+  }, [procs]);
+
   const links = useMemo(() => {
     const out: { from: string; to: string }[] = [];
-    for (const p of visible) for (const r of p.runs) if (visible.some((v) => v.id === r.processId)) out.push({ from: p.id, to: r.processId });
+    for (const p of procs ?? []) for (const r of p.runs) if (byId.has(r.processId)) out.push({ from: p.id, to: r.processId });
     return out;
-  }, [visible]);
-  const neighbours = useMemo(() => {
-    const set = new Set<string>();
-    if (!hover) return set;
-    set.add(hover);
-    for (const l of links) {
-      if (l.from === hover) set.add(l.to);
-      if (l.to === hover) set.add(l.from);
-    }
-    return set;
-  }, [hover, links]);
+  }, [procs, byId]);
 
-  // Arrows are only drawn when each process appears once, as in the department and owner views.
-  const drawLines = by === 'department' || by === 'owner';
-  const wrap = useRef<HTMLDivElement | null>(null);
-  const cardEls = useRef<Map<string, HTMLButtonElement>>(new Map());
+  // --- Moving around ---
+  const stage = useRef<HTMLDivElement | null>(null);
+  const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.5 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const [glide, setGlide] = useState(false);
+  const fitted = useRef(false);
 
-  const measure = useCallback(() => {
-    const root = wrap.current;
-    if (!root || !drawLines) {
-      setLines([]);
-      return;
-    }
-    const base = root.getBoundingClientRect();
-    const rect = (id: string) => {
-      const el = cardEls.current.get(id);
-      if (!el) return null;
+  const zoomAt = useCallback((nextZ: number, cx: number, cy: number, animate = false) => {
+    const v = viewRef.current;
+    const z = Math.min(Z_MAX, Math.max(Z_MIN, nextZ));
+    // Keep the point under the cursor where it is.
+    const wx = (cx - v.x) / v.z;
+    const wy = (cy - v.y) / v.z;
+    setGlide(animate);
+    setView({ z, x: cx - wx * z, y: cy - wy * z });
+  }, []);
+
+  const fit = useCallback(
+    (animate = true) => {
+      const el = stage.current;
+      if (!el || board.width === 0) return;
       const r = el.getBoundingClientRect();
-      return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
-    };
-    const next: Line[] = [];
-    for (const l of links) {
-      const a = rect(l.from);
-      const b = rect(l.to);
-      if (!a || !b) continue;
-      let x1: number, y1: number, x2: number, y2: number, path: string;
-      if (b.x > a.x + a.w + 12) {
-        // Target sits to the right: leave from the right edge, arrive at the left edge.
-        x1 = a.x + a.w; y1 = a.y + a.h / 2; x2 = b.x; y2 = b.y + b.h / 2;
-        const c = Math.max(40, (x2 - x1) / 2);
-        path = `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
-      } else if (b.x + b.w < a.x - 12) {
-        x1 = a.x; y1 = a.y + a.h / 2; x2 = b.x + b.w; y2 = b.y + b.h / 2;
-        const c = Math.max(40, (x1 - x2) / 2);
-        path = `M ${x1} ${y1} C ${x1 - c} ${y1}, ${x2 + c} ${y2}, ${x2} ${y2}`;
-      } else if (b.y > a.y) {
-        x1 = a.x + a.w / 2; y1 = a.y + a.h; x2 = b.x + b.w / 2; y2 = b.y;
-        const c = Math.max(30, (y2 - y1) / 2);
-        path = `M ${x1} ${y1} C ${x1} ${y1 + c}, ${x2} ${y2 - c}, ${x2} ${y2}`;
-      } else {
-        x1 = a.x + a.w / 2; y1 = a.y; x2 = b.x + b.w / 2; y2 = b.y + b.h;
-        const c = Math.max(30, (y1 - y2) / 2);
-        path = `M ${x1} ${y1} C ${x1} ${y1 - c}, ${x2} ${y2 + c}, ${x2} ${y2}`;
-      }
-      next.push({ id: `${l.from}->${l.to}`, from: l.from, to: l.to, path });
-    }
-    setLines(next);
-  }, [links, drawLines]);
+      const pad = 72;
+      const z = Math.min(1, Math.max(Z_MIN, Math.min((r.width - pad * 2) / board.width, (r.height - pad * 2) / board.height)));
+      setGlide(animate);
+      setView({ z, x: (r.width - board.width * z) / 2, y: Math.max(pad, (r.height - board.height * z) / 2) });
+    },
+    [board],
+  );
+
+  /** Glide to one process and zoom in close enough to read its steps. */
+  const flyTo = useCallback(
+    (id: string) => {
+      const el = stage.current;
+      const pos = board.cards.get(id);
+      if (!el || !pos) return;
+      const r = el.getBoundingClientRect();
+      const z = Math.max(viewRef.current.z, NEAR + 0.15);
+      setGlide(true);
+      setView({ z, x: r.width / 2 - (pos.x + CARD_W / 2) * z, y: r.height / 2 - (pos.y + CARD_H / 2) * z });
+    },
+    [board],
+  );
 
   useLayoutEffect(() => {
-    measure();
-  }, [measure, groups]);
+    if (procs && procs.length && !fitted.current) {
+      fitted.current = true;
+      fit(false);
+    }
+  }, [procs, fit]);
+
+  // Trackpads: two fingers move the board, pinch zooms. A mouse wheel zooms.
   useEffect(() => {
-    window.addEventListener('resize', measure);
-    const ro = typeof ResizeObserver !== 'undefined' && wrap.current ? new ResizeObserver(measure) : null;
-    if (ro && wrap.current) ro.observe(wrap.current);
-    return () => {
-      window.removeEventListener('resize', measure);
-      ro?.disconnect();
+    const el = stage.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if ((e.target as HTMLElement).closest('[data-ui]')) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const mouseWheel = e.deltaMode === 1 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
+      if (e.ctrlKey || e.metaKey || mouseWheel) {
+        zoomAt(viewRef.current.z * Math.exp(-e.deltaY * (mouseWheel ? 0.0015 : 0.01)), e.clientX - r.left, e.clientY - r.top);
+      } else {
+        setGlide(false);
+        setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
     };
-  }, [measure]);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomAt, procs]);
+
+  // Dragging anywhere on the board moves it. A press that doesn't move is a click.
+  const drag = useRef<{ sx: number; sy: number; vx: number; vy: number; moved: boolean; card: string | null } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const [lens, setLens] = useState<{ ids: Set<string>; label: string; pinned: boolean } | null>(null);
+  const [tab, setTab] = useState<'apps' | 'people'>('apps');
+  const [query, setQuery] = useState('');
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('[data-ui]')) return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]')?.dataset.card ?? null;
+    drag.current = { sx: e.clientX, sy: e.clientY, vx: viewRef.current.x, vy: viewRef.current.y, moved: false, card };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    if (!d.moved) {
+      d.moved = true;
+      setDragging(true);
+    }
+    setGlide(false);
+    setView((v) => ({ ...v, x: d.vx + dx, y: d.vy + dy }));
+  };
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    setDragging(false);
+    if (!d || d.moved) return;
+    setSelected(d.card);
+  };
+
+  // Keys: + and - zoom, 0 fits everything, Esc closes the panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = stage.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (e.key === '+' || e.key === '=') zoomAt(viewRef.current.z * 1.25, r.width / 2, r.height / 2, true);
+      else if (e.key === '-') zoomAt(viewRef.current.z / 1.25, r.width / 2, r.height / 2, true);
+      else if (e.key === '0') fit();
+      else if (e.key === 'Escape') {
+        setSelected(null);
+        setLens(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomAt, fit]);
+
+  // What is lit up: a pinned or hovered app or person, a search, or the process you point at and what it links to.
+  const q = query.trim().toLowerCase();
+  const focus = useMemo(() => {
+    if (lens) return lens.ids;
+    if (q) {
+      return new Set(
+        (procs ?? [])
+          .filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              p.department.toLowerCase().includes(q) ||
+              p.steps.some((s) => s.title.toLowerCase().includes(q)) ||
+              p.people.some((w) => w.name.toLowerCase().includes(q)) ||
+              p.apps.some((a) => a.name.toLowerCase().includes(q)),
+          )
+          .map((p) => p.id),
+      );
+    }
+    const pointAt = hover ?? selected;
+    if (!pointAt) return null;
+    const set = new Set([pointAt]);
+    for (const l of links) {
+      if (l.from === pointAt) set.add(l.to);
+      if (l.to === pointAt) set.add(l.from);
+    }
+    return set;
+  }, [lens, q, procs, hover, selected, links]);
+
+  const level: 'far' | 'mid' | 'near' = view.z < FAR ? 'far' : view.z < NEAR ? 'mid' : 'near';
+  const sel = selected ? byId.get(selected) ?? null : null;
+  const runBy = sel ? (procs ?? []).filter((p) => p.runs.some((r) => r.processId === sel.id)) : [];
+
+  if (failed) return <div className="mx-auto max-w-xl px-8 py-16"><PageError onRetry={load} /></div>;
+  if (procs === null) return <div className="mx-auto max-w-5xl px-8 py-8"><PageLoading blocks={2} height="h-64" /></div>;
+  if (procs.length === 0) {
+    return (
+      <div className="mx-auto max-w-xl px-8 py-16">
+        <PageEmpty icon={<BrainIcon className="h-6 w-6" />} title="Nothing in the brain yet" text="Map a process and it shows up here." />
+      </div>
+    );
+  }
+
+  const lensList = tab === 'apps' ? lenses.apps : lenses.people;
 
   return (
-    <div className="mx-auto max-w-[1300px] px-8 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Company brain</h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-            Every process in one place. Arrows show one process running another. Point at a process to see what it
-            connects to.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-52">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the brain…" className="h-9 pl-8 text-sm" />
+    <div
+      ref={stage}
+      className={`relative h-full select-none overflow-hidden ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      style={{
+        backgroundColor: 'hsl(220 20% 97.5%)',
+        backgroundImage: 'radial-gradient(circle, hsl(220 14% 82%) 1px, transparent 1.2px)',
+        backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onDoubleClick={(e) => {
+        const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]')?.dataset.card;
+        if (card) navigate(`/process/${card}`);
+      }}
+    >
+      {/* The board itself. One transform moves and zooms everything on it. */}
+      <div
+        className="absolute left-0 top-0 origin-top-left"
+        style={{
+          width: board.width,
+          height: board.height,
+          transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})`,
+          transition: glide ? 'transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)' : undefined,
+        }}
+      >
+        {board.frames.map((f) => (
+          <div
+            key={f.key}
+            className="absolute rounded-[28px] border-2"
+            style={{
+              left: f.x,
+              top: f.y,
+              width: f.w,
+              height: f.h,
+              backgroundColor: `hsl(${f.hue} 80% 97% / 0.85)`,
+              borderColor: `hsl(${f.hue} 55% 86%)`,
+            }}
+          >
+            <div className="flex items-baseline gap-3 px-10 pt-6" style={{ color: `hsl(${f.hue} 45% 32%)` }}>
+              <span className={`font-semibold tracking-tight ${level === 'far' ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
+              <span className={`${level === 'far' ? 'text-[26px]' : 'text-[15px]'} opacity-70`}>{plural(f.count, 'process')}</span>
+            </div>
           </div>
-          <div className="flex rounded-lg bg-muted p-0.5 text-sm" role="tablist" aria-label="Group by">
-            {MODES.map((m) => (
+        ))}
+
+        {/* Arrows where one process runs another. */}
+        <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={board.width} height={board.height} aria-hidden="true">
+          <defs>
+            <marker id="brain-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary))" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+            </marker>
+          </defs>
+          {links.map((l) => {
+            const a = board.cards.get(l.from);
+            const b = board.cards.get(l.to);
+            if (!a || !b) return null;
+            const on = !focus || (focus.has(l.from) && focus.has(l.to));
+            return (
+              <path
+                key={`${l.from}->${l.to}`}
+                d={arrowPath(a, b)}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth={on ? 3 : 2}
+                strokeDasharray="10 6"
+                opacity={on ? 0.85 : 0.15}
+                markerEnd="url(#brain-arrow)"
+              />
+            );
+          })}
+        </svg>
+
+        {procs.map((p) => {
+          const pos = board.cards.get(p.id);
+          if (!pos) return null;
+          const dim = !!focus && !focus.has(p.id);
+          const isSel = selected === p.id;
+          return (
+            <div
+              key={p.id}
+              data-card={p.id}
+              role="button"
+              tabIndex={0}
+              aria-label={p.name}
+              onMouseEnter={() => setHover(p.id)}
+              onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setSelected(p.id);
+              }}
+              className={`absolute overflow-hidden rounded-2xl border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-[opacity,box-shadow,border-color] duration-200 hover:shadow-[0_10px_30px_rgba(16,24,40,0.12)] ${
+                isSel ? 'border-primary ring-4 ring-primary/20' : 'border-border'
+              } ${dim ? 'opacity-25' : ''}`}
+              style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
+            >
+              <Card p={p} level={level} names={names} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Top left: name, search, and the apps and people lens. These stay put while the board moves. */}
+      <div data-ui className="absolute left-4 top-4 z-20 flex w-[260px] cursor-default flex-col gap-2">
+        <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <BrainIcon className="h-4 w-4 text-primary" /> Company brain
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Drag to move. Pinch or scroll to zoom. Click a process for details.
+          </p>
+          <div className="relative mt-2.5">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setLens(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && focus && focus.size) flyTo([...focus][0]);
+              }}
+              placeholder="Find a process, step, app…"
+              className="h-8 w-full rounded-lg border border-border bg-card pl-8 pr-2 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
+        </div>
+
+        <div className="flex max-h-[calc(100vh-15rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
+          <div className="flex gap-1 p-1.5">
+            {(['apps', 'people'] as const).map((t) => (
               <button
-                key={m.key}
+                key={t}
                 type="button"
-                role="tab"
-                aria-selected={by === m.key}
-                onClick={() => setBy(m.key)}
-                className={`rounded-md px-3 py-1.5 font-medium transition-all ${
-                  by === m.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                onClick={() => {
+                  setTab(t);
+                  setLens(null);
+                }}
+                className={`flex-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+                  tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {m.label}
+                {t === 'apps' ? `Apps (${lenses.apps.length})` : `People (${lenses.people.length})`}
               </button>
             ))}
           </div>
+          <p className="px-3 pb-1 text-[10px] text-muted-foreground">
+            Point at one to light up every process it is part of. Click to keep it lit.
+          </p>
+          <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
+            {lensList.map(({ who, ids }) => {
+              const active = lens?.label === who.name;
+              return (
+                <li key={who.id}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => {
+                      if (!lens?.pinned) setLens({ ids: new Set(ids), label: who.name, pinned: false });
+                    }}
+                    onMouseLeave={() => {
+                      if (!lens?.pinned) setLens(null);
+                    }}
+                    onClick={() =>
+                      setLens(active && lens?.pinned ? null : { ids: new Set(ids), label: who.name, pinned: true })
+                    }
+                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+                      active ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <Icon w={who} size={14} />
+                    <span className="min-w-0 flex-1 truncate font-medium">{who.name}</span>
+                    <span className="tabular-nums text-muted-foreground">{ids.length}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
 
-      {failed ? (
-        <div className="mt-8"><PageError onRetry={load} /></div>
-      ) : procs === null ? (
-        <div className="mt-8"><PageLoading blocks={2} height="h-44" /></div>
-      ) : procs.length === 0 ? (
-        <div className="mt-8">
-          <PageEmpty icon={<BrainIcon className="h-6 w-6" />} title="Nothing in the brain yet" text="Map a process and it shows up here." />
+      {/* A pinned lens says so, with a way out. */}
+      {lens?.pinned && (
+        <div data-ui className="absolute left-1/2 top-4 z-20 -translate-x-1/2 cursor-default rounded-full border border-primary/30 bg-background px-3 py-1.5 text-xs shadow-sm">
+          Showing processes with <b>{lens.label}</b> ({lens.ids.size})
+          <button type="button" onClick={() => setLens(null)} className="ml-2 text-muted-foreground hover:text-foreground">
+            Clear
+          </button>
         </div>
-      ) : groups.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-muted-foreground">Nothing matches that search.</p>
-      ) : (
-        <>
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
-            {[[AUTOMATED, 'Runs on its own'], [REVIEW, 'A person decides'], [MANUAL, 'Done by hand']].map(([c, l]) => (
-              <span key={l} className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c }} /> {l}
-              </span>
-            ))}
-            {by === 'department' && procs.every((p) => !p.department) && (
-              <span className="text-amber-700">Set a department on each process to group them here.</span>
-            )}
-          </div>
-
-          <div ref={wrap} className="relative mt-5">
-            {drawLines && (
-              <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible" aria-hidden="true">
-                <defs>
-                  <marker id="brain-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
-                    <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-                  </marker>
-                  <marker id="brain-arrow-hi" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
-                    <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary))" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                  </marker>
-                </defs>
-                {lines.map((l) => {
-                  const on = hover === l.from || hover === l.to;
-                  return (
-                    <path
-                      key={l.id}
-                      d={l.path}
-                      fill="none"
-                      stroke={on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.45)'}
-                      strokeWidth={on ? 2.25 : 1.5}
-                      strokeLinecap="round"
-                      opacity={hover && !on ? 0.15 : 1}
-                      markerEnd={on ? 'url(#brain-arrow-hi)' : 'url(#brain-arrow)'}
-                      className="transition-opacity duration-200"
-                    />
-                  );
-                })}
-              </svg>
-            )}
-
-            <div className="relative z-10 space-y-8">
-              {groups.map((g) => (
-                <section key={g.key}>
-                  <div className="mb-3 flex items-center gap-2.5">
-                    {g.who && (
-                      <ElementIcon name={g.who.name} image={g.who.image} icon={g.who.icon} typeIcon={g.who.typeIcon} color={g.who.color} size={18} />
-                    )}
-                    <h2 className="text-sm font-semibold">{g.title}</h2>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">{g.procs.length}</span>
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-                    {g.procs.map((p) => (
-                      <Card
-                        key={`${g.key}-${p.id}`}
-                        p={p}
-                        names={names}
-                        setRef={(el) => {
-                          if (el) cardEls.current.set(p.id, el);
-                          else cardEls.current.delete(p.id);
-                        }}
-                        dim={!!hover && !neighbours.has(p.id)}
-                        lit={hover === p.id}
-                        onHover={setHover}
-                        onOpen={() => navigate(`/process/${p.id}`)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </div>
-        </>
       )}
+
+      {/* Right: the process you clicked. */}
+      {sel && (
+        <aside
+          data-ui
+          className="absolute bottom-4 right-4 top-4 z-20 flex w-[340px] cursor-default flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+        >
+          <div className="flex items-start gap-2 border-b border-border p-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {sel.department || 'No department'}
+              </p>
+              <h2 className="mt-0.5 text-lg font-semibold leading-snug tracking-tight">{sel.name}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className={sel.live ? 'font-medium text-emerald-700' : 'font-medium text-amber-700'}>
+                  {sel.live ? 'Live' : 'Draft'}
+                </span>
+                {' · '}
+                {plural(sel.stepCount, 'step')}
+                {sel.ownerName ? ` · Owned by ${sel.ownerName}` : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setSelected(null)}
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+            {sel.description && <p className="text-sm leading-relaxed text-muted-foreground">{sel.description}</p>}
+
+            <section>
+              <MixBar p={sel} />
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                {[
+                  [sel.automated, 'on its own', AUTOMATED],
+                  [sel.review, 'a person decides', REVIEW],
+                  [sel.manual, 'by hand', MANUAL],
+                ].map(([n, label, color]) => (
+                  <div key={label as string} className="rounded-xl bg-muted/50 px-2 py-2">
+                    <p className="text-lg font-semibold tabular-nums" style={{ color: color as string }}>{n as number}</p>
+                    <p className="text-[10px] text-muted-foreground">{label as string}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {sel.people.length > 0 && (
+              <section>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">People</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sel.people.map((w) => (
+                    <span key={w.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
+                      <Icon w={w} size={13} /> {w.name}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+            {sel.apps.length > 0 && (
+              <section>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Runs on</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sel.apps.map((a) => (
+                    <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
+                      <Icon w={a} size={13} /> {a.name}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {(sel.runs.length > 0 || runBy.length > 0) && (
+              <section className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Connected processes</p>
+                {[...new Set(sel.runs.map((r) => r.processId))].map((id) => (
+                  <button key={id} type="button" onClick={() => { setSelected(id); flyTo(id); }} className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs hover:bg-muted">
+                    <Workflow className="h-3.5 w-3.5 text-primary" />
+                    <span className="flex-1">Runs <b>{names.get(id)}</b></span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                ))}
+                {runBy.map((p) => (
+                  <button key={p.id} type="button" onClick={() => { setSelected(p.id); flyTo(p.id); }} className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs hover:bg-muted">
+                    <Workflow className="h-3.5 w-3.5 text-primary" />
+                    <span className="flex-1">Run by <b>{p.name}</b></span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                ))}
+              </section>
+            )}
+
+            <section>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Steps</p>
+              <ol className="space-y-1">
+                {sel.steps.map((s, i) => (
+                  <li key={s.id} className="flex items-center gap-2 text-xs">
+                    <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
+                    {s.who ? <Icon w={s.who} size={13} /> : <span className="h-[13px] w-[13px]" />}
+                    <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                    {s.automated && <Zap className="h-3 w-3 shrink-0" style={{ color: AUTOMATED }} />}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          <div className="flex gap-2 border-t border-border p-3">
+            <Button className="flex-1" onClick={() => navigate(`/process/${sel.id}`)}>
+              Open process
+            </Button>
+            {sel.live && sel.stepCount > 0 && (
+              <Button variant="outline" onClick={() => navigate(`/process/${sel.id}?train=all&view=process`)}>
+                <GraduationCap className="mr-1.5 h-4 w-4" /> Train
+              </Button>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* Bottom: a key for the colors, and the zoom controls. */}
+      <div data-ui className="absolute bottom-4 left-4 z-20 flex cursor-default flex-wrap gap-x-4 gap-y-1 rounded-full border border-border bg-background/95 px-4 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+        {[[AUTOMATED, 'Runs on its own'], [REVIEW, 'A person decides'], [MANUAL, 'Done by hand']].map(([c, l]) => (
+          <span key={l} className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c }} /> {l}
+          </span>
+        ))}
+        {links.length > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-4 border-t-2 border-dashed border-primary" /> Runs another process
+          </span>
+        )}
+      </div>
+      <div
+        data-ui
+        className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
+          sel ? 'right-[364px]' : 'right-4'
+        }`}
+      >
+        {(() => {
+          const center = () => {
+            const r = stage.current?.getBoundingClientRect();
+            return r ? [r.width / 2, r.height / 2] : [0, 0];
+          };
+          const btn = 'flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground';
+          return (
+            <>
+              <button type="button" className={btn} aria-label="Zoom out" title="Zoom out (-)" onClick={() => { const [cx, cy] = center(); zoomAt(view.z / 1.25, cx, cy, true); }}>
+                <Minus className="h-3.5 w-3.5" />
+              </button>
+              <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{Math.round(view.z * 100)}%</span>
+              <button type="button" className={btn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => { const [cx, cy] = center(); zoomAt(view.z * 1.25, cx, cy, true); }}>
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+              <span className="mx-0.5 h-4 w-px bg-border" />
+              <button type="button" className={btn} aria-label="Fit everything" title="Fit everything (0)" onClick={() => fit()}>
+                <Maximize className="h-3.5 w-3.5" />
+              </button>
+            </>
+          );
+        })()}
+      </div>
     </div>
   );
 }

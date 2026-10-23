@@ -38,6 +38,17 @@ export default createEndpoint({
         apps: z.array(participant),
         /** The other processes this one runs, through a sub-process step. */
         runs: z.array(z.object({ processId: z.string(), stepTitle: z.string() })),
+        /** Every step in order, for when you zoom in close enough to read them. */
+        steps: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            stepType: z.string(),
+            /** An app does it on its own. */
+            automated: z.boolean(),
+            who: participant.nullable(),
+          }),
+        ),
       }),
     ),
   }),
@@ -85,7 +96,11 @@ export default createEndpoint({
           versions
             .filter((v) => v.state !== 'Archived')
             .sort((a, b) => (b.lastEdited ?? '').localeCompare(a.lastEdited ?? ''))[0];
-        const steps = version ? stepRes.records.filter((s) => one(s.version) === version.id) : [];
+        const steps = version
+          ? stepRes.records
+              .filter((s) => one(s.version) === version.id)
+              .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+          : [];
 
         let automated = 0;
         let review = 0;
@@ -132,6 +147,16 @@ export default createEndpoint({
           people: [...people.values()],
           apps: [...apps.values()],
           runs,
+          steps: steps.map((s) => {
+            const performer = one(s.performedBy);
+            return {
+              id: s.id,
+              title: s.title ?? '',
+              stepType: s.stepType ?? 'Task',
+              automated: classOf(performer) === 'System',
+              who: performer ? describe(performer) : null,
+            };
+          }),
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
