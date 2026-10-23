@@ -354,13 +354,16 @@ function Card({ p, level, names, lens, onOpenFlow }: {
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-function FlowView({ p, rect, layout, lens, onClose, onOpenProcess }: {
+function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
   lens: Lens | null;
-  onClose: () => void;
+  /** Leave out to hide the close button, as in the department view. */
+  onClose?: () => void;
   onOpenProcess: () => void;
+  /** Extra buttons in the header, such as Train. */
+  extra?: React.ReactNode;
 }) {
   const byId = new Map(p.steps.map((s) => [s.id, s]));
   const marker = `flow-arrow-${p.id}`;
@@ -399,16 +402,19 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess }: {
           >
             Open process <ArrowRight className="h-3 w-3" />
           </button>
-          <button
-            type="button"
-            data-ui
-            onClick={onClose}
-            title="Close it back to a card"
-            aria-label={`Close ${p.name} back to a card`}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Minimize2 className="h-3.5 w-3.5" />
-          </button>
+          {extra}
+          {onClose && (
+            <button
+              type="button"
+              data-ui
+              onClick={onClose}
+              title="Close it back to a card"
+              aria-label={`Close ${p.name} back to a card`}
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </span>
       </div>
 
@@ -485,6 +491,138 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess }: {
   );
 }
 
+// --- A department, opened ---
+
+/**
+ * One department at full size: its summary and lead on top, then every process
+ * in it laid out left to right at a readable size, one under the other. Wide
+ * processes scroll sideways. Back returns to the board exactly as it was.
+ */
+function DeptView({ title, hue, procs, lead, canEdit, lens, onBack, onSetLead, onOpenProcess, onTrain }: {
+  title: string;
+  hue: number;
+  procs: Proc[];
+  lead: Who | null;
+  canEdit: boolean;
+  lens: Lens | null;
+  onBack: () => void;
+  onSetLead: (() => void) | null;
+  onOpenProcess: (id: string) => void;
+  onTrain: (id: string) => void;
+}) {
+  const flows = useMemo(() => procs.map((p) => ({ p, layout: flowLayout(p.steps.map((s) => s.id), p.links) })), [procs]);
+  const people = [...new Map(procs.flatMap((p) => p.people).map((w) => [w.id, w])).values()];
+  const apps = [...new Map(procs.flatMap((p) => p.apps).map((a) => [a.id, a])).values()];
+  const a = procs.reduce((n, p) => n + p.automated, 0);
+  const r = procs.reduce((n, p) => n + p.review, 0);
+  const m = procs.reduce((n, p) => n + p.manual, 0);
+  const color = `hsl(${hue} 45% 30%)`;
+
+  return (
+    <div data-ui className="absolute inset-0 z-30 flex cursor-default flex-col bg-[hsl(220_20%_97.5%)]">
+      <header
+        className="shrink-0 border-b border-border px-8 pb-5 pt-5"
+        style={{ background: `linear-gradient(180deg, hsl(${hue} 80% 95%), hsl(${hue} 80% 97% / 0.4))` }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground hover:bg-white/70 hover:text-foreground"
+        >
+          <ArrowRight className="h-4 w-4 rotate-180" /> Back to the board
+        </button>
+        <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h2 className="text-3xl font-semibold tracking-tight" style={{ color }}>{title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {plural(procs.length, 'process')} · {plural(people.length, 'person')} · {plural(apps.length, 'app')}
+              {a + r + m > 0 ? ` · ${Math.round((a / (a + r + m)) * 100)}% automated` : ''}
+            </p>
+          </div>
+          {(lead || (canEdit && onSetLead)) && (
+            <button
+              type="button"
+              disabled={!canEdit || !onSetLead}
+              onClick={() => onSetLead?.()}
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium enabled:hover:bg-muted"
+            >
+              <Crown className="h-4 w-4" style={{ color }} />
+              {lead ? (
+                <>
+                  <Icon w={lead} size={16} /> {lead.name}
+                  <span className="text-xs font-normal text-muted-foreground">leads it</span>
+                </>
+              ) : (
+                'Set a lead'
+              )}
+            </button>
+          )}
+          <div className="ml-auto w-64">
+            <MixBar a={a} r={r} m={m} />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {a} on their own · {r} decided by a person · {m} by hand
+            </p>
+          </div>
+        </div>
+        {(people.length > 0 || apps.length > 0) && (
+          <div className="mt-4 flex flex-wrap items-center gap-1.5">
+            {people.map((w) => (
+              <span key={w.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-xs">
+                <Icon w={w} size={13} /> {w.name}
+              </span>
+            ))}
+            {apps.length > 0 && <span className="mx-1 h-4 w-px bg-border" />}
+            {apps.map((ap) => (
+              <span key={ap.id} title={ap.name} className="rounded-md border border-border bg-background p-1">
+                <Icon w={ap} size={14} />
+              </span>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-8 py-6">
+        {flows.map(({ p, layout }) => (
+          <section key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+            {p.steps.length === 0 ? (
+              <div className="flex items-center gap-3 px-7 py-5">
+                <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
+                <span className="text-xs text-muted-foreground">No steps yet</span>
+                <Button size="sm" variant="outline" className="ml-auto h-8" onClick={() => onOpenProcess(p.id)}>
+                  Open process
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="relative" style={{ width: Math.max(layout.width, 600), height: layout.height }}>
+                  <FlowView
+                    p={p}
+                    rect={{ x: 0, y: 0, w: layout.width, h: layout.height }}
+                    layout={layout}
+                    lens={lens && lens.ids.has(p.id) ? lens : null}
+                    onOpenProcess={() => onOpenProcess(p.id)}
+                    extra={
+                      p.live ? (
+                        <button
+                          type="button"
+                          onClick={() => onTrain(p.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+                        >
+                          <GraduationCap className="h-3 w-3" /> Train
+                        </button>
+                      ) : null
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // --- The tour ---
 
 interface TourStep {
@@ -503,7 +641,12 @@ const TOUR: TourStep[] = [
   {
     anchor: '[data-tour="dept"]',
     title: 'Departments',
-    text: 'Each colored frame is a department. Click its name to zoom in and open every process inside it, step by step.',
+    text: 'Each colored frame is a department. Click Open next to its name to see every process inside it, step by step, at full size.',
+  },
+  {
+    anchor: '[data-tour="view"]',
+    title: 'Cards or every step',
+    text: 'Switch the whole board between cards and every process laid out step by step.',
   },
   {
     anchor: '[data-tour="card"]',
@@ -751,21 +894,6 @@ export default function Brain() {
     setOpened(allOpen ? new Set() : new Set(openable(boardProcs.map((p) => p.id))));
     setAfter({ fit: true });
   };
-  /** Click a department: open everything in it and glide there. Click again to close it back up. */
-  const toggleDept = (f: Frame) => {
-    const ids = openable(f.ids);
-    const isOpen = ids.length > 0 && ids.every((id) => opened.has(id));
-    setOpened((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (isOpen) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-    setAfter({ frame: f.key });
-  };
-
   useLayoutEffect(() => {
     if (procs && procs.length && !fitted.current) {
       fitted.current = true;
@@ -799,6 +927,8 @@ export default function Brain() {
   const [selected, setSelected] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  // The department opened at full size, by its frame key.
+  const [deptOpen, setDeptOpen] = useState<string | null>(null);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('[data-ui]')) return;
@@ -874,13 +1004,16 @@ export default function Brain() {
       else if (e.key === '-') zoomAt(viewRef.current.z / 1.25, r.width / 2, r.height / 2, true);
       else if (e.key === '0') fit();
       else if (e.key === 'Escape') {
-        setSelected(null);
-        clearLens();
+        if (deptOpen !== null) setDeptOpen(null);
+        else {
+          setSelected(null);
+          clearLens();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [zoomAt, fit, clearLens, touring]);
+  }, [zoomAt, fit, clearLens, touring, deptOpen]);
 
   // What is lit up: the spotlight, a search, or the process you point at and what it links to.
   const q = query.trim().toLowerCase();
@@ -1025,8 +1158,6 @@ export default function Brain() {
           const apps = new Set(members.flatMap((p) => p.apps.map((a) => a.id))).size;
           const a = members.reduce((n, p) => n + p.automated, 0);
           const work = members.reduce((n, p) => n + p.automated + p.review + p.manual, 0);
-          const ids = openable(f.ids);
-          const isOpen = ids.length > 0 && ids.every((id) => opened.has(id));
           const lead = f.dept ? leads.get(f.dept) ?? null : null;
           const big = level === 'far';
           const color = `hsl(${f.hue} 45% 32%)`;
@@ -1048,17 +1179,20 @@ export default function Brain() {
                   type="button"
                   data-ui
                   data-tour={fi === 0 ? 'dept' : undefined}
-                  onClick={() => toggleDept(f)}
-                  title={isOpen ? 'Close these processes back to cards' : 'Open every process in this department'}
+                  onClick={() => setDeptOpen(f.key)}
+                  title="Open this department and see every process step by step"
                   className="group min-w-0 rounded-xl px-2 py-1 -ml-2 text-left transition-colors hover:bg-white/70"
                 >
                   <span className="flex items-center gap-3">
                     <span className={`font-semibold tracking-tight ${big ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
-                    {isOpen ? (
-                      <Minimize2 className={big ? 'h-8 w-8' : 'h-5 w-5'} />
-                    ) : (
-                      <Maximize2 className={`${big ? 'h-8 w-8' : 'h-5 w-5'} opacity-60 group-hover:opacity-100`} />
-                    )}
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border bg-white/90 font-semibold shadow-sm transition-colors group-hover:bg-white ${
+                        big ? 'px-4 py-1.5 text-[22px]' : 'px-2.5 py-0.5 text-[12px]'
+                      }`}
+                      style={{ borderColor: `hsl(${f.hue} 55% 80%)` }}
+                    >
+                      Open <ArrowRight className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
+                    </span>
                   </span>
                   <span className={`mt-0.5 block opacity-75 ${big ? 'text-[24px]' : 'text-[13px]'}`}>
                     {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
@@ -1206,14 +1340,6 @@ export default function Brain() {
               className="h-8 w-full rounded-lg border border-border bg-card pl-8 pr-2 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
             />
           </div>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs font-medium transition-colors hover:border-primary/30 hover:text-primary"
-          >
-            {allOpen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            {allOpen ? 'Close every process' : 'Open every process step by step'}
-          </button>
         </div>
 
         <div data-tour="lens" className="flex max-h-[calc(100vh-16rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
@@ -1269,11 +1395,35 @@ export default function Brain() {
         </div>
       </div>
 
+      {/* How the board shows processes: as cards, or every step laid out. */}
+      <div
+        data-ui
+        data-tour="view"
+        className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur"
+      >
+        {[
+          { on: !allOpen, label: 'Cards', Icon: Minimize2, act: () => allOpen && toggleAll() },
+          { on: allOpen, label: 'Every step', Icon: Maximize2, act: () => !allOpen && toggleAll() },
+        ].map((b) => (
+          <button
+            key={b.label}
+            type="button"
+            onClick={b.act}
+            aria-pressed={b.on}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              b.on ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            <b.Icon className="h-3.5 w-3.5" /> {b.label}
+          </button>
+        ))}
+      </div>
+
       {/* The spotlight, in one line, with a way to hide everything else. */}
       {pinned && spot && (
         <div
           data-ui
-          className="absolute left-1/2 top-4 z-20 flex max-w-[min(680px,calc(100%-640px))] -translate-x-1/2 cursor-default flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-primary/30 bg-background px-4 py-2.5 text-xs shadow-md"
+          className="absolute left-1/2 top-[68px] z-20 flex max-w-[min(680px,calc(100%-640px))] -translate-x-1/2 cursor-default flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-primary/30 bg-background px-4 py-2.5 text-xs shadow-md"
         >
           <span className="inline-flex items-center gap-2 font-semibold">
             <Icon w={pinned.who} size={16} /> {pinned.who.name}
@@ -1639,6 +1789,25 @@ export default function Brain() {
           );
         })()}
       </div>
+
+      {deptOpen !== null && (() => {
+        const dept = deptOpen === '~none' ? '' : deptOpen;
+        const members = (procs ?? []).filter((p) => (p.department || '') === dept);
+        return (
+          <DeptView
+            title={dept || 'No department yet'}
+            hue={dept ? hueFor(dept) : 220}
+            procs={members}
+            lead={dept ? leads.get(dept) ?? null : null}
+            canEdit={canEdit}
+            lens={lens}
+            onBack={() => setDeptOpen(null)}
+            onSetLead={dept ? () => setLeadFor(dept) : null}
+            onOpenProcess={(id) => navigate(`/process/${id}`)}
+            onTrain={(id) => navigate(`/process/${id}?train=all&view=process`)}
+          />
+        );
+      })()}
 
       {/* Choosing who leads a department. */}
       {leadFor && data && (
