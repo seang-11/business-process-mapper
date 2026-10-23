@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
 import { logout } from 'zitejs/auth';
-import { ArrowLeftRight, BarChart3, Boxes, Brain, GraduationCap, Home, Keyboard, LogOut, Plus, Users } from 'lucide-react';
+import { Boxes, Brain, GraduationCap, Home, Keyboard, LogOut, Plus, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@project/components/ui/dialog';
 import {
   Command,
@@ -79,14 +79,8 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
               <CommandItem className={ITEM} value="go to home processes" onSelect={() => run(() => navigate('/'))}>
                 <Home className="h-4 w-4 text-muted-foreground" /> Home
               </CommandItem>
-              <CommandItem className={ITEM} value="go to overview where time goes" onSelect={() => run(() => navigate('/overview'))}>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" /> Overview
-              </CommandItem>
               <CommandItem className={ITEM} value="go to company brain all processes departments map" onSelect={() => run(() => navigate('/brain'))}>
                 <Brain className="h-4 w-4 text-muted-foreground" /> Company brain
-              </CommandItem>
-              <CommandItem className={ITEM} value="go to handoffs who passes work" onSelect={() => run(() => navigate('/handoffs'))}>
-                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" /> Handoffs
               </CommandItem>
               <CommandItem className={ITEM} value="go to training learn" onSelect={() => run(() => navigate('/training'))}>
                 <GraduationCap className="h-4 w-4 text-muted-foreground" /> Training

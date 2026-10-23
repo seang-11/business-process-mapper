@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  X, ArrowLeft, ArrowRight, GraduationCap, Link2, Printer, Zap, CornerDownRight, ExternalLink, Check, Users,
+  X, ArrowLeft, ArrowRight, GraduationCap, Link2, Zap, CornerDownRight, ExternalLink, Check, Users,
   Compass, Flag, Hourglass, GitFork, Workflow,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { Skeleton } from '@project/components/ui/skeleton';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { buildOutline } from '@/lib/walkthrough';
 import {
-  AUTOMATED_ROLE, UNASSIGNED_ROLE, buildBrief, buildLesson, buildStory, roleKeyOf, rolesOf,
+  AUTOMATED_ROLE, UNASSIGNED_ROLE, buildLesson, buildStory, roleKeyOf, rolesOf,
   type Lesson, type LessonStep, type RoleOption, type Stage,
 } from '@/lib/training';
 import ElementIcon from './ElementIcon';
@@ -52,7 +52,7 @@ const prettyDay = (value: string) => {
 
 const STATE_LABEL: Record<string, string> = { Current: 'Live', Future: 'Not live yet', Archived: 'Retired' };
 
-const STAGES = ['Big picture', 'Your role', 'Your steps', 'Handover brief'];
+const STAGES = ['Big picture', 'Your role', 'Your steps'];
 
 /** When a version applies, in words: "Live since Sep 2, 2026", "Not live yet", "Sep 2 to Oct 22, 2026". */
 function whenText(v: TrainVersion): string {
@@ -122,9 +122,8 @@ function AppChip({ app }: { app: ElementRef }) {
 
 /**
  * Training for a role: pick who you are, then learn exactly what you do in this
- * process, one step at a time, with the whole process always in view. The same
- * role can also be turned into a one-page handover brief for when someone is
- * leaving and someone else is arriving. All of it is read straight from the map.
+ * process, one step at a time, with the whole process always in view. All of it
+ * is read straight from the map.
  */
 export default function Train({
   processName, processDescription, versions, initialVersionId, initialRole, initialView, onClose, onOpenStep,
@@ -135,7 +134,6 @@ export default function Train({
   );
   const [graph, setGraph] = useState<{ steps: ProcessStep[]; connections: ProcessConnection[] } | null>(null);
   const version = versions.find((v) => v.id === versionId) ?? versions[0];
-  const versionName = version?.name ?? '';
 
   // Each version is read on its own, so what you learn is exactly what that version says.
   useEffect(() => {
@@ -163,7 +161,8 @@ export default function Train({
 
   // Checked against the roles once the version has loaded; an unknown one just shows the picker.
   const [roleKey, setRoleKey] = useState<string | null>(initialRole);
-  const [view, setView] = useState<TrainView>(initialView);
+  // Old links may still ask for the handover brief, which is gone; they land on the lesson.
+  const [view, setView] = useState<TrainView>(initialView === 'brief' ? 'lesson' : initialView);
   /** -1 is the introduction; steps follow; one past the last is the wrap-up. */
   const [idx, setIdx] = useState(-1);
   /** The whole process, in a panel that can be opened from any lesson screen. */
@@ -175,7 +174,6 @@ export default function Train({
     () => (role ? buildLesson(role, outline, connections) : null),
     [role, outline, connections],
   );
-  const brief = useMemo(() => (lesson ? buildBrief(lesson, processName) : null), [lesson, processName]);
   const n = lesson?.steps.length ?? 0;
 
   const pickRole = (key: string | null) => {
@@ -183,20 +181,15 @@ export default function Train({
     setIdx(-1);
   };
 
-  // Where the learner is: 0 big picture, 1 pick a role, 2 their steps, 3 handover brief.
-  const stage = view === 'process' ? 0 : view === 'brief' ? 3 : !role ? 1 : 2;
-  const progress =
-    stage === 0 ? 8
-    : stage === 1 ? 30
-    : stage === 2 ? 40 + 45 * Math.min(1, (idx + 1) / (n + 1))
-    : 100;
+  // Where the learner is: 0 big picture, 1 pick a role, 2 their steps.
+  const stage = view === 'process' ? 0 : !role ? 1 : 2;
+  const progress = stage === 0 ? 10 : stage === 1 ? 33 : 40 + 60 * Math.min(1, (idx + 1) / (n + 1));
   const goStage = (i: number) => {
     if (i === 0) setView('process');
     else if (i === 1) {
       pickRole(null);
       setView('lesson');
-    } else if (i === 2) setView('lesson');
-    else if (role) setView('brief');
+    } else setView('lesson');
   };
 
   const next = useCallback(() => setIdx((i) => Math.min(n, i + 1)), [n]);
@@ -311,11 +304,6 @@ export default function Train({
           <Button variant="outline" size="sm" className="h-9" onClick={copyLink}>
             <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy link
           </Button>
-          {role && view === 'brief' && (
-            <Button variant="ghost" size="sm" onClick={() => window.print()}>
-              <Printer className="mr-1.5 h-3.5 w-3.5" /> Print
-            </Button>
-          )}
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close training" title="Close (Esc)">
             <X className="h-5 w-5" />
           </Button>
@@ -374,16 +362,8 @@ export default function Train({
             }}
             nextLabel={role ? `Next: your part as ${role.name}` : 'Next: find your role'}
           />
-        ) : !role || !lesson || !brief ? (
+        ) : !role || !lesson ? (
           <RolePicker roles={learnableRoles} processName={processName} onPick={pickRole} onBigPicture={() => setView('process')} />
-        ) : view === 'brief' ? (
-          <BriefView
-            lesson={lesson}
-            brief={brief}
-            processName={processName}
-            versionName={versionName}
-            versionWhen={version ? `${STATE_LABEL[version.state] ?? version.state} · ${whenText(version)}` : ''}
-          />
         ) : (
           <div className="mx-auto max-w-3xl px-6 pb-16 pt-6">
             <ProcessStrip
@@ -402,7 +382,7 @@ export default function Train({
               ) : idx >= n ? (
                 <WrapUp
                   role={role}
-                  onBrief={() => setView('brief')}
+                  onFinish={onClose}
                   onOther={() => pickRole(null)}
                   onRestart={() => setIdx(-1)}
                 />
@@ -1001,9 +981,9 @@ function Confetti() {
   );
 }
 
-function WrapUp({ role, onBrief, onOther, onRestart }: {
+function WrapUp({ role, onFinish, onOther, onRestart }: {
   role: RoleOption;
-  onBrief: () => void;
+  onFinish: () => void;
   onOther: () => void;
   onRestart: () => void;
 }) {
@@ -1016,116 +996,13 @@ function WrapUp({ role, onBrief, onOther, onRestart }: {
       <p className="mt-4 text-sm font-medium text-emerald-700">Nice work</p>
       <h2 className="mt-1 text-2xl font-semibold tracking-tight">That's the {role.name} part of the process</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-        Taking this role over from someone, or handing it on? The handover brief puts it on one page.
+        You now know every step this role does, which tools it uses, and who it works with.
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-        <Button onClick={onBrief}>Open the handover brief</Button>
+        <Button onClick={onFinish}>Finish</Button>
         <Button variant="outline" onClick={onOther}>Learn another role</Button>
         <Button variant="ghost" onClick={onRestart}>Start over</Button>
       </div>
-    </div>
-  );
-}
-
-// --- Handover brief ---
-
-function BriefView({ lesson, brief, processName, versionName, versionWhen }: {
-  lesson: Lesson;
-  brief: ReturnType<typeof buildBrief>;
-  processName: string;
-  versionName: string;
-  /** "Live · Live since Sep 2, 2026": which way of working this brief describes. */
-  versionWhen: string;
-}) {
-  const { role, steps, tools, worksWith } = lesson;
-  const subject = role.automated ? 'the automation' : 'you';
-  return (
-    <div className="train-print mx-auto max-w-3xl px-6 py-10">
-      <p className="text-xs font-medium uppercase tracking-wider text-primary">Handover brief</p>
-      <h1 className="mt-1 text-3xl font-semibold tracking-tight">{brief.headline}</h1>
-      <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
-        <span className="font-semibold">{versionName}</span>
-        {versionWhen && <span className="text-muted-foreground">{versionWhen}</span>}
-      </p>
-      <p className="mt-4 text-base leading-relaxed">{brief.summary}</p>
-
-      <section className="mt-8">
-        <h3 className="text-sm font-semibold">The steps</h3>
-        <ol className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
-          {steps.map((s, i) => (
-            <li key={s.item.step.id} className="flex gap-3 px-4 py-3">
-              <span className="w-5 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{i + 1}</span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{s.title}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{s.trigger}</p>
-                {s.apps.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {s.apps.map((a) => <AppChip key={a.id} app={a} />)}
-                  </div>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <section className={`${CARD} p-4`}>
-          <h3 className="text-sm font-semibold">Get access to</h3>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {tools.length ? tools.map((t) => <AppChip key={t.id} app={t} />) : (
-              <span className="text-sm text-muted-foreground">No tools recorded.</span>
-            )}
-          </div>
-        </section>
-        <section className={`${CARD} p-4`}>
-          <h3 className="text-sm font-semibold">{role.automated ? 'It works with' : 'You work with'}</h3>
-          <ul className="mt-3 space-y-1.5 text-sm">
-            {worksWith.length ? worksWith.map((c) => (
-              <li key={c.key}>
-                <span className="font-medium">{c.name}</span>
-                <span className="text-muted-foreground">
-                  {' · '}
-                  {c.gives && c.gets
-                    ? `works back and forth with ${subject}`
-                    : c.gives
-                    ? `hands work to ${subject}`
-                    : `receives work from ${subject}`}
-                </span>
-              </li>
-            )) : <li className="text-muted-foreground">Nobody else yet.</li>}
-          </ul>
-        </section>
-      </div>
-
-      <section className="mt-8">
-        <h3 className="text-sm font-semibold">Ramp-up plan</h3>
-        <div className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
-          {brief.plan.map((p) => (
-            <div key={p.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-4 py-3 text-sm">
-              <span className="text-muted-foreground">{p.label}</span>
-              <span>{p.text}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <h3 className="text-sm font-semibold">For the person leaving to confirm</h3>
-        <ul className="mt-3 space-y-2 text-sm">
-          {brief.leaving.map((l) => (
-            <li key={l} className="flex items-start gap-2">
-              <span className="mt-0.5 h-4 w-4 shrink-0 rounded border border-foreground/30" />
-              {l}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <p className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
-        Built from the {versionName} version of {processName} on {new Date().toLocaleDateString()}. It reads from the
-        process map, so it stays current when the process changes.
-      </p>
     </div>
   );
 }

@@ -13,9 +13,7 @@ import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
 import type { default as _GetBrainEp } from '../src/api/getBrain';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
-import type { default as _GetHandoffsEp } from '../src/api/getHandoffs';
 import type { default as _GetMeEp } from '../src/api/getMe';
-import type { default as _GetOverviewEp } from '../src/api/getOverview';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
 import type { default as _GetShareLinkEp } from '../src/api/getShareLink';
@@ -89,20 +87,10 @@ export type GetElementDetailInputType = NonNullable<_GetElementDetailCfg['inputS
 export type GetElementDetailOutputType = Awaited<ReturnType<_GetElementDetailCfg['execute']>>;
 export const getElementDetail = createCaller<GetElementDetailInputType, GetElementDetailOutputType>('getElementDetail');
 
-type _GetHandoffsCfg = typeof _GetHandoffsEp;
-export type GetHandoffsInputType = NonNullable<_GetHandoffsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetHandoffsCfg['execute']>[0]['input'];
-export type GetHandoffsOutputType = Awaited<ReturnType<_GetHandoffsCfg['execute']>>;
-export const getHandoffs = createCaller<GetHandoffsInputType, GetHandoffsOutputType>('getHandoffs');
-
 type _GetMeCfg = typeof _GetMeEp;
 export type GetMeInputType = NonNullable<_GetMeCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetMeCfg['execute']>[0]['input'];
 export type GetMeOutputType = Awaited<ReturnType<_GetMeCfg['execute']>>;
 export const getMe = createCaller<GetMeInputType, GetMeOutputType>('getMe');
-
-type _GetOverviewCfg = typeof _GetOverviewEp;
-export type GetOverviewInputType = NonNullable<_GetOverviewCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetOverviewCfg['execute']>[0]['input'];
-export type GetOverviewOutputType = Awaited<ReturnType<_GetOverviewCfg['execute']>>;
-export const getOverview = createCaller<GetOverviewInputType, GetOverviewOutputType>('getOverview');
 
 type _GetProcessGraphCfg = typeof _GetProcessGraphEp;
 export type GetProcessGraphInputType = NonNullable<_GetProcessGraphCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetProcessGraphCfg['execute']>[0]['input'];
@@ -202,9 +190,7 @@ export const api = {
   ensureCoreTypes,
   getBrain,
   getElementDetail,
-  getHandoffs,
   getMe,
-  getOverview,
   getProcessGraph,
   getProcesses,
   getShareLink,
