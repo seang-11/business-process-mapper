@@ -46,7 +46,8 @@ const hueFor = (name: string) => {
   return HUES[h % HUES.length];
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const PLURALS: Record<string, string> = { process: 'processes', person: 'people' };
+const plural = (n: number, word: string) => `${n} ${n === 1 ? word : PLURALS[word] ?? `${word}s`}`;
 const initialsOf = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
 
@@ -1152,81 +1153,24 @@ export default function Brain() {
           transition: glide ? 'transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1)' : undefined,
         }}
       >
-        {board.frames.map((f, fi) => {
-          const members = f.ids.map((id) => byId.get(id)!).filter(Boolean);
-          const people = new Set(members.flatMap((p) => p.people.map((w) => w.id))).size;
-          const apps = new Set(members.flatMap((p) => p.apps.map((a) => a.id))).size;
-          const a = members.reduce((n, p) => n + p.automated, 0);
-          const work = members.reduce((n, p) => n + p.automated + p.review + p.manual, 0);
-          const lead = f.dept ? leads.get(f.dept) ?? null : null;
-          const big = level === 'far';
-          const color = `hsl(${f.hue} 45% 32%)`;
-          return (
-            <div
-              key={f.key}
-              className="absolute rounded-[28px] border-2"
-              style={{
-                left: f.x,
-                top: f.y,
-                width: f.w,
-                height: f.h,
-                backgroundColor: `hsl(${f.hue} 80% 97% / 0.85)`,
-                borderColor: `hsl(${f.hue} 55% 86%)`,
-              }}
-            >
-              <div className="flex items-start gap-4 px-10 pt-6" style={{ color }}>
-                <button
-                  type="button"
-                  data-ui
-                  data-tour={fi === 0 ? 'dept' : undefined}
-                  onClick={() => setDeptOpen(f.key)}
-                  title="Open this department and see every process step by step"
-                  className="group min-w-0 rounded-xl px-2 py-1 -ml-2 text-left transition-colors hover:bg-white/70"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className={`font-semibold tracking-tight ${big ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border bg-white/90 font-semibold shadow-sm transition-colors group-hover:bg-white ${
-                        big ? 'px-4 py-1.5 text-[22px]' : 'px-2.5 py-0.5 text-[12px]'
-                      }`}
-                      style={{ borderColor: `hsl(${f.hue} 55% 80%)` }}
-                    >
-                      Open <ArrowRight className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
-                    </span>
-                  </span>
-                  <span className={`mt-0.5 block opacity-75 ${big ? 'text-[24px]' : 'text-[13px]'}`}>
-                    {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
-                    {work > 0 ? ` · ${Math.round((a / work) * 100)}% automated` : ''}
-                  </span>
-                </button>
-                {f.dept && (lead || canEdit) && (
-                  <button
-                    type="button"
-                    data-ui
-                    disabled={!canEdit}
-                    onClick={() => setLeadFor(f.dept)}
-                    className={`ml-auto mt-2 inline-flex shrink-0 items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 font-medium transition-colors ${
-                      big ? 'text-[22px]' : 'text-[13px]'
-                    } ${canEdit ? 'hover:bg-white' : 'cursor-default'}`}
-                    style={{ borderColor: `hsl(${f.hue} 55% 86%)` }}
-                  >
-                    <Crown className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
-                    {lead ? (
-                      <>
-                        <Icon w={lead} size={big ? 26 : 15} /> {lead.name}
-                      </>
-                    ) : (
-                      'Set a lead'
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {/* Department frames, behind everything. Their headers are drawn on top further down. */}
+        {board.frames.map((f) => (
+          <div
+            key={f.key}
+            className="absolute rounded-[28px] border-2"
+            style={{
+              left: f.x,
+              top: f.y,
+              width: f.w,
+              height: f.h,
+              backgroundColor: `hsl(${f.hue} 80% 97% / 0.85)`,
+              borderColor: `hsl(${f.hue} 55% 86%)`,
+            }}
+          />
+        ))}
 
         {/* Arrows where one process runs another. */}
-        <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={board.width} height={board.height} aria-hidden="true">
+        <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" style={{ pointerEvents: 'none' }} width={board.width} height={board.height} aria-hidden="true">
           <defs>
             <marker id="brain-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="12" markerHeight="12" orient="auto" markerUnits="userSpaceOnUse">
               <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary))" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
@@ -1307,6 +1251,72 @@ export default function Brain() {
             </div>
           );
         })}
+
+        {/* Department headers: on top of everything on the board, so Open and the lead are always clickable. */}
+        {board.frames.map((f, fi) => {
+          const members = f.ids.map((id) => byId.get(id)!).filter(Boolean);
+          const people = new Set(members.flatMap((p) => p.people.map((w) => w.id))).size;
+          const apps = new Set(members.flatMap((p) => p.apps.map((a) => a.id))).size;
+          const a = members.reduce((n, p) => n + p.automated, 0);
+          const work = members.reduce((n, p) => n + p.automated + p.review + p.manual, 0);
+          const lead = f.dept ? leads.get(f.dept) ?? null : null;
+          const big = level === 'far';
+          const color = `hsl(${f.hue} 45% 32%)`;
+          return (
+            <div
+              key={f.key}
+              className="absolute z-10 flex items-start gap-4 px-10 pt-6"
+              style={{ left: f.x, top: f.y, width: f.w, color }}
+            >
+                <button
+                  type="button"
+                  data-ui
+                  data-tour={fi === 0 ? 'dept' : undefined}
+                  onClick={() => setDeptOpen(f.key)}
+                  title="Open this department and see every process step by step"
+                  className="group min-w-0 cursor-pointer rounded-xl px-2 py-1 -ml-2 text-left transition-colors hover:bg-white/70"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className={`font-semibold tracking-tight ${big ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border bg-white/90 font-semibold shadow-sm transition-colors group-hover:bg-white ${
+                        big ? 'px-4 py-1.5 text-[22px]' : 'px-2.5 py-0.5 text-[12px]'
+                      }`}
+                      style={{ borderColor: `hsl(${f.hue} 55% 80%)` }}
+                    >
+                      Open <ArrowRight className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
+                    </span>
+                  </span>
+                  <span className={`mt-0.5 block opacity-75 ${big ? 'text-[24px]' : 'text-[13px]'}`}>
+                    {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
+                    {work > 0 ? ` · ${Math.round((a / work) * 100)}% automated` : ''}
+                  </span>
+                </button>
+                {f.dept && (lead || canEdit) && (
+                  <button
+                    type="button"
+                    data-ui
+                    disabled={!canEdit}
+                    onClick={() => setLeadFor(f.dept)}
+                    className={`ml-auto mt-2 inline-flex shrink-0 items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 font-medium transition-colors ${
+                      big ? 'text-[22px]' : 'text-[13px]'
+                    } ${canEdit ? 'cursor-pointer hover:bg-white' : 'cursor-default'}`}
+                    style={{ borderColor: `hsl(${f.hue} 55% 86%)` }}
+                  >
+                    <Crown className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
+                    {lead ? (
+                      <>
+                        <Icon w={lead} size={big ? 26 : 15} /> {lead.name}
+                      </>
+                    ) : (
+                      'Set a lead'
+                    )}
+                  </button>
+                )}
+            </div>
+          );
+        })}
+
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
