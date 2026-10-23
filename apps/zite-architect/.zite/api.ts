@@ -29,6 +29,7 @@ import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
+import type { default as _SetDepartmentLeadEp } from '../src/api/setDepartmentLead';
 import type { default as _SetShareLinkEp } from '../src/api/setShareLink';
 import type { default as _SetStepMatchEp } from '../src/api/setStepMatch';
 
@@ -167,6 +168,11 @@ export type SaveVersionInputType = NonNullable<_SaveVersionCfg['inputSchema']> e
 export type SaveVersionOutputType = Awaited<ReturnType<_SaveVersionCfg['execute']>>;
 export const saveVersion = createCaller<SaveVersionInputType, SaveVersionOutputType>('saveVersion');
 
+type _SetDepartmentLeadCfg = typeof _SetDepartmentLeadEp;
+export type SetDepartmentLeadInputType = NonNullable<_SetDepartmentLeadCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetDepartmentLeadCfg['execute']>[0]['input'];
+export type SetDepartmentLeadOutputType = Awaited<ReturnType<_SetDepartmentLeadCfg['execute']>>;
+export const setDepartmentLead = createCaller<SetDepartmentLeadInputType, SetDepartmentLeadOutputType>('setDepartmentLead');
+
 type _SetShareLinkCfg = typeof _SetShareLinkEp;
 export type SetShareLinkInputType = NonNullable<_SetShareLinkCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetShareLinkCfg['execute']>[0]['input'];
 export type SetShareLinkOutputType = Awaited<ReturnType<_SetShareLinkCfg['execute']>>;
@@ -206,6 +212,7 @@ export const api = {
   saveLaneOrder,
   saveStep,
   saveVersion,
+  setDepartmentLead,
   setShareLink,
   setStepMatch,
 };

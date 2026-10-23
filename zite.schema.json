@@ -578,6 +578,20 @@
             "type": "single_line_text",
             "template": {}
           }
+        },
+        {
+          "id": "f42ARDRzEvC",
+          "sdkName": "departments",
+          "definition": {
+            "name": "Departments",
+            "type": "linked_record",
+            "template": {
+              "tableId": "ttEirMA8egx",
+              "isInverse": true,
+              "allowMultiple": false,
+              "inverseFieldId": "fbyUaHEHBeb"
+            }
+          }
         }
       ]
     },
@@ -1101,6 +1115,37 @@
             "name": "Added By",
             "type": "single_line_text",
             "template": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "ttEirMA8egx",
+      "sdkName": "departments",
+      "name": "Departments",
+      "primaryFieldId": "fmPyaSGSpzX",
+      "fields": [
+        {
+          "id": "fmPyaSGSpzX",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "fbyUaHEHBeb",
+          "sdkName": "lead",
+          "definition": {
+            "name": "Lead",
+            "type": "linked_record",
+            "template": {
+              "tableId": "t7Vg4eJQist",
+              "isInverse": false,
+              "allowMultiple": false,
+              "inverseFieldId": "f42ARDRzEvC"
+            }
           }
         }
       ]

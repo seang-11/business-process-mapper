@@ -13,6 +13,9 @@ const participant = z.object({
   image: z.string(),
   typeIcon: z.string(),
   color: z.string(),
+  /** A person (or role, or team), an app, or something else such as a document. */
+  kind: z.enum(['person', 'app', 'other']),
+  typeName: z.string(),
 });
 
 export default createEndpoint({
@@ -20,6 +23,10 @@ export default createEndpoint({
   description: 'The company brain: every process with its department, owner, people, apps and the other processes it runs',
   inputSchema: z.object({}),
   outputSchema: z.object({
+    /** Every department that has a lead set. */
+    departments: z.array(z.object({ name: z.string(), lead: participant.nullable() })),
+    /** Everyone who could lead a department. */
+    people: z.array(participant),
     processes: z.array(
       z.object({
         id: z.string(),
@@ -47,6 +54,8 @@ export default createEndpoint({
             /** An app does it on its own. */
             automated: z.boolean(),
             who: participant.nullable(),
+            /** Everything the step uses, so a spotlight can find the steps an app is part of. */
+            useIds: z.array(z.string()),
           }),
         ),
         /** The arrows between those steps, so the board can lay the process out left to right. */
@@ -55,16 +64,17 @@ export default createEndpoint({
     ),
   }),
   execute: async () => {
-    const [typeRes, elementRes, versionRes, stepRes, connRes] = await Promise.all([
+    const [typeRes, elementRes, versionRes, stepRes, connRes, deptRes] = await Promise.all([
       zite.elementTypes.findAll({ limit: 500 }),
       zite.elements.findAll({ limit: 2000 }),
       zite.processVersions.findAll({ limit: 2000 }),
       zite.steps.findAll({ limit: 2000 }),
       zite.stepConnections.findAll({ limit: 2000 }),
+      zite.departments.findAll({ limit: 500 }),
     ]);
 
     const processType = typeRes.records.find((t) => t.key === 'process');
-    if (!processType) return { processes: [] };
+    if (!processType) return { departments: [], people: [], processes: [] };
     const typeById = new Map(typeRes.records.map((t) => [t.id, t]));
     const elementById = new Map(elementRes.records.map((e) => [e.id, e]));
     const processIds = new Set(elementRes.records.filter((e) => one(e.type) === processType.id).map((e) => e.id));
@@ -86,6 +96,11 @@ export default createEndpoint({
         image: el.image ?? '',
         typeIcon: type?.icon ?? '',
         color: type?.color ?? '',
+        kind: (type?.actorClass === 'Human' ? 'person' : type?.actorClass === 'System' ? 'app' : 'other') as
+          | 'person'
+          | 'app'
+          | 'other',
+        typeName: type?.name ?? '',
       };
     };
 
@@ -163,12 +178,24 @@ export default createEndpoint({
               stepType: s.stepType ?? 'Task',
               automated: classOf(performer) === 'System',
               who: performer ? describe(performer) : null,
+              useIds: Array.isArray(s.uses) ? s.uses : s.uses ? [s.uses] : [],
             };
           }),
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    return { processes };
+    const departments = deptRes.records
+      .map((d) => {
+        const leadId = one(d.lead);
+        return { name: (d.name ?? '').trim(), lead: leadId ? describe(leadId) : null };
+      })
+      .filter((d) => d.name);
+    const people = elementRes.records
+      .filter((e) => classOf(e.id) === 'Human')
+      .map((e) => describe(e.id)!)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { departments, people, processes };
   },
 });

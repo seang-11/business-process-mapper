@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getBrain, GetBrainOutputType } from 'zitejs/api';
+import { getBrain, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, GraduationCap, Maximize, Maximize2, Minimize2, Minus, Plus, Search, Workflow, X, Zap,
+  ArrowRight, Brain as BrainIcon, Crown, Eye, GraduationCap, HelpCircle, Maximize, Maximize2, Minimize2, Minus, Plus,
+  Search, Workflow, X, Zap,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { flowLayout, FLOW_FOOT, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@project/components/ui/command';
+import { useMe } from '@/lib/me';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import ElementIcon from './ElementIcon';
 
-type Proc = GetBrainOutputType['processes'][number];
+type Data = GetBrainOutputType;
+type Proc = Data['processes'][number];
+type Step = Proc['steps'][number];
 type Who = Proc['people'][number];
 
 // --- Board geometry, in board units. Zoom scales all of it together. ---
@@ -17,7 +24,7 @@ const CARD_W = 300;
 const CARD_H = 264;
 const CARD_GAP = 32;
 const FRAME_PAD = 40;
-const FRAME_HEAD = 76;
+const FRAME_HEAD = 96;
 const FRAME_GAP = 120;
 const ROW_MAX = 2300;
 
@@ -32,7 +39,7 @@ const AUTOMATED = 'hsl(152 55% 42%)';
 const REVIEW = 'hsl(38 92% 52%)';
 const MANUAL = 'hsl(220 9% 62%)';
 
-const HUES = [217, 262, 152, 24, 336, 188, 45];
+const HUES = [217, 262, 152, 24, 336, 188, 45, 4, 280, 200];
 const hueFor = (name: string) => {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -40,16 +47,22 @@ const hueFor = (name: string) => {
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const initialsOf = (name: string) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
+
+const TOUR_KEY = 'bpm_brain_tour_v1';
 
 interface Frame {
   key: string;
+  /** The department's name, or '' for processes without one. */
+  dept: string;
   title: string;
   hue: number;
   x: number;
   y: number;
   w: number;
   h: number;
-  count: number;
+  ids: string[];
 }
 
 interface Rect {
@@ -58,6 +71,20 @@ interface Rect {
   w: number;
   h: number;
 }
+
+/** An app or a person in the spotlight. */
+interface Lens {
+  kind: 'app' | 'person';
+  who: Who;
+  /** The processes they are part of. */
+  ids: Set<string>;
+  /** Clicked rather than just pointed at, so it stays on. */
+  pinned: boolean;
+}
+
+/** Does this step involve whoever is in the spotlight? */
+const stepMatches = (lens: Lens, s: Step) =>
+  s.who?.id === lens.who.id || (lens.kind === 'app' && s.useIds.includes(lens.who.id));
 
 /**
  * Lays the board out: one frame per department, closed processes in a tidy
@@ -94,7 +121,7 @@ function layoutBoard(procs: Proc[], opened: Set<string>) {
     const gridH = gridRows ? gridRows * CARD_H + (gridRows - 1) * CARD_GAP : 0;
     const flowsW = Math.max(0, ...open.map((o) => o.layout.width));
     const flowsH = open.reduce((n, o) => n + o.layout.height, 0) + Math.max(0, open.length - 1) * CARD_GAP;
-    const innerW = Math.max(gridW, flowsW, CARD_W);
+    const innerW = Math.max(gridW, flowsW, CARD_W * 2 + CARD_GAP);
     const w = FRAME_PAD * 2 + innerW;
     const h = FRAME_HEAD + gridH + (gridH && flowsH ? CARD_GAP : 0) + flowsH + FRAME_PAD;
 
@@ -103,7 +130,14 @@ function layoutBoard(procs: Proc[], opened: Set<string>) {
       y += rowH + FRAME_GAP;
       rowH = 0;
     }
-    frames.push({ key: key || '~none', title: key || 'No department yet', hue: key ? hueFor(key) : 220, x, y, w, h, count: list.length });
+    frames.push({
+      key: key || '~none',
+      dept: key,
+      title: key || 'No department yet',
+      hue: key ? hueFor(key) : 220,
+      x, y, w, h,
+      ids: list.map((p) => p.id),
+    });
     closed.forEach((p, i) => {
       cards.set(p.id, {
         x: x + FRAME_PAD + (i % cols) * (CARD_W + CARD_GAP),
@@ -145,37 +179,67 @@ function arrowPath(a: Rect, b: Rect) {
   return `M ${x1} ${y1} C ${x1} ${y1 + c}, ${x2} ${y2 - c}, ${x2} ${y2}`;
 }
 
-function MixBar({ p, thick }: { p: Proc; thick?: boolean }) {
-  const total = p.automated + p.review + p.manual;
+function MixBar({ a, r, m, thick }: { a: number; r: number; m: number; thick?: boolean }) {
+  const total = a + r + m;
   const h = thick ? 'h-3' : 'h-1.5';
   if (total === 0) return <div className={`${h} rounded-full bg-muted`} />;
   const part = (n: number, color: string) => n > 0 && <div style={{ width: `${(n / total) * 100}%`, backgroundColor: color }} />;
   return (
     <div className={`flex ${h} gap-0.5 overflow-hidden rounded-full`}>
-      {part(p.automated, AUTOMATED)}
-      {part(p.review, REVIEW)}
-      {part(p.manual, MANUAL)}
+      {part(a, AUTOMATED)}
+      {part(r, REVIEW)}
+      {part(m, MANUAL)}
     </div>
   );
 }
 
-const Icon = ({ w, size }: { w: Who; size: number }) => (
-  <ElementIcon name={w.name} image={w.image} icon={w.icon} typeIcon={w.typeIcon} color={w.color} size={size} />
-);
+/**
+ * People get a colored initials avatar, the same color everywhere on the board,
+ * so you can follow one person across processes. Apps keep their logo.
+ */
+function Icon({ w, size }: { w: Who; size: number }) {
+  if (w.kind !== 'person') {
+    return <ElementIcon name={w.name} image={w.image} icon={w.icon} typeIcon={w.typeIcon} color={w.color} size={size} />;
+  }
+  if (w.image) {
+    return <img src={w.image} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size + 4, height: size + 4 }} />;
+  }
+  const hue = hueFor(w.name);
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none"
+      style={{
+        width: size + 4,
+        height: size + 4,
+        fontSize: Math.max(7, Math.round((size + 4) * 0.42)),
+        backgroundColor: `hsl(${hue} 85% 92%)`,
+        color: `hsl(${hue} 55% 36%)`,
+      }}
+    >
+      {initialsOf(w.name)}
+    </span>
+  );
+}
 
-/** One process on the board. What it shows depends on how close you are. */
-function Card({ p, level, names, onOpenFlow }: {
+/** One process on the board. What it shows depends on how close you are, and who is in the spotlight. */
+function Card({ p, level, names, lens, onOpenFlow }: {
   p: Proc;
   level: 'far' | 'mid' | 'near';
   names: Map<string, string>;
+  lens: Lens | null;
   /** Lay this process out step by step, right here on the board. */
   onOpenFlow: () => void;
 }) {
+  const matched = lens && lens.ids.has(p.id) ? p.steps.filter((s) => stepMatches(lens, s)).length : 0;
+
   if (level === 'far') {
     return (
       <div className="flex h-full flex-col justify-between p-6">
         <p className="text-[26px] font-semibold leading-tight tracking-tight">{p.name}</p>
-        <MixBar p={p} thick />
+        {matched > 0 && (
+          <p className="text-[20px] font-semibold text-primary">{plural(matched, 'step')} with {lens!.who.name}</p>
+        )}
+        <MixBar a={p.automated} r={p.review} m={p.manual} thick />
       </div>
     );
   }
@@ -211,21 +275,29 @@ function Card({ p, level, names, onOpenFlow }: {
       <div className="flex h-full flex-col p-4">
         {header}
         <ol className="mt-2.5 min-h-0 flex-1 space-y-[3px]">
-          {shown.map((s, i) => (
-            <li key={s.id} className="flex items-center gap-1.5 text-[10.5px] leading-[15px]">
-              <span className="w-3.5 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
-              {s.who ? <Icon w={s.who} size={11} /> : <span className="h-[11px] w-[11px]" />}
-              <span className="min-w-0 flex-1 truncate">{s.title}</span>
-              {s.automated && <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: AUTOMATED }} />}
-              {s.stepType === 'Decision' && <span className="h-1.5 w-1.5 shrink-0 rotate-45 border border-amber-500" />}
-            </li>
-          ))}
+          {shown.map((s, i) => {
+            const on = lens ? stepMatches(lens, s) : true;
+            return (
+              <li
+                key={s.id}
+                className={`flex items-center gap-1.5 rounded px-1 text-[10.5px] leading-[15px] transition-opacity ${
+                  lens && on ? 'bg-primary/10 font-medium text-primary' : ''
+                } ${lens && !on ? 'opacity-35' : ''}`}
+              >
+                <span className="w-3.5 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
+                {s.who ? <Icon w={s.who} size={11} /> : <span className="h-[11px] w-[11px]" />}
+                <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                {s.automated && <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: AUTOMATED }} />}
+                {s.stepType === 'Decision' && <span className="h-1.5 w-1.5 shrink-0 rotate-45 border border-amber-500" />}
+              </li>
+            );
+          })}
         </ol>
         {p.steps.length > shown.length && (
           <p className="text-[10px] text-muted-foreground">and {p.steps.length - shown.length} more steps</p>
         )}
         <div className="mt-2">
-          <MixBar p={p} />
+          <MixBar a={p.automated} r={p.review} m={p.manual} />
         </div>
       </div>
     );
@@ -239,8 +311,13 @@ function Card({ p, level, names, onOpenFlow }: {
         {plural(p.stepCount, 'step')}
         {p.ownerName ? ` · ${p.ownerName}` : ''}
       </p>
+      {matched > 0 ? (
+        <p className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+          <Icon w={lens!.who} size={11} /> {plural(matched, 'step')} of {p.steps.length}
+        </p>
+      ) : null}
       <div className="mt-4">
-        <MixBar p={p} />
+        <MixBar a={p.automated} r={p.review} m={p.manual} />
         <p className="mt-1.5 text-[10px] text-muted-foreground">
           {p.automated} on its own · {p.review} decided by a person · {p.manual} by hand
         </p>
@@ -248,12 +325,12 @@ function Card({ p, level, names, onOpenFlow }: {
       <div className="mt-auto space-y-2.5">
         {p.people.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">
-            {p.people.slice(0, 6).map((w) => (
-              <span key={w.id} title={w.name} className="rounded-full border border-border bg-background p-1">
-                <Icon w={w} size={13} />
+            {p.people.slice(0, 7).map((w) => (
+              <span key={w.id} title={w.name}>
+                <Icon w={w} size={16} />
               </span>
             ))}
-            {p.people.length > 6 && <span className="text-[10px] text-muted-foreground">+{p.people.length - 6}</span>}
+            {p.people.length > 7 && <span className="text-[10px] text-muted-foreground">+{p.people.length - 7}</span>}
           </div>
         )}
         {p.apps.length > 0 && (
@@ -277,10 +354,11 @@ function Card({ p, level, names, onOpenFlow }: {
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-function FlowView({ p, rect, layout, onClose, onOpenProcess }: {
+function FlowView({ p, rect, layout, lens, onClose, onOpenProcess }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
+  lens: Lens | null;
   onClose: () => void;
   onOpenProcess: () => void;
 }) {
@@ -373,16 +451,19 @@ function FlowView({ p, rect, layout, onClose, onOpenProcess }: {
         const st = byId.get(id);
         if (!st) return null;
         const decision = st.stepType === 'Decision';
+        const on = lens ? stepMatches(lens, st) : true;
         return (
           <div
             key={id}
-            className={`absolute flex flex-col rounded-xl border p-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] ${
-              st.automated
+            className={`absolute flex flex-col rounded-xl border p-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-opacity duration-200 ${
+              lens && on
+                ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/30'
+                : st.automated
                 ? 'border-emerald-200 bg-emerald-50/60'
                 : decision
                 ? 'border-amber-200 bg-amber-50/50'
                 : 'border-border bg-background'
-            }`}
+            } ${lens && !on ? 'opacity-35' : ''}`}
             style={{ left: at.x, top: at.y, width: STEP_W, height: STEP_H }}
           >
             <span className="flex items-center gap-1.5">
@@ -404,6 +485,112 @@ function FlowView({ p, rect, layout, onClose, onOpenProcess }: {
   );
 }
 
+// --- The tour ---
+
+interface TourStep {
+  /** What to point at. Nothing means the middle of the screen. */
+  anchor: string | null;
+  title: string;
+  text: string;
+}
+
+const TOUR: TourStep[] = [
+  {
+    anchor: null,
+    title: 'Welcome to the company brain',
+    text: 'Every process in the business, on one board. Drag to move around. Pinch, scroll, or use the zoom buttons to get closer.',
+  },
+  {
+    anchor: '[data-tour="dept"]',
+    title: 'Departments',
+    text: 'Each colored frame is a department. Click its name to zoom in and open every process inside it, step by step.',
+  },
+  {
+    anchor: '[data-tour="card"]',
+    title: 'Processes',
+    text: 'Each card is a process. Zoom in to read its steps. Click it for details, or use the expand icon to lay its steps out right here.',
+  },
+  {
+    anchor: '[data-tour="lens"]',
+    title: 'Apps and people',
+    text: 'Click an app or a person to spotlight every step they are part of. Click a person to see their profile.',
+  },
+];
+
+/** A few tips pointing at the real controls. Shown on the first visit, and from the ? button. */
+function Tour({ onDone }: { onDone: () => void }) {
+  const [i, setI] = useState(0);
+  const [box, setBox] = useState<DOMRect | null>(null);
+  const step = TOUR[i];
+
+  useLayoutEffect(() => {
+    const place = () => setBox(step.anchor ? document.querySelector(step.anchor)?.getBoundingClientRect() ?? null : null);
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [step]);
+
+  const last = i === TOUR.length - 1;
+  const W = 300;
+  let left = window.innerWidth / 2 - W / 2;
+  let top = window.innerHeight / 2 - 90;
+  if (box) {
+    const right = box.right + 16;
+    left = right + W < window.innerWidth - 16 ? right : Math.max(16, box.left - W - 16);
+    if (left < 16 || (box.left - W - 16 < 16 && right + W >= window.innerWidth - 16)) {
+      left = Math.min(Math.max(16, box.left), window.innerWidth - W - 16);
+      top = Math.min(box.bottom + 14, window.innerHeight - 200);
+    } else {
+      top = Math.min(Math.max(16, box.top), window.innerHeight - 200);
+    }
+  }
+
+  return (
+    <div data-ui className="fixed inset-0 z-[70] cursor-default">
+      {box ? (
+        <div
+          className="pointer-events-none absolute rounded-2xl ring-2 ring-primary transition-all duration-300"
+          style={{
+            left: box.left - 6,
+            top: box.top - 6,
+            width: box.width + 12,
+            height: box.height + 12,
+            boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.45)',
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-slate-900/45" />
+      )}
+      <div
+        role="dialog"
+        aria-label={step.title}
+        className="absolute rounded-2xl border border-border bg-background p-4 shadow-2xl"
+        style={{ left, top, width: W }}
+      >
+        <p className="text-[11px] font-medium text-primary">
+          Tip {i + 1} of {TOUR.length}
+        </p>
+        <p className="mt-0.5 text-sm font-semibold">{step.title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.text}</p>
+        <div className="mt-4 flex items-center gap-2">
+          <button type="button" onClick={onDone} className="text-xs text-muted-foreground hover:text-foreground">
+            Skip
+          </button>
+          <span className="ml-auto" />
+          {i > 0 && (
+            <Button variant="ghost" size="sm" className="h-8" onClick={() => setI(i - 1)}>
+              Back
+            </Button>
+          )}
+          <Button size="sm" className="h-8" autoFocus onClick={() => (last ? onDone() : setI(i + 1))}>
+            {last ? 'Got it' : 'Next'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface View {
   x: number;
   y: number;
@@ -412,31 +599,31 @@ interface View {
 
 /**
  * The company brain: a board with every process on it, like a whiteboard you
- * can move around. Departments are frames. Zoom out for the bird's-eye view,
- * zoom in to read each process step by step. Point at an app or a person on the
- * left to see every process they are part of. Click a process for its details.
+ * can move around. Departments are frames; click one to open everything in it.
+ * Zoom out for the bird's-eye view, zoom in to read each process step by step.
+ * Click an app or a person on the left to spotlight every step they touch.
  */
 export default function Brain() {
   const navigate = useNavigate();
-  const [procs, setProcs] = useState<Proc[] | null>(null);
+  const { canEdit } = useMe();
+  const [data, setData] = useState<Data | null>(null);
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(() => {
     setFailed(false);
-    setProcs(null);
+    setData(null);
     getBrain({})
-      .then((r) => setProcs(r.processes))
+      .then(setData)
       .catch(() => setFailed(true));
   }, []);
   useEffect(() => {
     load();
   }, [load]);
 
-  // Processes opened up on the board, step by step. The rest stay as cards.
-  const [opened, setOpened] = useState<Set<string>>(new Set());
-  const board = useMemo(() => layoutBoard(procs ?? [], opened), [procs, opened]);
+  const procs = data?.processes ?? null;
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
   const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
+  const leads = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.lead])), [data]);
 
   // Every app and person on the board, with the processes they are part of.
   const lenses = useMemo(() => {
@@ -453,12 +640,29 @@ export default function Brain() {
     };
     return { apps: build((p) => p.apps), people: build((p) => p.people) };
   }, [procs]);
+  const appById = useMemo(() => new Map(lenses.apps.map((l) => [l.who.id, l.who])), [lenses]);
+
+  // --- Spotlight ---
+  const [lens, setLens] = useState<Lens | null>(null);
+  /** Hide everything that isn't in the spotlight. */
+  const [onlyLens, setOnlyLens] = useState(false);
+  const [tab, setTab] = useState<'apps' | 'people'>('apps');
+  const pinned = lens?.pinned ? lens : null;
+
+  // Processes opened up on the board, step by step. The rest stay as cards.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const boardProcs = useMemo(
+    () => (pinned && onlyLens ? (procs ?? []).filter((p) => pinned.ids.has(p.id)) : procs ?? []),
+    [procs, pinned, onlyLens],
+  );
+  const board = useMemo(() => layoutBoard(boardProcs, opened), [boardProcs, opened]);
 
   const links = useMemo(() => {
+    const shown = new Set(boardProcs.map((p) => p.id));
     const out: { from: string; to: string }[] = [];
-    for (const p of procs ?? []) for (const r of p.runs) if (byId.has(r.processId)) out.push({ from: p.id, to: r.processId });
+    for (const p of boardProcs) for (const r of p.runs) if (shown.has(r.processId)) out.push({ from: p.id, to: r.processId });
     return out;
-  }, [procs, byId]);
+  }, [boardProcs]);
 
   // --- Moving around ---
   const stage = useRef<HTMLDivElement | null>(null);
@@ -478,20 +682,26 @@ export default function Brain() {
     setView({ z, x: cx - wx * z, y: cy - wy * z });
   }, []);
 
+  /** Glide so this box fills the screen, but never closer than full size. */
+  const frameBox = useCallback((box: Rect, maxZ = 1) => {
+    const el = stage.current;
+    if (!el || box.w === 0) return;
+    const r = el.getBoundingClientRect();
+    const pad = 72;
+    const z = Math.min(maxZ, Math.max(Z_MIN, Math.min((r.width - pad * 2) / box.w, (r.height - pad * 2) / box.h)));
+    setGlide(true);
+    setView({ z, x: (r.width - box.w * z) / 2 - box.x * z, y: Math.max(pad, (r.height - box.h * z) / 2) - box.y * z });
+  }, []);
+
   const fit = useCallback(
     (animate = true) => {
-      const el = stage.current;
-      if (!el || board.width === 0) return;
-      const r = el.getBoundingClientRect();
-      const pad = 72;
-      const z = Math.min(1, Math.max(Z_MIN, Math.min((r.width - pad * 2) / board.width, (r.height - pad * 2) / board.height)));
-      setGlide(animate);
-      setView({ z, x: (r.width - board.width * z) / 2, y: Math.max(pad, (r.height - board.height * z) / 2) });
+      frameBox({ x: 0, y: 0, w: board.width, h: board.height });
+      if (!animate) setGlide(false);
     },
-    [board],
+    [board, frameBox],
   );
 
-  /** Glide to one process and zoom in close enough to read its steps. */
+  /** Glide to one process and zoom in close enough to read it. */
   const flyTo = useCallback(
     (id: string) => {
       const el = stage.current;
@@ -513,13 +723,16 @@ export default function Brain() {
   );
 
   // Opening or closing changes the layout, so the camera moves once the board has been laid out again.
-  const [after, setAfter] = useState<{ fly?: string; fit?: boolean } | null>(null);
+  const [after, setAfter] = useState<{ fly?: string; frame?: string; fit?: boolean } | null>(null);
   useEffect(() => {
     if (!after) return;
     if (after.fly) flyTo(after.fly);
-    else if (after.fit) fit();
+    else if (after.frame) {
+      const f = board.frames.find((x) => x.key === after.frame);
+      if (f) frameBox(f);
+    } else if (after.fit) fit();
     setAfter(null);
-  }, [board, after, flyTo, fit]);
+  }, [board, after, flyTo, fit, frameBox]);
 
   const openFlow = useCallback((id: string) => {
     setOpened((prev) => new Set(prev).add(id));
@@ -532,10 +745,25 @@ export default function Brain() {
       return next;
     });
   }, []);
-  const allOpen = !!procs && procs.length > 0 && procs.every((p) => opened.has(p.id) || p.steps.length === 0);
+  const openable = (ids: string[]) => ids.filter((id) => (byId.get(id)?.steps.length ?? 0) > 0);
+  const allOpen = boardProcs.length > 0 && openable(boardProcs.map((p) => p.id)).every((id) => opened.has(id));
   const toggleAll = () => {
-    setOpened(allOpen ? new Set() : new Set((procs ?? []).filter((p) => p.steps.length > 0).map((p) => p.id)));
+    setOpened(allOpen ? new Set() : new Set(openable(boardProcs.map((p) => p.id))));
     setAfter({ fit: true });
+  };
+  /** Click a department: open everything in it and glide there. Click again to close it back up. */
+  const toggleDept = (f: Frame) => {
+    const ids = openable(f.ids);
+    const isOpen = ids.length > 0 && ids.every((id) => opened.has(id));
+    setOpened((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (isOpen) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+    setAfter({ frame: f.key });
   };
 
   useLayoutEffect(() => {
@@ -570,8 +798,6 @@ export default function Brain() {
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
-  const [lens, setLens] = useState<{ ids: Set<string>; label: string; pinned: boolean } | null>(null);
-  const [tab, setTab] = useState<'apps' | 'people'>('apps');
   const [query, setQuery] = useState('');
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -601,11 +827,46 @@ export default function Brain() {
     setSelected(d.card);
   };
 
-  // Keys: + and - zoom, 0 fits everything, Esc closes the panel.
+  const clearLens = useCallback(() => {
+    setLens(null);
+    setOnlyLens(false);
+  }, []);
+  const pinLens = (kind: 'app' | 'person', who: Who, ids: string[]) => {
+    if (pinned?.who.id === who.id) {
+      clearLens();
+      if (onlyLens) setAfter({ fit: true });
+      return;
+    }
+    setLens({ kind, who, ids: new Set(ids), pinned: true });
+    // A person opens their profile; the process panel steps aside.
+    if (kind === 'person') setSelected(null);
+    if (onlyLens) setAfter({ fit: true });
+  };
+
+  // --- The tour: on the first visit, and from the ? button ---
+  const [touring, setTouring] = useState(false);
+  useEffect(() => {
+    if (!procs || procs.length === 0) return;
+    try {
+      if (!localStorage.getItem(TOUR_KEY)) setTouring(true);
+    } catch {
+      /* no storage: just skip the tour */
+    }
+  }, [procs]);
+  const endTour = () => {
+    setTouring(false);
+    try {
+      localStorage.setItem(TOUR_KEY, '1');
+    } catch {
+      /* it may show again next time */
+    }
+  };
+
+  // Keys: + and - zoom, 0 fits everything, Esc closes the panel and the spotlight.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || touring) return;
       const el = stage.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -614,20 +875,20 @@ export default function Brain() {
       else if (e.key === '0') fit();
       else if (e.key === 'Escape') {
         setSelected(null);
-        setLens(null);
+        clearLens();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [zoomAt, fit]);
+  }, [zoomAt, fit, clearLens, touring]);
 
-  // What is lit up: a pinned or hovered app or person, a search, or the process you point at and what it links to.
+  // What is lit up: the spotlight, a search, or the process you point at and what it links to.
   const q = query.trim().toLowerCase();
   const focus = useMemo(() => {
     if (lens) return lens.ids;
     if (q) {
       return new Set(
-        (procs ?? [])
+        boardProcs
           .filter(
             (p) =>
               p.name.toLowerCase().includes(q) ||
@@ -647,11 +908,61 @@ export default function Brain() {
       if (l.to === pointAt) set.add(l.from);
     }
     return set;
-  }, [lens, q, procs, hover, selected, links]);
+  }, [lens, q, boardProcs, hover, selected, links]);
+
+  // The spotlight in numbers: every step the app or person is part of.
+  const spot = useMemo(() => {
+    if (!pinned || !procs) return null;
+    let steps = 0;
+    let auto = 0;
+    let hand = 0;
+    let decide = 0;
+    const depts = new Set<string>();
+    const apps = new Map<string, Who>();
+    const perProcess: { p: Proc; n: number }[] = [];
+    for (const p of procs) {
+      if (!pinned.ids.has(p.id)) continue;
+      const mine = p.steps.filter((s) => stepMatches(pinned, s));
+      if (!mine.length) continue;
+      perProcess.push({ p, n: mine.length });
+      if (p.department) depts.add(p.department);
+      for (const s of mine) {
+        steps += 1;
+        if (s.automated) auto += 1;
+        else if (s.stepType === 'Decision') decide += 1;
+        else if (s.stepType !== 'Wait') hand += 1;
+        for (const u of s.useIds) {
+          const a = appById.get(u);
+          if (a && a.id !== pinned.who.id) apps.set(a.id, a);
+        }
+      }
+    }
+    return { steps, auto, hand, decide, depts: [...depts].sort(), apps: [...apps.values()], perProcess };
+  }, [pinned, procs, appById]);
+
+  // --- Department leads ---
+  const [leadFor, setLeadFor] = useState<string | null>(null);
+  const chooseLead = async (dept: string, leadId: string | null) => {
+    setLeadFor(null);
+    try {
+      await setDepartmentLead({ department: dept, leadId });
+      const lead = leadId ? data?.people.find((w) => w.id === leadId) ?? null : null;
+      setData((d) =>
+        d
+          ? { ...d, departments: [...d.departments.filter((x) => x.name !== dept), { name: dept, lead }] }
+          : d,
+      );
+      toast.success(lead ? `${lead.name} now leads ${dept}` : `${dept} has no lead`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the lead.');
+    }
+  };
 
   const level: 'far' | 'mid' | 'near' = view.z < FAR ? 'far' : view.z < NEAR ? 'mid' : 'near';
   const sel = selected ? byId.get(selected) ?? null : null;
   const runBy = sel ? (procs ?? []).filter((p) => p.runs.some((r) => r.processId === sel.id)) : [];
+  const personPanel = !sel && pinned?.kind === 'person' ? pinned : null;
+  const panelOpen = !!sel || !!personPanel;
 
   if (failed) return <div className="mx-auto max-w-xl px-8 py-16"><PageError onRetry={load} /></div>;
   if (procs === null) return <div className="mx-auto max-w-5xl px-8 py-8"><PageLoading blocks={2} height="h-64" /></div>;
@@ -664,6 +975,7 @@ export default function Brain() {
   }
 
   const lensList = tab === 'apps' ? lenses.apps : lenses.people;
+  const firstCardId = boardProcs.find((p) => board.cards.has(p.id))?.id;
 
   return (
     <div
@@ -680,6 +992,7 @@ export default function Brain() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={(e) => {
+        if ((e.target as HTMLElement).closest('[data-ui]')) return;
         const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]')?.dataset.card;
         if (card) navigate(`/process/${card}`);
       }}
@@ -691,28 +1004,80 @@ export default function Brain() {
           width: board.width,
           height: board.height,
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})`,
-          transition: glide ? 'transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)' : undefined,
+          transition: glide ? 'transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1)' : undefined,
         }}
       >
-        {board.frames.map((f) => (
-          <div
-            key={f.key}
-            className="absolute rounded-[28px] border-2"
-            style={{
-              left: f.x,
-              top: f.y,
-              width: f.w,
-              height: f.h,
-              backgroundColor: `hsl(${f.hue} 80% 97% / 0.85)`,
-              borderColor: `hsl(${f.hue} 55% 86%)`,
-            }}
-          >
-            <div className="flex items-baseline gap-3 px-10 pt-6" style={{ color: `hsl(${f.hue} 45% 32%)` }}>
-              <span className={`font-semibold tracking-tight ${level === 'far' ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
-              <span className={`${level === 'far' ? 'text-[26px]' : 'text-[15px]'} opacity-70`}>{plural(f.count, 'process')}</span>
+        {board.frames.map((f, fi) => {
+          const members = f.ids.map((id) => byId.get(id)!).filter(Boolean);
+          const people = new Set(members.flatMap((p) => p.people.map((w) => w.id))).size;
+          const apps = new Set(members.flatMap((p) => p.apps.map((a) => a.id))).size;
+          const a = members.reduce((n, p) => n + p.automated, 0);
+          const work = members.reduce((n, p) => n + p.automated + p.review + p.manual, 0);
+          const ids = openable(f.ids);
+          const isOpen = ids.length > 0 && ids.every((id) => opened.has(id));
+          const lead = f.dept ? leads.get(f.dept) ?? null : null;
+          const big = level === 'far';
+          const color = `hsl(${f.hue} 45% 32%)`;
+          return (
+            <div
+              key={f.key}
+              className="absolute rounded-[28px] border-2"
+              style={{
+                left: f.x,
+                top: f.y,
+                width: f.w,
+                height: f.h,
+                backgroundColor: `hsl(${f.hue} 80% 97% / 0.85)`,
+                borderColor: `hsl(${f.hue} 55% 86%)`,
+              }}
+            >
+              <div className="flex items-start gap-4 px-10 pt-6" style={{ color }}>
+                <button
+                  type="button"
+                  data-ui
+                  data-tour={fi === 0 ? 'dept' : undefined}
+                  onClick={() => toggleDept(f)}
+                  title={isOpen ? 'Close these processes back to cards' : 'Open every process in this department'}
+                  className="group min-w-0 rounded-xl px-2 py-1 -ml-2 text-left transition-colors hover:bg-white/70"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className={`font-semibold tracking-tight ${big ? 'text-[44px]' : 'text-[26px]'}`}>{f.title}</span>
+                    {isOpen ? (
+                      <Minimize2 className={big ? 'h-8 w-8' : 'h-5 w-5'} />
+                    ) : (
+                      <Maximize2 className={`${big ? 'h-8 w-8' : 'h-5 w-5'} opacity-60 group-hover:opacity-100`} />
+                    )}
+                  </span>
+                  <span className={`mt-0.5 block opacity-75 ${big ? 'text-[24px]' : 'text-[13px]'}`}>
+                    {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
+                    {work > 0 ? ` · ${Math.round((a / work) * 100)}% automated` : ''}
+                  </span>
+                </button>
+                {f.dept && (lead || canEdit) && (
+                  <button
+                    type="button"
+                    data-ui
+                    disabled={!canEdit}
+                    onClick={() => setLeadFor(f.dept)}
+                    className={`ml-auto mt-2 inline-flex shrink-0 items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 font-medium transition-colors ${
+                      big ? 'text-[22px]' : 'text-[13px]'
+                    } ${canEdit ? 'hover:bg-white' : 'cursor-default'}`}
+                    style={{ borderColor: `hsl(${f.hue} 55% 86%)` }}
+                  >
+                    <Crown className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
+                    {lead ? (
+                      <>
+                        <Icon w={lead} size={big ? 26 : 15} /> {lead.name}
+                      </>
+                    ) : (
+                      'Set a lead'
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Arrows where one process runs another. */}
         <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={board.width} height={board.height} aria-hidden="true">
@@ -741,7 +1106,7 @@ export default function Brain() {
           })}
         </svg>
 
-        {procs.map((p) => {
+        {boardProcs.map((p) => {
           const pos = board.cards.get(p.id);
           if (!pos) return null;
           const dim = !!focus && !focus.has(p.id);
@@ -750,6 +1115,7 @@ export default function Brain() {
             <div
               key={p.id}
               data-card={p.id}
+              data-tour={p.id === firstCardId ? 'card' : undefined}
               role="button"
               tabIndex={0}
               aria-label={p.name}
@@ -759,17 +1125,17 @@ export default function Brain() {
                 if (e.key === 'Enter') setSelected(p.id);
               }}
               className={`absolute overflow-hidden rounded-2xl border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-[opacity,box-shadow,border-color] duration-200 hover:shadow-[0_10px_30px_rgba(16,24,40,0.12)] ${
-                isSel ? 'border-primary ring-4 ring-primary/20' : 'border-border'
+                isSel ? 'border-primary ring-4 ring-primary/20' : pinned && pinned.ids.has(p.id) ? 'border-primary/50' : 'border-border'
               } ${dim ? 'opacity-25' : ''}`}
               style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
             >
-              <Card p={p} level={level} names={names} onOpenFlow={() => openFlow(p.id)} />
+              <Card p={p} level={level} names={names} lens={lens} onOpenFlow={() => openFlow(p.id)} />
             </div>
           );
         })}
 
         {/* Opened processes: every step, left to right. */}
-        {procs.map((p) => {
+        {boardProcs.map((p) => {
           const f = board.flows.get(p.id);
           if (!f) return null;
           const dim = !!focus && !focus.has(p.id);
@@ -788,6 +1154,7 @@ export default function Brain() {
                 p={p}
                 rect={f}
                 layout={f.layout}
+                lens={lens && lens.ids.has(p.id) ? lens : null}
                 onClose={() => closeFlow(p.id)}
                 onOpenProcess={() => navigate(`/process/${p.id}`)}
               />
@@ -796,22 +1163,29 @@ export default function Brain() {
         })}
       </div>
 
-      {/* Top left: name, search, and the apps and people lens. These stay put while the board moves. */}
-      <div data-ui className="absolute left-4 top-4 z-20 flex w-[260px] cursor-default flex-col gap-2">
+      {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
+      <div data-ui className="absolute left-4 top-4 z-20 flex w-[264px] cursor-default flex-col gap-2">
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <BrainIcon className="h-4 w-4 text-primary" /> Company brain
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Drag to move. Pinch or scroll to zoom. Click a process for details, or open its steps right here.
-          </p>
+          <div className="flex items-center gap-2">
+            <BrainIcon className="h-4 w-4 text-primary" />
+            <p className="flex-1 text-sm font-semibold">Company brain</p>
+            <button
+              type="button"
+              onClick={() => setTouring(true)}
+              title="How to use this page"
+              aria-label="How to use this page"
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+          </div>
           <div className="relative mt-2.5">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setLens(null);
+                clearLens();
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && focus && focus.size) flyTo([...focus][0]);
@@ -830,7 +1204,7 @@ export default function Brain() {
           </button>
         </div>
 
-        <div className="flex max-h-[calc(100vh-15rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
+        <div data-tour="lens" className="flex max-h-[calc(100vh-16rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
           <div className="flex gap-1 p-1.5">
             {(['apps', 'people'] as const).map((t) => (
               <button
@@ -838,7 +1212,7 @@ export default function Brain() {
                 type="button"
                 onClick={() => {
                   setTab(t);
-                  setLens(null);
+                  clearLens();
                 }}
                 className={`flex-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
@@ -849,29 +1223,30 @@ export default function Brain() {
             ))}
           </div>
           <p className="px-3 pb-1 text-[10px] text-muted-foreground">
-            Point at one to light up every process it is part of. Click to keep it lit.
+            {tab === 'apps'
+              ? 'Click an app to spotlight every step it is part of.'
+              : 'Click a person to spotlight their steps and see their profile.'}
           </p>
           <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
             {lensList.map(({ who, ids }) => {
-              const active = lens?.label === who.name;
+              const active = pinned?.who.id === who.id;
+              const kind = tab === 'apps' ? 'app' : 'person';
               return (
                 <li key={who.id}>
                   <button
                     type="button"
                     onMouseEnter={() => {
-                      if (!lens?.pinned) setLens({ ids: new Set(ids), label: who.name, pinned: false });
+                      if (!pinned) setLens({ kind, who, ids: new Set(ids), pinned: false });
                     }}
                     onMouseLeave={() => {
-                      if (!lens?.pinned) setLens(null);
+                      if (!pinned) setLens(null);
                     }}
-                    onClick={() =>
-                      setLens(active && lens?.pinned ? null : { ids: new Set(ids), label: who.name, pinned: true })
-                    }
+                    onClick={() => pinLens(kind, who, ids)}
                     className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
                       active ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
                     }`}
                   >
-                    <Icon w={who} size={14} />
+                    <Icon w={who} size={tab === 'people' ? 16 : 14} />
                     <span className="min-w-0 flex-1 truncate font-medium">{who.name}</span>
                     <span className="tabular-nums text-muted-foreground">{ids.length}</span>
                   </button>
@@ -882,14 +1257,142 @@ export default function Brain() {
         </div>
       </div>
 
-      {/* A pinned lens says so, with a way out. */}
-      {lens?.pinned && (
-        <div data-ui className="absolute left-1/2 top-4 z-20 -translate-x-1/2 cursor-default rounded-full border border-primary/30 bg-background px-3 py-1.5 text-xs shadow-sm">
-          Showing processes with <b>{lens.label}</b> ({lens.ids.size})
-          <button type="button" onClick={() => setLens(null)} className="ml-2 text-muted-foreground hover:text-foreground">
-            Clear
-          </button>
+      {/* The spotlight, in one line, with a way to hide everything else. */}
+      {pinned && spot && (
+        <div
+          data-ui
+          className="absolute left-1/2 top-4 z-20 flex max-w-[min(680px,calc(100%-640px))] -translate-x-1/2 cursor-default flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-primary/30 bg-background px-4 py-2.5 text-xs shadow-md"
+        >
+          <span className="inline-flex items-center gap-2 font-semibold">
+            <Icon w={pinned.who} size={16} /> {pinned.who.name}
+          </span>
+          <span className="text-muted-foreground">
+            {plural(spot.steps, 'step')} in {plural(spot.perProcess.length, 'process')}
+            {pinned.kind === 'app'
+              ? ` · ${spot.auto} on its own · ${spot.hand} done by hand in it`
+              : ` · ${spot.hand} by hand · ${plural(spot.decide, 'decision')}`}
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyLens((o) => !o);
+                setAfter({ fit: true });
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 font-medium hover:bg-muted"
+            >
+              <Eye className="h-3.5 w-3.5" /> {onlyLens ? 'Show everything' : 'Show only these'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const wasOnly = onlyLens;
+                clearLens();
+                if (wasOnly) setAfter({ fit: true });
+              }}
+              className="rounded-lg px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Clear
+            </button>
+          </span>
         </div>
+      )}
+
+      {/* Right: a person's profile. */}
+      {personPanel && spot && (
+        <aside
+          data-ui
+          className="absolute bottom-4 right-4 top-4 z-20 flex w-[340px] cursor-default flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+        >
+          <div
+            className="relative px-5 pb-5 pt-6"
+            style={{ background: `linear-gradient(180deg, hsl(${hueFor(personPanel.who.name)} 85% 95%), transparent)` }}
+          >
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={clearLens}
+              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-white/60 hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <Icon w={personPanel.who} size={52} />
+            <h2 className="mt-3 text-lg font-semibold leading-snug tracking-tight">{personPanel.who.name}</h2>
+            <p className="text-xs text-muted-foreground">{personPanel.who.typeName || 'Person'}</p>
+            {spot.depts.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {spot.depts.map((d) => (
+                  <span
+                    key={d}
+                    className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                    style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
+                  >
+                    {d}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5">
+            <section className="grid grid-cols-3 gap-2 text-center">
+              {[
+                [spot.steps, 'steps'],
+                [spot.hand, 'by hand'],
+                [spot.decide, 'decisions'],
+              ].map(([n, label]) => (
+                <div key={label as string} className="rounded-xl bg-muted/50 px-2 py-2.5">
+                  <p className="text-xl font-semibold tabular-nums">{n as number}</p>
+                  <p className="text-[10px] text-muted-foreground">{label as string}</p>
+                </div>
+              ))}
+            </section>
+            <section>
+              <MixBar a={0} r={spot.decide} m={spot.hand} />
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {spot.hand > 0
+                  ? `${plural(spot.hand, 'step')} done by hand. Those are the first place to look for time to win back.`
+                  : 'No hand work in their steps.'}
+              </p>
+            </section>
+
+            {spot.apps.length > 0 && (
+              <section>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Works in</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {spot.apps.map((a) => (
+                    <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
+                      <Icon w={a} size={13} /> {a.name}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Their processes</p>
+              <ul className="space-y-1.5">
+                {spot.perProcess.map(({ p, n }) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => (board.flows.has(p.id) ? flyTo(p.id) : openFlow(p.id))}
+                      className="flex w-full items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-left text-xs transition-colors hover:border-primary/30 hover:bg-muted/40"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{p.name}</span>
+                        <span className="text-muted-foreground">
+                          {n} of {p.steps.length} steps{p.department ? ` · ${p.department}` : ''}
+                        </span>
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </aside>
       )}
 
       {/* Right: the process you clicked. */}
@@ -927,7 +1430,7 @@ export default function Brain() {
             {sel.description && <p className="text-sm leading-relaxed text-muted-foreground">{sel.description}</p>}
 
             <section>
-              <MixBar p={sel} />
+              <MixBar a={sel.automated} r={sel.review} m={sel.manual} />
               <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                 {[
                   [sel.automated, 'on its own', AUTOMATED],
@@ -947,9 +1450,17 @@ export default function Brain() {
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">People</p>
                 <div className="flex flex-wrap gap-1.5">
                   {sel.people.map((w) => (
-                    <span key={w.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => {
+                        setTab('people');
+                        pinLens('person', w, lenses.people.find((l) => l.who.id === w.id)?.ids ?? [sel.id]);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs hover:border-primary/40 hover:bg-primary/5"
+                    >
                       <Icon w={w} size={13} /> {w.name}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </section>
@@ -1041,7 +1552,7 @@ export default function Brain() {
       <div
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
-          sel ? 'right-[364px]' : 'right-4'
+          panelOpen ? 'right-[364px]' : 'right-4'
         }`}
       >
         {(() => {
@@ -1063,10 +1574,47 @@ export default function Brain() {
               <button type="button" className={btn} aria-label="Fit everything" title="Fit everything (0)" onClick={() => fit()}>
                 <Maximize className="h-3.5 w-3.5" />
               </button>
+              <button type="button" className={btn} aria-label="How to use this page" title="How to use this page" onClick={() => setTouring(true)}>
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
             </>
           );
         })()}
       </div>
+
+      {/* Choosing who leads a department. */}
+      {leadFor && data && (
+        <Dialog open onOpenChange={(o) => !o && setLeadFor(null)}>
+          <DialogContent className="max-w-sm p-0" data-ui>
+            <DialogHeader className="px-5 pt-5">
+              <DialogTitle className="text-base">Who leads {leadFor}?</DialogTitle>
+              <DialogDescription>They show on the department frame.</DialogDescription>
+            </DialogHeader>
+            <Command className="border-t border-border">
+              <CommandInput placeholder="Search people and roles…" />
+              <CommandList className="max-h-72 p-1">
+                <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">Nobody matches.</CommandEmpty>
+                {leads.get(leadFor) && (
+                  <CommandItem value="no lead clear remove" onSelect={() => chooseLead(leadFor, null)} className="text-muted-foreground">
+                    <X className="mr-2 h-4 w-4" /> No lead
+                  </CommandItem>
+                )}
+                {data.people.map((w) => (
+                  <CommandItem key={w.id} value={`${w.name} ${w.id}`} onSelect={() => chooseLead(leadFor, w.id)}>
+                    <span className="mr-2">
+                      <Icon w={w} size={16} />
+                    </span>
+                    <span className="flex-1">{w.name}</span>
+                    <span className="text-[11px] text-muted-foreground">{w.typeName}</span>
+                  </CommandItem>
+                ))}
+              </CommandList>
+            </Command>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {touring && <Tour onDone={endTour} />}
     </div>
   );
 }

@@ -70,6 +70,7 @@
 //   "StepConnectionsSteps" — columns: "stepConnectionsId", "stepsId" (joins "Step Connections" and "Steps")
 //   "ProcessVersionsStepConnections" — columns: "processVersionsId", "stepConnectionsId" (joins "Process Versions" and "Step Connections")
 //   "ElementsMapLayouts" — columns: "elementsId", "mapLayoutsId" (joins "Elements" and "Map Layouts")
+//   "DepartmentsElements" — columns: "departmentsId", "elementsId" (joins "Departments" and "Elements")
 import { createTableClient, createSqlClient, createAuthClient } from 'zitejs/runtime';
 
 /** An attachment as returned when reading a record. */
@@ -165,6 +166,8 @@ export type ElementsRecordType = {
   backupOwner?: string | string[];
   shareToken?: string;
   department?: string;
+  /** Links to departments ("Departments"). Single record only. "Departments" */
+  departments?: string | string[];
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -190,6 +193,7 @@ export type ElementsRecordInput = {
   backupOwner: string | string[] | null;
   shareToken: string | null;
   department: string | null;
+  departments: string | string[] | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */
@@ -337,6 +341,21 @@ export type EditorsRecordInput = {
   addedBy: string | null;
 };
 
+/** A record in the "Departments" table, as it is read back. */
+export type DepartmentsRecordType = {
+  id: string;
+  /** Primary field. "Name" */
+  name?: string;
+  /** Links to elements ("Elements"). Single record only. "Lead" */
+  lead?: string | string[];
+};
+
+/** What you may write when creating or updating a record in the "Departments" table. */
+export type DepartmentsRecordInput = {
+  name: string | null;
+  lead: string | string[] | null;
+};
+
 export interface ZiteAuthUser {
   id: string;
   name: string;
@@ -354,6 +373,7 @@ export const zite = {
   stepConnections: createTableClient<StepConnectionsRecordType, StepConnectionsRecordInput>('StepConnections'), // "Step Connections"
   mapLayouts: createTableClient<MapLayoutsRecordType, MapLayoutsRecordInput>('MapLayouts'), // "Map Layouts"
   editors: createTableClient<EditorsRecordType, EditorsRecordInput>('Editors'), // "Editors"
+  departments: createTableClient<DepartmentsRecordType, DepartmentsRecordInput>('Departments'), // "Departments"
   sql: createSqlClient(),
   auth: createAuthClient<ZiteAuthUser>(),
 };
