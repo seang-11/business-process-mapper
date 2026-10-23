@@ -841,8 +841,8 @@ const TOUR: TourStep[] = [
   },
   {
     anchor: '[data-tour="lens"]',
-    title: 'Apps and people',
-    text: 'Click an app or a person to spotlight every step they are part of, and open their profile on the right.',
+    title: 'Roles and apps',
+    text: 'Click a role or an app to spotlight every step it is part of, and open its profile on the right.',
   },
 ];
 
@@ -975,7 +975,7 @@ export default function Brain() {
   const [lens, setLens] = useState<Lens | null>(null);
   /** Hide everything that isn't in the spotlight. */
   const [onlyLens, setOnlyLens] = useState(false);
-  const [tab, setTab] = useState<'apps' | 'people'>('apps');
+  const [tab, setTab] = useState<'apps' | 'people'>('people');
   const pinned = lens?.pinned ? lens : null;
 
   // Processes opened up on the board, step by step. The rest stay as cards.
@@ -1569,7 +1569,7 @@ export default function Brain() {
 
         <div data-tour="lens" className="flex max-h-[calc(100vh-16rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
           <div className="flex gap-1 p-1.5">
-            {(['apps', 'people'] as const).map((t) => (
+            {(['people', 'apps'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -1581,14 +1581,14 @@ export default function Brain() {
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {t === 'apps' ? `Apps (${lenses.apps.length})` : `People (${lenses.people.length})`}
+                {t === 'apps' ? `Apps (${lenses.apps.length})` : `Roles (${lenses.people.length})`}
               </button>
             ))}
           </div>
           <p className="px-3 pb-1 text-[10px] text-muted-foreground">
             {tab === 'apps'
               ? 'Click an app to spotlight its steps and see its profile.'
-              : 'Click a person to spotlight their steps and see their profile.'}
+              : 'Click a role to spotlight its steps and see its profile.'}
           </p>
           <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
             {lensList.map(({ who, ids }) => {
@@ -1757,7 +1757,7 @@ export default function Brain() {
 
               {isApp && spot.people.length > 0 && (
                 <section>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">People who use it</p>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Roles that use it</p>
                   <div className="flex flex-wrap gap-1.5">
                     {spot.people.map((w) => (
                       <button

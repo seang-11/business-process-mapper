@@ -16,6 +16,10 @@ const participant = z.object({
   /** A person (or role, or team), an app, or something else such as a document. */
   kind: z.enum(['person', 'app', 'other']),
   typeName: z.string(),
+  /** For people: one named individual, a position anyone can hold, or a group. */
+  humanKind: z.string(),
+  /** Internal to the company, or outside it, like a client. */
+  party: z.string(),
 });
 
 /** A step's checklist is stored as JSON text. Anything unreadable is treated as no checklist. */
@@ -121,6 +125,8 @@ export default createEndpoint({
           | 'app'
           | 'other',
         typeName: type?.name ?? '',
+        humanKind: type?.humanKind ?? '',
+        party: el.party ?? '',
       };
     };
 

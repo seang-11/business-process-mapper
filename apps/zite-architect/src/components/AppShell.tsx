@@ -82,6 +82,7 @@ export default function AppShell() {
   const links: { to: string; label: string; active: boolean }[] = [
     { to: '/', label: 'Home', active: onHome },
     { to: '/brain', label: 'Brain', active: location.pathname === '/brain' },
+    { to: '/roles', label: 'Roles', active: location.pathname.startsWith('/roles') },
     { to: '/training', label: 'Training', active: location.pathname === '/training' },
     ...(isRealAdmin ? [{ to: '/team', label: 'Team and access', active: location.pathname === '/team' }] : []),
   ];
@@ -90,8 +91,8 @@ export default function AppShell() {
   const access = ACCESS_WORD[me?.access ?? 'viewer'];
 
   return (
-    <div className="flex h-screen flex-col bg-[hsl(220_20%_98.5%)]">
-      <header className="z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-6">
+    <div className="flex h-screen flex-col bg-[hsl(220_20%_98.5%)] print:block print:h-auto print:bg-white">
+      <header className="z-30 flex h-14 shrink-0 print:hidden items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-6">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -174,7 +175,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
         {/* A crash on one page shows a calm message here instead of a blank screen. */}
         <ErrorBoundary
           key={location.pathname}
