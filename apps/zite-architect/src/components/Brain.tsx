@@ -398,7 +398,7 @@ function BrainKey({ showsSteps }: { showsSteps: boolean }) {
               {showsSteps ? 'Steps' : 'Steps, when opened'}
             </p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-              <span className="flex items-center gap-1.5">{card('border-border bg-background')} Done by a person</span>
+              <span className="flex items-center gap-1.5">{card('border-border bg-background')} By a person</span>
               <span className="flex items-center gap-1.5">{card('border-amber-200 bg-amber-50')} A decision</span>
               <span className="flex items-center gap-1.5">
                 {card('border-emerald-200 bg-emerald-50', <Zap className="h-2.5 w-2.5" style={{ color: AUTOMATED }} />)} Runs on its own
@@ -1181,9 +1181,11 @@ export default function Brain() {
     if (!el || box.w === 0) return;
     const r = el.getBoundingClientRect();
     const pad = 72;
-    const z = Math.min(maxZ, Math.max(Z_MIN, Math.min((r.width - pad * 2) / box.w, (r.height - pad * 2) / box.h)));
+    // On a wide screen, keep clear of the panel on the left so nothing starts underneath it.
+    const left = r.width > 900 ? 296 : pad;
+    const z = Math.min(maxZ, Math.max(Z_MIN, Math.min((r.width - left - pad) / box.w, (r.height - pad * 2) / box.h)));
     setGlide(true);
-    setView({ z, x: (r.width - box.w * z) / 2 - box.x * z, y: Math.max(pad, (r.height - box.h * z) / 2) - box.y * z });
+    setView({ z, x: left + (r.width - left - pad - box.w * z) / 2 - box.x * z, y: Math.max(pad, (r.height - box.h * z) / 2) - box.y * z });
   }, []);
 
   const fit = useCallback(
