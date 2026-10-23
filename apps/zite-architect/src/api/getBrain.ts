@@ -18,6 +18,19 @@ const participant = z.object({
   typeName: z.string(),
 });
 
+/** A step's checklist is stored as JSON text. Anything unreadable is treated as no checklist. */
+function parseChecklist(raw?: string | null): { text: string; appId?: string }[] {
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list)
+      ? list.filter((c) => c && typeof c.text === 'string' && c.text.trim()).map((c) => ({ text: c.text, appId: c.appId }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export default createEndpoint({
   authenticated: true,
   description: 'The company brain: every process with its department, owner, people, apps and the other processes it runs',
@@ -56,6 +69,13 @@ export default createEndpoint({
             who: participant.nullable(),
             /** Everything the step uses, so a spotlight can find the steps an app is part of. */
             useIds: z.array(z.string()),
+            /** The same things, ready to draw, for the hover panel. */
+            uses: z.array(participant),
+            produces: z.array(z.string()),
+            description: z.string(),
+            checklist: z.array(z.object({ text: z.string(), app: participant.nullable() })),
+            /** The process this step runs, when it is a sub-process step. */
+            subProcessId: z.string().nullable(),
           }),
         ),
         /** The arrows between those steps, so the board can lay the process out left to right. */
@@ -179,6 +199,21 @@ export default createEndpoint({
               automated: classOf(performer) === 'System',
               who: performer ? describe(performer) : null,
               useIds: Array.isArray(s.uses) ? s.uses : s.uses ? [s.uses] : [],
+              uses: (Array.isArray(s.uses) ? s.uses : s.uses ? [s.uses] : [])
+                .map((id) => describe(id))
+                .filter((x): x is z.infer<typeof participant> => x !== null),
+              produces: (Array.isArray(s.produces) ? s.produces : s.produces ? [s.produces] : [])
+                .map((id) => elementById.get(id)?.name ?? '')
+                .filter(Boolean),
+              description: s.description ?? '',
+              checklist: parseChecklist(s.checklist).map((c) => ({
+                text: c.text,
+                app: c.appId ? describe(c.appId) : null,
+              })),
+              subProcessId: (() => {
+                const sub = one(s.subProcess);
+                return sub && processIds.has(sub) && sub !== p.id ? sub : null;
+              })(),
             };
           }),
         };

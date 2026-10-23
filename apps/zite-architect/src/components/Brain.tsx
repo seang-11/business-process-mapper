@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getBrain, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, Crown, Eye, GraduationCap, HelpCircle, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -288,6 +289,7 @@ function Card({ p, level, names, lens, onOpenFlow }: {
                 <span className="w-3.5 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
                 {s.who ? <Icon w={s.who} size={11} /> : <span className="h-[11px] w-[11px]" />}
                 <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                {s.subProcessId && <Workflow className="h-2.5 w-2.5 shrink-0 text-indigo-600" />}
                 {s.automated && <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: AUTOMATED }} />}
                 {s.stepType === 'Decision' && <span className="h-1.5 w-1.5 shrink-0 rotate-45 border border-amber-500" />}
               </li>
@@ -354,12 +356,96 @@ function Card({ p, level, names, lens, onOpenFlow }: {
   );
 }
 
+/** The details of one step, shown while you point at it. Drawn full size whatever the zoom. */
+function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<string, string> }) {
+  const W = 288;
+  const left = Math.min(Math.max(8, box.left), window.innerWidth - W - 8);
+  const below = box.bottom + 8 + 260 < window.innerHeight;
+  const sub = st.subProcessId ? names.get(st.subProcessId) : null;
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[80] rounded-xl border border-border bg-popover p-3 shadow-xl"
+      style={{
+        left,
+        width: W,
+        top: below ? box.bottom + 8 : box.top - 8,
+        transform: below ? undefined : 'translateY(-100%)',
+      }}
+    >
+      <p className="flex items-center gap-1.5 text-xs font-semibold">
+        {st.who && <Icon w={st.who} size={14} />}
+        {st.who?.name ?? 'Nobody yet'}
+        {st.automated && (
+          <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: AUTOMATED }}>
+            <Zap className="h-3 w-3" /> Runs on its own
+          </span>
+        )}
+        {st.stepType === 'Decision' && <span className="ml-auto text-[10px] font-semibold text-amber-700">Decision</span>}
+        {st.stepType === 'Wait' && <span className="ml-auto text-[10px] font-semibold text-muted-foreground">Wait</span>}
+      </p>
+      <p className="mt-1.5 text-sm font-semibold leading-snug">{st.title}</p>
+      {st.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{st.description}</p>}
+      {sub && (
+        <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">
+          <Workflow className="h-3.5 w-3.5" /> Runs the {sub} process
+        </p>
+      )}
+      {st.uses.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Uses</p>
+          <div className="flex flex-wrap gap-1">
+            {st.uses.map((u) => (
+              <span key={u.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium">
+                <Icon w={u} size={12} /> {u.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {st.checklist.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Checklist</p>
+          <ol className="space-y-1">
+            {st.checklist.map((c, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-xs leading-snug">
+                <span className="mt-[1px] flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-border text-[8px] text-muted-foreground">
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1">{c.text}</span>
+                {c.app && <Icon w={c.app} size={11} />}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {st.produces.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Produces</p>
+          <div className="flex flex-wrap gap-1">
+            {st.produces.map((n) => (
+              <span key={n} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium">
+                {n}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
+function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
   lens: Lens | null;
+  names: Map<string, string>;
+  /** The processes that run this one, by name. */
+  runBy: string[];
+  /** Go to another process, from a sub-process step. */
+  onJump: (processId: string) => void;
   /** Leave out to hide the close button, as in the department view. */
   onClose?: () => void;
   onOpenProcess: () => void;
@@ -368,15 +454,38 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
 }) {
   const byId = new Map(p.steps.map((s) => [s.id, s]));
   const marker = `flow-arrow-${p.id}`;
+  const markerHi = `flow-arrow-hi-${p.id}`;
   const bottom = Math.max(0, ...[...layout.pos.values()].map((v) => v.y + STEP_H));
-  const chip = (x: number, y: number, label: string) =>
+  const [hoverStep, setHoverStep] = useState<{ id: string; box: DOMRect } | null>(null);
+  const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const lit = (e: { from: string; to: string }) => !!hoverStep && (e.from === hoverStep.id || e.to === hoverStep.id);
+  // The steps an arrow from the hovered step touches stay bright; the rest of the process steps back.
+  const near = new Set<string>();
+  if (hoverStep) {
+    near.add(hoverStep.id);
+    for (const e of [...layout.forward, ...layout.back]) {
+      if (e.from === hoverStep.id) near.add(e.to);
+      if (e.to === hoverStep.id) near.add(e.from);
+    }
+  }
+
+  const chip = (x: number, y: number, label: string, on: boolean) =>
     label ? (
       <g>
-        <rect x={x - (label.length * 5.4 + 14) / 2} y={y - 9} width={label.length * 5.4 + 14} height={18} rx={9} fill="hsl(var(--background))" stroke="hsl(var(--border))" />
-        <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={500} fill="hsl(var(--muted-foreground))">
+        <rect
+          x={x - (label.length * 5.4 + 14) / 2} y={y - 9} width={label.length * 5.4 + 14} height={18} rx={9}
+          fill="hsl(var(--background))" stroke={on ? 'hsl(var(--primary))' : 'hsl(var(--border))'}
+        />
+        <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={500} fill={on ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'}>
           {label}
         </text>
       </g>
+    ) : null;
+  const dot = (d: string, on: boolean) =>
+    on && !reduceMotion ? (
+      <circle r={3.5} fill="hsl(var(--primary))">
+        <animateMotion path={d} dur="1.6s" repeatCount="indefinite" />
+      </circle>
     ) : null;
 
   return (
@@ -394,12 +503,17 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
           {plural(p.stepCount, 'step')}
           {p.ownerName ? ` · ${p.ownerName}` : ''}
         </span>
+        {runBy.length > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+            <Workflow className="h-3 w-3" /> Part of {runBy.join(', ')}
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
             data-ui
             onClick={onOpenProcess}
-            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
           >
             Open process <ArrowRight className="h-3 w-3" />
           </button>
@@ -411,7 +525,7 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
               onClick={onClose}
               title="Close it back to a card"
               aria-label={`Close ${p.name} back to a card`}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <Minimize2 className="h-3.5 w-3.5" />
             </button>
@@ -419,10 +533,13 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
         </span>
       </div>
 
-      <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={rect.w} height={rect.h} aria-hidden="true">
+      <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" style={{ pointerEvents: 'none' }} width={rect.w} height={rect.h} aria-hidden="true">
         <defs>
           <marker id={marker} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
             <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(220 9% 55%)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+          </marker>
+          <marker id={markerHi} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(var(--primary))" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
           </marker>
         </defs>
         {layout.forward.map((e) => {
@@ -431,11 +548,14 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
           if (!a || !b) return null;
           const x1 = a.x + STEP_W, y1 = a.y + STEP_H / 2, x2 = b.x, y2 = b.y + STEP_H / 2;
           const c = Math.max(24, (x2 - x1) / 2);
+          const d = `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
+          const on = lit(e);
           return (
-            <g key={`${e.from}->${e.to}`}>
-              <path d={`M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`} fill="none" stroke="hsl(220 9% 62%)" strokeWidth={1.5} markerEnd={`url(#${marker})`} />
-              <circle cx={x1} cy={y1} r={2.5} fill="hsl(220 9% 62%)" />
-              {chip((x1 + x2) / 2, (y1 + y2) / 2, e.label)}
+            <g key={`${e.from}->${e.to}`} opacity={hoverStep && !on ? 0.35 : 1}>
+              <path d={d} fill="none" stroke={on ? 'hsl(var(--primary))' : 'hsl(220 9% 62%)'} strokeWidth={on ? 2.25 : 1.5} markerEnd={`url(#${on ? markerHi : marker})`} />
+              <circle cx={x1} cy={y1} r={2.5} fill={on ? 'hsl(var(--primary))' : 'hsl(220 9% 62%)'} />
+              {dot(d, on)}
+              {chip((x1 + x2) / 2, (y1 + y2) / 2, e.label, on)}
             </g>
           );
         })}
@@ -445,10 +565,19 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
           if (!a || !b) return null;
           const x1 = a.x + STEP_W / 2, y1 = a.y + STEP_H, x2 = b.x + STEP_W / 2, y2 = b.y + STEP_H;
           const yb = bottom + FLOW_FOOT * 0.55;
+          const d = `M ${x1} ${y1} C ${x1} ${yb}, ${x2} ${yb}, ${x2} ${y2 + 2}`;
+          const on = lit(e);
           return (
-            <g key={`${e.from}->${e.to}`}>
-              <path d={`M ${x1} ${y1} C ${x1} ${yb}, ${x2} ${yb}, ${x2} ${y2 + 2}`} fill="none" stroke="hsl(var(--primary) / 0.55)" strokeWidth={1.75} strokeDasharray="6 4" markerEnd={`url(#${marker})`} />
-              {chip((x1 + x2) / 2, yb - 6, e.label || 'Goes back')}
+            <g key={`${e.from}->${e.to}`} opacity={hoverStep && !on ? 0.35 : 1}>
+              <path
+                d={d} fill="none"
+                stroke={on ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.55)'}
+                strokeWidth={on ? 2.25 : 1.75}
+                strokeDasharray={on ? undefined : '6 4'}
+                markerEnd={`url(#${on ? markerHi : marker})`}
+              />
+              {dot(d, on)}
+              {chip((x1 + x2) / 2, yb - 6, e.label || 'Goes back', on)}
             </g>
           );
         })}
@@ -458,25 +587,47 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
         const st = byId.get(id);
         if (!st) return null;
         const decision = st.stepType === 'Decision';
+        const sub = st.subProcessId ? names.get(st.subProcessId) ?? null : null;
         const on = lens ? stepMatches(lens, st) : true;
+        const faded = (lens && !on) || (hoverStep && !near.has(id));
         return (
           <div
             key={id}
-            className={`absolute flex flex-col rounded-xl border p-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-opacity duration-200 ${
+            onMouseEnter={(e) => setHoverStep({ id, box: e.currentTarget.getBoundingClientRect() })}
+            onMouseLeave={() => setHoverStep((h) => (h?.id === id ? null : h))}
+            className={`absolute flex flex-col rounded-xl border p-2.5 transition-[opacity,box-shadow] duration-200 ${
+              hoverStep?.id === id ? 'ring-2 ring-primary' : ''
+            } ${
               lens && on
                 ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/30'
+                : sub
+                ? 'border-indigo-300 bg-indigo-50'
                 : st.automated
                 ? 'border-emerald-200 bg-emerald-50/60'
                 : decision
                 ? 'border-amber-200 bg-amber-50/50'
                 : 'border-border bg-background'
-            } ${lens && !on ? 'opacity-35' : ''}`}
-            style={{ left: at.x, top: at.y, width: STEP_W, height: STEP_H }}
+            } ${faded ? 'opacity-35' : ''}`}
+            style={{
+              left: at.x,
+              top: at.y,
+              width: STEP_W,
+              height: STEP_H,
+              // A sub-process step looks like a stack of cards: there is a whole process behind it.
+              boxShadow: sub
+                ? '5px 5px 0 -1px hsl(var(--card)), 5px 5px 0 0 hsl(239 60% 82%), 10px 10px 0 -1px hsl(var(--card)), 10px 10px 0 0 hsl(239 60% 88%)'
+                : '0 1px 2px rgba(16,24,40,0.05)',
+            }}
           >
             <span className="flex items-center gap-1.5">
               {st.who && <Icon w={st.who} size={13} />}
               <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{st.who?.name ?? 'Nobody yet'}</span>
-              {st.automated && (
+              {sub && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold text-indigo-700">
+                  <Workflow className="h-2.5 w-2.5" /> Sub-process
+                </span>
+              )}
+              {!sub && st.automated && (
                 <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold" style={{ color: AUTOMATED }}>
                   <Zap className="h-2.5 w-2.5" /> Auto
                 </span>
@@ -484,10 +635,38 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
               {decision && <span className="shrink-0 text-[9px] font-semibold text-amber-700">Decision</span>}
               {st.stepType === 'Wait' && <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">Wait</span>}
             </span>
-            <span className="mt-1.5 line-clamp-3 text-[12px] font-medium leading-snug">{st.title}</span>
+            <span className="mt-1 line-clamp-2 text-[12px] font-medium leading-snug">{st.title}</span>
+            <span className="mt-auto flex items-center gap-1">
+              {sub ? (
+                <button
+                  type="button"
+                  data-ui
+                  onClick={() => onJump(st.subProcessId!)}
+                  className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 hover:bg-white"
+                >
+                  Runs {sub} <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+                </button>
+              ) : (
+                <>
+                  {st.uses.slice(0, 4).map((u) => (
+                    <span key={u.id} title={u.name}>
+                      <Icon w={u} size={11} />
+                    </span>
+                  ))}
+                  {st.uses.length > 4 && <span className="text-[9px] text-muted-foreground">+{st.uses.length - 4}</span>}
+                  {st.checklist.length > 0 && (
+                    <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
+                      <ListChecks className="h-3 w-3" /> {st.checklist.length}
+                    </span>
+                  )}
+                </>
+              )}
+            </span>
           </div>
         );
       })}
+
+      {hoverStep && byId.get(hoverStep.id) && <StepDetails st={byId.get(hoverStep.id)!} box={hoverStep.box} names={names} />}
     </>
   );
 }
@@ -499,13 +678,16 @@ function FlowView({ p, rect, layout, lens, onClose, onOpenProcess, extra }: {
  * in it laid out left to right at a readable size, one under the other. Wide
  * processes scroll sideways. Back returns to the board exactly as it was.
  */
-function DeptView({ title, hue, procs, lead, canEdit, lens, onBack, onSetLead, onOpenProcess, onTrain }: {
+function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, onSetLead, onOpenProcess, onTrain }: {
   title: string;
   hue: number;
   procs: Proc[];
   lead: Who | null;
   canEdit: boolean;
   lens: Lens | null;
+  names: Map<string, string>;
+  runByOf: Map<string, string[]>;
+  onJump: (processId: string) => void;
   onBack: () => void;
   onSetLead: (() => void) | null;
   onOpenProcess: (id: string) => void;
@@ -601,6 +783,9 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, onBack, onSetLead, o
                     rect={{ x: 0, y: 0, w: layout.width, h: layout.height }}
                     layout={layout}
                     lens={lens && lens.ids.has(p.id) ? lens : null}
+                    names={names}
+                    runBy={runByOf.get(p.id) ?? []}
+                    onJump={onJump}
                     onOpenProcess={() => onOpenProcess(p.id)}
                     extra={
                       p.live ? (
@@ -808,6 +993,18 @@ export default function Brain() {
     return out;
   }, [boardProcs]);
 
+  // Lets earlier callbacks close the department view, which is declared further down.
+  const setDeptOpenRef = useRef<((v: string | null) => void) | null>(null);
+
+  /** Which processes run each one, by name. */
+  const runByOf = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const p of procs ?? []) {
+      for (const id of new Set(p.runs.map((r) => r.processId))) m.set(id, [...(m.get(id) ?? []), p.name]);
+    }
+    return m;
+  }, [procs]);
+
   // --- Moving around ---
   const stage = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 0.5 });
@@ -882,6 +1079,15 @@ export default function Brain() {
     setOpened((prev) => new Set(prev).add(id));
     setAfter({ fly: id });
   }, []);
+  /** From a sub-process step to the process it runs: open that one on the board and glide to it. */
+  const jumpTo = useCallback(
+    (id: string) => {
+      setDeptOpenRef.current?.(null);
+      setOpened((prev) => new Set(prev).add(id));
+      setAfter({ fly: id });
+    },
+    [],
+  );
   const closeFlow = useCallback((id: string) => {
     setOpened((prev) => {
       const next = new Set(prev);
@@ -930,6 +1136,7 @@ export default function Brain() {
   const [query, setQuery] = useState('');
   // The department opened at full size, by its frame key.
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
+  setDeptOpenRef.current = setDeptOpen;
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('[data-ui]')) return;
@@ -1177,9 +1384,14 @@ export default function Brain() {
             </marker>
           </defs>
           {links.map((l) => {
-            const a = board.rectOf(l.from);
+            let a = board.rectOf(l.from);
             const b = board.rectOf(l.to);
             if (!a || !b) return null;
+            // From an opened process, the arrow starts at the step that runs the other process.
+            const flow = board.flows.get(l.from);
+            const subStep = flow ? byId.get(l.from)?.steps.find((st) => st.subProcessId === l.to) : null;
+            const at = subStep ? flow!.layout.pos.get(subStep.id) : null;
+            if (flow && at) a = { x: flow.x + at.x, y: flow.y + at.y, w: STEP_W, h: STEP_H };
             const on = !focus || (focus.has(l.from) && focus.has(l.to));
             return (
               <path
@@ -1245,6 +1457,9 @@ export default function Brain() {
                 rect={f}
                 layout={f.layout}
                 lens={lens && lens.ids.has(p.id) ? lens : null}
+                names={names}
+                runBy={runByOf.get(p.id) ?? []}
+                onJump={jumpTo}
                 onClose={() => closeFlow(p.id)}
                 onOpenProcess={() => navigate(`/process/${p.id}`)}
               />
@@ -1811,6 +2026,9 @@ export default function Brain() {
             lead={dept ? leads.get(dept) ?? null : null}
             canEdit={canEdit}
             lens={lens}
+            names={names}
+            runByOf={runByOf}
+            onJump={jumpTo}
             onBack={() => setDeptOpen(null)}
             onSetLead={dept ? () => setLeadFor(dept) : null}
             onOpenProcess={(id) => navigate(`/process/${id}`)}
