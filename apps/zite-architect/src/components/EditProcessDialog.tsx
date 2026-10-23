@@ -20,6 +20,7 @@ interface ProcessInfo {
   ownerId: string | null;
   backupOwnerId?: string | null;
   department?: string;
+  runsPerMonth?: number | null;
 }
 
 interface Props {
@@ -44,13 +45,16 @@ export default function EditProcessDialog({
   const [ownerId, setOwnerId] = useState<string | null>(process.ownerId);
   const [backupOwnerId, setBackupOwnerId] = useState<string | null>(process.backupOwnerId ?? null);
   const [department, setDepartment] = useState(process.department ?? '');
+  const [runs, setRuns] = useState(process.runsPerMonth ? String(process.runsPerMonth) : '');
+  const runsValue = runs.trim() && Number(runs) > 0 ? Math.round(Number(runs)) : null;
   const [saving, setSaving] = useState(false);
 
   const dirty =
     name.trim() !== process.name ||
     ownerId !== process.ownerId ||
     backupOwnerId !== (process.backupOwnerId ?? null) ||
-    department.trim() !== (process.department ?? '');
+    department.trim() !== (process.department ?? '') ||
+    runsValue !== (process.runsPerMonth ?? null);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -64,6 +68,7 @@ export default function EditProcessDialog({
       if (ownerId !== process.ownerId) (patch as any).ownerId = ownerId;
       if (backupOwnerId !== (process.backupOwnerId ?? null)) (patch as any).backupOwnerId = backupOwnerId;
       if (department.trim() !== (process.department ?? '')) (patch as any).department = department.trim();
+      if (runsValue !== (process.runsPerMonth ?? null)) (patch as any).runsPerMonth = runsValue;
       await saveElement(patch as any);
       toast.success('Process updated');
       onSaved();
@@ -132,6 +137,18 @@ export default function EditProcessDialog({
                 <option key={d} value={d} />
               ))}
             </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Runs per month</Label>
+            <Input
+              type="number"
+              min={0}
+              value={runs}
+              onChange={(e) => setRuns(e.target.value)}
+              placeholder="20"
+              className="w-32"
+            />
+            <p className="text-[11px] text-muted-foreground">How many times this process happens in a month. A rough guess is fine. Used on Insights.</p>
           </div>
         </div>
 

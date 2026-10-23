@@ -24,6 +24,8 @@ export default createEndpoint({
       .array(z.object({ id: z.string(), text: z.string(), appId: z.string().optional() }))
       .default([]),
     walkthroughLine: z.string().default(''),
+    /** Left out, the step keeps the minutes it has. */
+    minutesPerRun: z.number().min(0).nullable().optional(),
   }),
   outputSchema: z.object({ id: z.string() }),
   execute: async ({ input, context }) => {
@@ -48,6 +50,7 @@ export default createEndpoint({
       sequence: input.sequence,
       checklist: input.checklist.length ? JSON.stringify(input.checklist) : '',
       walkthroughLine: input.walkthroughLine.trim(),
+      ...(input.minutesPerRun !== undefined ? { minutesPerRun: input.minutesPerRun } : {}),
     };
 
     let id = input.id;

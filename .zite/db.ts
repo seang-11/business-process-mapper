@@ -168,6 +168,8 @@ export type ElementsRecordType = {
   department?: string;
   /** Links to departments ("Departments"). Single record only. "Departments" */
   departments?: string | string[];
+  /** "Runs Per Month". 0 decimal places, format: local (e.g. 1,000,000.50) */
+  runsPerMonth?: number;
 };
 
 /** What you may write when creating or updating a record in the "Elements" table. */
@@ -194,6 +196,7 @@ export type ElementsRecordInput = {
   shareToken: string | null;
   department: string | null;
   departments: string | string[] | null;
+  runsPerMonth: string | number | null;
 };
 
 /** A record in the "Process Versions" table, as it is read back. */
@@ -259,6 +262,8 @@ export type StepsRecordType = {
   incomingConnections?: string | string[];
   walkthroughLine?: string;
   copiedFrom?: string;
+  /** "Minutes Per Run". 0 decimal places, format: local (e.g. 1,000,000.50) */
+  minutesPerRun?: number;
 };
 
 /** What you may write when creating or updating a record in the "Steps" table. */
@@ -277,6 +282,7 @@ export type StepsRecordInput = {
   incomingConnections: string | string[] | null;
   walkthroughLine: string | null;
   copiedFrom: string | null;
+  minutesPerRun: string | number | null;
 };
 
 /** A record in the "Step Connections" table, as it is read back. */

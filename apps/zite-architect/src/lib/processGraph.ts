@@ -44,6 +44,7 @@ export const stepSchema = z.object({
   subProcessName: z.string(),
   checklist: z.array(z.object({ id: z.string(), text: z.string(), appId: z.string().optional() })),
   walkthroughLine: z.string(),
+  minutesPerRun: z.number().nullable(),
 });
 
 export const connectionSchema = z.object({
@@ -143,6 +144,7 @@ export async function loadGraph(input: { versionId?: string; processId?: string 
         subProcessName: subProcessId ? elementById.get(subProcessId)?.name ?? '' : '',
         checklist,
         walkthroughLine: s.walkthroughLine ?? '',
+        minutesPerRun: s.minutesPerRun ?? null,
       };
     })
     .sort((a, b) => a.sequence - b.sequence);

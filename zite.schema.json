@@ -592,6 +592,18 @@
               "inverseFieldId": "fbyUaHEHBeb"
             }
           }
+        },
+        {
+          "id": "f5bMGg7wR77",
+          "sdkName": "runsPerMonth",
+          "definition": {
+            "name": "Runs Per Month",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
         }
       ]
     },
@@ -931,6 +943,18 @@
             "name": "Copied From",
             "type": "single_line_text",
             "template": {}
+          }
+        },
+        {
+          "id": "fdoZdbd8De1",
+          "sdkName": "minutesPerRun",
+          "definition": {
+            "name": "Minutes Per Run",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
           }
         }
       ]

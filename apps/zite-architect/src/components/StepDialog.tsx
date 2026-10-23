@@ -341,6 +341,7 @@ export default function StepDialog({
   const [title, setTitle] = useState(step?.title ?? '');
   const [description, setDescription] = useState(step?.description ?? '');
   const [walkthroughLine, setWalkthroughLine] = useState(step?.walkthroughLine ?? '');
+  const [minutes, setMinutes] = useState(step?.minutesPerRun ? String(step.minutesPerRun) : '');
   const [stepType, setStepType] = useState(step?.stepType || 'Task');
   const [performedBy, setPerformedBy] = useState<string[]>(
     step?.performedBy ? [step.performedBy.id] : [],
@@ -463,6 +464,7 @@ export default function StepDialog({
         sequence: nextSequence,
         checklist: checklist.filter((c) => c.text.trim()),
         walkthroughLine,
+        minutesPerRun: minutes.trim() && Number(minutes) > 0 ? Math.round(Number(minutes)) : null,
       });
 
       // Both directions reconcile the same way: drop what was removed, then
@@ -659,6 +661,21 @@ export default function StepDialog({
               placeholder="Anything the person doing this needs to know."
               rows={2}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Minutes per run</Label>
+            <Input
+              type="number"
+              min={0}
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              placeholder="10"
+              className="w-32"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Roughly how long a person spends on this each time. Leave empty for steps an app does. Used on Insights.
+            </p>
           </div>
 
           <div className="space-y-1.5">

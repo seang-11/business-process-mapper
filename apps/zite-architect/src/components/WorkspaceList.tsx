@@ -347,6 +347,7 @@ export default function WorkspaceList() {
             ownerId: editProcessTarget.ownerId,
             backupOwnerId: editProcessTarget.backupOwnerId,
             department: editProcessTarget.department,
+            runsPerMonth: editProcessTarget.runsPerMonth,
           }}
           elements={elements}
           types={types}

@@ -636,7 +636,7 @@ export default function ProcessCanvas() {
 
       {editingProcess && process && (
         <EditProcessDialog
-          process={{ id: process.id, name: process.name, ownerId: process.ownerId, backupOwnerId: process.backupOwnerId, department: process.department }}
+          process={{ id: process.id, name: process.name, ownerId: process.ownerId, backupOwnerId: process.backupOwnerId, department: process.department, runsPerMonth: process.runsPerMonth }}
           elements={elements}
           types={types}
           onClose={() => setEditingProcess(false)}

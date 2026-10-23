@@ -36,6 +36,8 @@ export interface ProcessStep {
   checklist: ChecklistItem[];
   /** Optional wording for the walkthrough; the title is used when empty. */
   walkthroughLine: string;
+  /** Rough minutes a person spends on this step each time it runs. Null when not estimated. */
+  minutesPerRun: number | null;
 }
 
 export interface ProcessConnection {

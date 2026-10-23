@@ -23,6 +23,8 @@ export default createEndpoint({
     backupOwnerId: z.string().nullable().optional(),
     /** Which team a process belongs to, such as Sales or Delivery. Empty clears it. */
     department: z.string().optional(),
+    /** How often a process runs, for Insights. Null clears it. */
+    runsPerMonth: z.number().min(0).nullable().optional(),
     effectiveFrom: z.string().nullable().optional(),
     effectiveTo: z.string().nullable().optional(),
   }),
@@ -46,6 +48,7 @@ export default createEndpoint({
       if (input.ownerId !== undefined) patch.owner = input.ownerId ? [input.ownerId] : [];
       if (input.backupOwnerId !== undefined) patch.backupOwner = input.backupOwnerId ? [input.backupOwnerId] : [];
       if (input.department !== undefined) patch.department = input.department.trim();
+      if (input.runsPerMonth !== undefined) patch.runsPerMonth = input.runsPerMonth;
       if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom;
       if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo;
 

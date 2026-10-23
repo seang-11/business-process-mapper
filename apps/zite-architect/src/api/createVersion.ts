@@ -68,6 +68,7 @@ export default createEndpoint({
           sequence: s.sequence ?? 0,
           checklist: s.checklist ?? '',
           walkthroughLine: s.walkthroughLine ?? '',
+          minutesPerRun: s.minutesPerRun ?? null,
           // Lets a comparison line this step up with the one it was copied from.
           copiedFrom: s.id,
         },
