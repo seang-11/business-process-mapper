@@ -1,11 +1,11 @@
 // Auto-generated type-narrowing wrapper. Do not edit manually.
 // Re-exports createEndpoint with context.user typed to the app User.
 
-import type { ZiteRequestContext as _ZiteRequestContext, ZiteScheduledContext, ZiteErrorCode, ZiteSchedule, ZiteStreamInterface, ZiteTrigger, ZiteTriggerContext, ZiteWebhook } from 'zitejs/backend/base';
+import type { ZiteRequestContext as _ZiteRequestContext, ZiteScheduledContext, ZiteErrorCode, ZiteSchedule, ZiteStep, ZiteStreamInterface, ZiteTrigger, ZiteTriggerContext, ZiteEndpointInput, ZiteWebhook } from 'zitejs/backend/base';
 import type { User } from 'zitejs/auth';
 
-export type { ZiteErrorCode, ZiteSchedule, ZiteScheduledContext, ZiteStreamInterface, ZiteTrigger, ZiteWebhook };
-export type { ZiteTriggerContext, ZiteTriggerDeliveryInfo, ZiteTriggerDeliveryRun, ZiteTriggerRun, ZiteTriggerSubscribe, ZiteTriggerSubscribeInput, ZiteTriggerSubscribeResult, ZiteTriggerUnsubscribe, ZiteTriggerUnsubscribeInput } from 'zitejs/backend/base';
+export type { ZiteErrorCode, ZiteSchedule, ZiteScheduledContext, ZiteStep, ZiteStreamInterface, ZiteTrigger, ZiteWebhook };
+export type { ZiteDatabaseTriggerEvent, ZiteDatabaseTriggerInput, ZiteFormTriggerInput, ZiteTriggerContext, ZiteTriggerDeliveryInfo, ZiteTriggerDeliveryRun, ZiteTriggerRun, ZiteTriggerSubscribe, ZiteTriggerSubscribeInput, ZiteTriggerSubscribeResult, ZiteTriggerUnsubscribe, ZiteTriggerUnsubscribeInput } from 'zitejs/backend/base';
 export type InferSchemaType<T> = T extends { _output: infer U } ? U : T;
 
 export class ZiteError extends Error {
@@ -84,11 +84,13 @@ export interface EndpointConfig<TInput = unknown, TOutput = unknown, TStream ext
   schedule?: TSchedule;
   /** When set, an inbound webhook can also trigger this endpoint. Like `schedule`, it widens `context` — a webhook fire has no session. */
   webhook?: TWebhook;
-  /** When set, a connection's events (registered by this file's own `subscribe` export) or a poll (`every`) also fire this endpoint. Like `webhook`, it widens `context` — a trigger fire has no session. */
+  /** When set, a connection's events (registered by this file's own `subscribe` export), a poll (`every`), a change to one of the project's tables (`table`) or a submission to one of its forms (`form`) also fire this endpoint. Like `webhook`, it widens `context` — a trigger fire has no session. */
   trigger?: TTrigger;
   execute: (
     params: {
-      input: TInput;
+      input: ZiteEndpointInput<TInput, TTrigger>;
+      /** Durable steps: step.run(name, fn) runs fn once per logical run — its result is saved before anything after it executes, and a resumed run replays completed steps from their saved results. Provided by the platform; never define a local stand-in. */
+      step: ZiteStep;
       context: TSchedule extends ZiteSchedule ? ZiteRequestContext | ZiteScheduledContext : TWebhook extends ZiteWebhook ? ZiteRequestContext | ZiteScheduledContext : TTrigger extends ZiteTrigger ? ZiteRequestContext | ZiteScheduledContext : ZiteRequestContext;
     } & (TStream extends true ? { stream: ZiteStreamInterface } : {}) & (TTrigger extends ZiteTrigger ? { trigger?: ZiteTriggerContext<TTrigger> } : {}),
   ) => Promise<TOutput> | TOutput;
