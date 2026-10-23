@@ -2,8 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, GraduationCap, Maximize, Minus, Plus, Search, Workflow, X, Zap,
+  ArrowRight, Brain as BrainIcon, GraduationCap, Maximize, Maximize2, Minimize2, Minus, Plus, Search, Workflow, X, Zap,
 } from 'lucide-react';
+import { flowLayout, FLOW_FOOT, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import ElementIcon from './ElementIcon';
@@ -51,12 +52,20 @@ interface Frame {
   count: number;
 }
 
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /**
- * Lays the board out: one frame per department, processes in a tidy grid
- * inside, frames packed left to right in rows. Always the same answer for the
- * same processes, so the board doesn't shuffle between visits.
+ * Lays the board out: one frame per department, closed processes in a tidy
+ * grid inside, opened processes underneath as full-width flows, and frames
+ * packed left to right in rows. Always the same answer for the same input, so
+ * the board doesn't shuffle between visits.
  */
-function layoutBoard(procs: Proc[]) {
+function layoutBoard(procs: Proc[], opened: Set<string>) {
   const byDept = new Map<string, Proc[]>();
   for (const p of procs) {
     const key = p.department || '';
@@ -67,50 +76,71 @@ function layoutBoard(procs: Proc[]) {
   const keys = [...byDept.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
 
   const frames: Frame[] = [];
-  const cards = new Map<string, { x: number; y: number }>();
+  const cards = new Map<string, Rect>();
+  const flows = new Map<string, Rect & { layout: FlowLayout }>();
   let x = 0;
   let y = 0;
   let rowH = 0;
   for (const key of keys) {
     const list = byDept.get(key)!;
-    const cols = list.length <= 2 ? list.length : list.length <= 4 ? 2 : 3;
-    const rows = Math.ceil(list.length / cols);
-    const w = FRAME_PAD * 2 + cols * CARD_W + (cols - 1) * CARD_GAP;
-    const h = FRAME_HEAD + FRAME_PAD + rows * CARD_H + (rows - 1) * CARD_GAP;
+    const closed = list.filter((p) => !opened.has(p.id));
+    const open = list
+      .filter((p) => opened.has(p.id))
+      .map((p) => ({ p, layout: flowLayout(p.steps.map((st) => st.id), p.links) }));
+
+    const cols = closed.length === 0 ? 0 : closed.length <= 2 ? closed.length : closed.length <= 4 ? 2 : 3;
+    const gridRows = cols ? Math.ceil(closed.length / cols) : 0;
+    const gridW = cols ? cols * CARD_W + (cols - 1) * CARD_GAP : 0;
+    const gridH = gridRows ? gridRows * CARD_H + (gridRows - 1) * CARD_GAP : 0;
+    const flowsW = Math.max(0, ...open.map((o) => o.layout.width));
+    const flowsH = open.reduce((n, o) => n + o.layout.height, 0) + Math.max(0, open.length - 1) * CARD_GAP;
+    const innerW = Math.max(gridW, flowsW, CARD_W);
+    const w = FRAME_PAD * 2 + innerW;
+    const h = FRAME_HEAD + gridH + (gridH && flowsH ? CARD_GAP : 0) + flowsH + FRAME_PAD;
+
     if (x > 0 && x + w > ROW_MAX) {
       x = 0;
       y += rowH + FRAME_GAP;
       rowH = 0;
     }
     frames.push({ key: key || '~none', title: key || 'No department yet', hue: key ? hueFor(key) : 220, x, y, w, h, count: list.length });
-    list.forEach((p, i) => {
+    closed.forEach((p, i) => {
       cards.set(p.id, {
         x: x + FRAME_PAD + (i % cols) * (CARD_W + CARD_GAP),
         y: y + FRAME_HEAD + Math.floor(i / cols) * (CARD_H + CARD_GAP),
+        w: CARD_W,
+        h: CARD_H,
       });
     });
+    let fy = y + FRAME_HEAD + gridH + (gridH ? CARD_GAP : 0);
+    for (const o of open) {
+      flows.set(o.p.id, { x: x + FRAME_PAD, y: fy, w: o.layout.width, h: o.layout.height, layout: o.layout });
+      fy += o.layout.height + CARD_GAP;
+    }
     x += w + FRAME_GAP;
     rowH = Math.max(rowH, h);
   }
   const width = Math.max(0, ...frames.map((f) => f.x + f.w));
   const height = Math.max(0, ...frames.map((f) => f.y + f.h));
-  return { frames, cards, width, height };
+  /** Where a process sits, closed or opened. */
+  const rectOf = (id: string): Rect | null => cards.get(id) ?? flows.get(id) ?? null;
+  return { frames, cards, flows, rectOf, width, height };
 }
 
-/** A curved arrow from one card to another, leaving and arriving on the sides that face each other. */
-function arrowPath(a: { x: number; y: number }, b: { x: number; y: number }) {
-  if (b.x >= a.x + CARD_W) {
-    const x1 = a.x + CARD_W, y1 = a.y + CARD_H / 2, x2 = b.x, y2 = b.y + CARD_H / 2;
+/** A curved arrow from one box to another, leaving and arriving on the sides that face each other. */
+function arrowPath(a: Rect, b: Rect) {
+  if (b.x >= a.x + a.w) {
+    const x1 = a.x + a.w, y1 = a.y + Math.min(a.h / 2, 130), x2 = b.x, y2 = b.y + Math.min(b.h / 2, 130);
     const c = Math.max(60, (x2 - x1) / 2);
     return `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
   }
-  if (b.x + CARD_W <= a.x) {
-    const x1 = a.x, y1 = a.y + CARD_H / 2, x2 = b.x + CARD_W, y2 = b.y + CARD_H / 2;
+  if (b.x + b.w <= a.x) {
+    const x1 = a.x, y1 = a.y + Math.min(a.h / 2, 130), x2 = b.x + b.w, y2 = b.y + Math.min(b.h / 2, 130);
     const c = Math.max(60, (x1 - x2) / 2);
     return `M ${x1} ${y1} C ${x1 - c} ${y1}, ${x2 + c} ${y2}, ${x2} ${y2}`;
   }
   const down = b.y > a.y;
-  const x1 = a.x + CARD_W / 2, y1 = down ? a.y + CARD_H : a.y, x2 = b.x + CARD_W / 2, y2 = down ? b.y : b.y + CARD_H;
+  const x1 = a.x + Math.min(a.w / 2, 150), y1 = down ? a.y + a.h : a.y, x2 = b.x + Math.min(b.w / 2, 150), y2 = down ? b.y : b.y + b.h;
   const c = Math.max(50, Math.abs(y2 - y1) / 2) * (down ? 1 : -1);
   return `M ${x1} ${y1} C ${x1} ${y1 + c}, ${x2} ${y2 - c}, ${x2} ${y2}`;
 }
@@ -134,7 +164,13 @@ const Icon = ({ w, size }: { w: Who; size: number }) => (
 );
 
 /** One process on the board. What it shows depends on how close you are. */
-function Card({ p, level, names }: { p: Proc; level: 'far' | 'mid' | 'near'; names: Map<string, string> }) {
+function Card({ p, level, names, onOpenFlow }: {
+  p: Proc;
+  level: 'far' | 'mid' | 'near';
+  names: Map<string, string>;
+  /** Lay this process out step by step, right here on the board. */
+  onOpenFlow: () => void;
+}) {
   if (level === 'far') {
     return (
       <div className="flex h-full flex-col justify-between p-6">
@@ -154,6 +190,18 @@ function Card({ p, level, names }: { p: Proc; level: 'far' | 'mid' | 'near'; nam
       >
         {p.live ? 'Live' : 'Draft'}
       </span>
+      {p.steps.length > 0 && (
+        <button
+          type="button"
+          data-ui
+          onClick={onOpenFlow}
+          title="Open the steps here on the board"
+          aria-label={`Open the steps of ${p.name} on the board`}
+          className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 
@@ -228,6 +276,134 @@ function Card({ p, level, names }: { p: Proc; level: 'far' | 'mid' | 'near'; nam
   );
 }
 
+/** One process opened up on the board: every step left to right, with its arrows, like a small map. */
+function FlowView({ p, rect, layout, onClose, onOpenProcess }: {
+  p: Proc;
+  rect: Rect;
+  layout: FlowLayout;
+  onClose: () => void;
+  onOpenProcess: () => void;
+}) {
+  const byId = new Map(p.steps.map((s) => [s.id, s]));
+  const marker = `flow-arrow-${p.id}`;
+  const bottom = Math.max(0, ...[...layout.pos.values()].map((v) => v.y + STEP_H));
+  const chip = (x: number, y: number, label: string) =>
+    label ? (
+      <g>
+        <rect x={x - (label.length * 5.4 + 14) / 2} y={y - 9} width={label.length * 5.4 + 14} height={18} rx={9} fill="hsl(var(--background))" stroke="hsl(var(--border))" />
+        <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={500} fill="hsl(var(--muted-foreground))">
+          {label}
+        </text>
+      </g>
+    ) : null;
+
+  return (
+    <>
+      <div className="flex h-16 items-center gap-3 px-7">
+        <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+          }`}
+        >
+          {p.live ? 'Live' : 'Draft'}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {plural(p.stepCount, 'step')}
+          {p.ownerName ? ` · ${p.ownerName}` : ''}
+        </span>
+        <span className="ml-auto flex items-center gap-1.5">
+          <button
+            type="button"
+            data-ui
+            onClick={onOpenProcess}
+            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+          >
+            Open process <ArrowRight className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            data-ui
+            onClick={onClose}
+            title="Close it back to a card"
+            aria-label={`Close ${p.name} back to a card`}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Minimize2 className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      </div>
+
+      <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={rect.w} height={rect.h} aria-hidden="true">
+        <defs>
+          <marker id={marker} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M 2 1.5 L 8 5 L 2 8.5" fill="none" stroke="hsl(220 9% 55%)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+          </marker>
+        </defs>
+        {layout.forward.map((e) => {
+          const a = layout.pos.get(e.from);
+          const b = layout.pos.get(e.to);
+          if (!a || !b) return null;
+          const x1 = a.x + STEP_W, y1 = a.y + STEP_H / 2, x2 = b.x, y2 = b.y + STEP_H / 2;
+          const c = Math.max(24, (x2 - x1) / 2);
+          return (
+            <g key={`${e.from}->${e.to}`}>
+              <path d={`M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`} fill="none" stroke="hsl(220 9% 62%)" strokeWidth={1.5} markerEnd={`url(#${marker})`} />
+              <circle cx={x1} cy={y1} r={2.5} fill="hsl(220 9% 62%)" />
+              {chip((x1 + x2) / 2, (y1 + y2) / 2, e.label)}
+            </g>
+          );
+        })}
+        {layout.back.map((e) => {
+          const a = layout.pos.get(e.from);
+          const b = layout.pos.get(e.to);
+          if (!a || !b) return null;
+          const x1 = a.x + STEP_W / 2, y1 = a.y + STEP_H, x2 = b.x + STEP_W / 2, y2 = b.y + STEP_H;
+          const yb = bottom + FLOW_FOOT * 0.55;
+          return (
+            <g key={`${e.from}->${e.to}`}>
+              <path d={`M ${x1} ${y1} C ${x1} ${yb}, ${x2} ${yb}, ${x2} ${y2 + 2}`} fill="none" stroke="hsl(var(--primary) / 0.55)" strokeWidth={1.75} strokeDasharray="6 4" markerEnd={`url(#${marker})`} />
+              {chip((x1 + x2) / 2, yb - 6, e.label || 'Goes back')}
+            </g>
+          );
+        })}
+      </svg>
+
+      {[...layout.pos].map(([id, at]) => {
+        const st = byId.get(id);
+        if (!st) return null;
+        const decision = st.stepType === 'Decision';
+        return (
+          <div
+            key={id}
+            className={`absolute flex flex-col rounded-xl border p-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.05)] ${
+              st.automated
+                ? 'border-emerald-200 bg-emerald-50/60'
+                : decision
+                ? 'border-amber-200 bg-amber-50/50'
+                : 'border-border bg-background'
+            }`}
+            style={{ left: at.x, top: at.y, width: STEP_W, height: STEP_H }}
+          >
+            <span className="flex items-center gap-1.5">
+              {st.who && <Icon w={st.who} size={13} />}
+              <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{st.who?.name ?? 'Nobody yet'}</span>
+              {st.automated && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold" style={{ color: AUTOMATED }}>
+                  <Zap className="h-2.5 w-2.5" /> Auto
+                </span>
+              )}
+              {decision && <span className="shrink-0 text-[9px] font-semibold text-amber-700">Decision</span>}
+              {st.stepType === 'Wait' && <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">Wait</span>}
+            </span>
+            <span className="mt-1.5 line-clamp-3 text-[12px] font-medium leading-snug">{st.title}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 interface View {
   x: number;
   y: number;
@@ -256,7 +432,9 @@ export default function Brain() {
     load();
   }, [load]);
 
-  const board = useMemo(() => layoutBoard(procs ?? []), [procs]);
+  // Processes opened up on the board, step by step. The rest stay as cards.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const board = useMemo(() => layoutBoard(procs ?? [], opened), [procs, opened]);
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
   const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
 
@@ -317,15 +495,48 @@ export default function Brain() {
   const flyTo = useCallback(
     (id: string) => {
       const el = stage.current;
-      const pos = board.cards.get(id);
-      if (!el || !pos) return;
+      const box = board.rectOf(id);
+      if (!el || !box) return;
       const r = el.getBoundingClientRect();
-      const z = Math.max(viewRef.current.z, NEAR + 0.15);
       setGlide(true);
-      setView({ z, x: r.width / 2 - (pos.x + CARD_W / 2) * z, y: r.height / 2 - (pos.y + CARD_H / 2) * z });
+      if (board.flows.has(id)) {
+        // An opened process: as close as it fits across, never so close the steps are huge.
+        const z = Math.min(1, Math.max(0.55, (r.width - 140) / box.w));
+        const x = box.w * z < r.width - 80 ? r.width / 2 - (box.x + box.w / 2) * z : 70 - box.x * z;
+        setView({ z, x, y: r.height / 2 - (box.y + box.h / 2) * z });
+        return;
+      }
+      const z = Math.max(viewRef.current.z, NEAR + 0.15);
+      setView({ z, x: r.width / 2 - (box.x + box.w / 2) * z, y: r.height / 2 - (box.y + box.h / 2) * z });
     },
     [board],
   );
+
+  // Opening or closing changes the layout, so the camera moves once the board has been laid out again.
+  const [after, setAfter] = useState<{ fly?: string; fit?: boolean } | null>(null);
+  useEffect(() => {
+    if (!after) return;
+    if (after.fly) flyTo(after.fly);
+    else if (after.fit) fit();
+    setAfter(null);
+  }, [board, after, flyTo, fit]);
+
+  const openFlow = useCallback((id: string) => {
+    setOpened((prev) => new Set(prev).add(id));
+    setAfter({ fly: id });
+  }, []);
+  const closeFlow = useCallback((id: string) => {
+    setOpened((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  const allOpen = !!procs && procs.length > 0 && procs.every((p) => opened.has(p.id) || p.steps.length === 0);
+  const toggleAll = () => {
+    setOpened(allOpen ? new Set() : new Set((procs ?? []).filter((p) => p.steps.length > 0).map((p) => p.id)));
+    setAfter({ fit: true });
+  };
 
   useLayoutEffect(() => {
     if (procs && procs.length && !fitted.current) {
@@ -511,8 +722,8 @@ export default function Brain() {
             </marker>
           </defs>
           {links.map((l) => {
-            const a = board.cards.get(l.from);
-            const b = board.cards.get(l.to);
+            const a = board.rectOf(l.from);
+            const b = board.rectOf(l.to);
             if (!a || !b) return null;
             const on = !focus || (focus.has(l.from) && focus.has(l.to));
             return (
@@ -552,7 +763,34 @@ export default function Brain() {
               } ${dim ? 'opacity-25' : ''}`}
               style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
             >
-              <Card p={p} level={level} names={names} />
+              <Card p={p} level={level} names={names} onOpenFlow={() => openFlow(p.id)} />
+            </div>
+          );
+        })}
+
+        {/* Opened processes: every step, left to right. */}
+        {procs.map((p) => {
+          const f = board.flows.get(p.id);
+          if (!f) return null;
+          const dim = !!focus && !focus.has(p.id);
+          return (
+            <div
+              key={p.id}
+              data-card={p.id}
+              onMouseEnter={() => setHover(p.id)}
+              onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
+              className={`absolute rounded-2xl border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-[opacity,box-shadow,border-color] duration-200 ${
+                selected === p.id ? 'border-primary ring-4 ring-primary/20' : 'border-border'
+              } ${dim ? 'opacity-25' : ''}`}
+              style={{ left: f.x, top: f.y, width: f.w, height: f.h }}
+            >
+              <FlowView
+                p={p}
+                rect={f}
+                layout={f.layout}
+                onClose={() => closeFlow(p.id)}
+                onOpenProcess={() => navigate(`/process/${p.id}`)}
+              />
             </div>
           );
         })}
@@ -565,7 +803,7 @@ export default function Brain() {
             <BrainIcon className="h-4 w-4 text-primary" /> Company brain
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Drag to move. Pinch or scroll to zoom. Click a process for details.
+            Drag to move. Pinch or scroll to zoom. Click a process for details, or open its steps right here.
           </p>
           <div className="relative mt-2.5">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -582,6 +820,14 @@ export default function Brain() {
               className="h-8 w-full rounded-lg border border-border bg-card pl-8 pr-2 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
             />
           </div>
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs font-medium transition-colors hover:border-primary/30 hover:text-primary"
+          >
+            {allOpen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            {allOpen ? 'Close every process' : 'Open every process step by step'}
+          </button>
         </div>
 
         <div className="flex max-h-[calc(100vh-15rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
@@ -756,7 +1002,17 @@ export default function Brain() {
             </section>
           </div>
 
-          <div className="flex gap-2 border-t border-border p-3">
+          <div className="flex flex-wrap gap-2 border-t border-border p-3">
+            {sel.steps.length > 0 && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => (opened.has(sel.id) ? (closeFlow(sel.id), setAfter({ fly: sel.id })) : openFlow(sel.id))}
+              >
+                {opened.has(sel.id) ? <Minimize2 className="mr-1.5 h-4 w-4" /> : <Maximize2 className="mr-1.5 h-4 w-4" />}
+                {opened.has(sel.id) ? 'Close the steps on the board' : 'Show the steps on the board'}
+              </Button>
+            )}
             <Button className="flex-1" onClick={() => navigate(`/process/${sel.id}`)}>
               Open process
             </Button>

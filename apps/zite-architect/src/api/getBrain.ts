@@ -49,15 +49,18 @@ export default createEndpoint({
             who: participant.nullable(),
           }),
         ),
+        /** The arrows between those steps, so the board can lay the process out left to right. */
+        links: z.array(z.object({ from: z.string(), to: z.string(), label: z.string() })),
       }),
     ),
   }),
   execute: async () => {
-    const [typeRes, elementRes, versionRes, stepRes] = await Promise.all([
+    const [typeRes, elementRes, versionRes, stepRes, connRes] = await Promise.all([
       zite.elementTypes.findAll({ limit: 500 }),
       zite.elements.findAll({ limit: 2000 }),
       zite.processVersions.findAll({ limit: 2000 }),
       zite.steps.findAll({ limit: 2000 }),
+      zite.stepConnections.findAll({ limit: 2000 }),
     ]);
 
     const processType = typeRes.records.find((t) => t.key === 'process');
@@ -147,6 +150,11 @@ export default createEndpoint({
           people: [...people.values()],
           apps: [...apps.values()],
           runs,
+          links: version
+            ? connRes.records
+                .filter((c) => one(c.version) === version.id)
+                .map((c) => ({ from: one(c.fromStep) ?? '', to: one(c.toStep) ?? '', label: c.label ?? '' }))
+            : [],
           steps: steps.map((s) => {
             const performer = one(s.performedBy);
             return {
