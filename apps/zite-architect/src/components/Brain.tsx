@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getBrain, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -356,6 +356,97 @@ function Card({ p, level, names, lens, onOpenFlow }: {
   );
 }
 
+const KEY_OPEN = 'bpm_brain_key_open';
+
+/**
+ * What everything on the board means, drawn the way it looks on the board:
+ * the step cards, the lines between them, and the bar on each process card.
+ */
+function BrainKey({ showsSteps }: { showsSteps: boolean }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(KEY_OPEN) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggle = () => {
+    setOpen((o) => {
+      try {
+        localStorage.setItem(KEY_OPEN, o ? '0' : '1');
+      } catch {
+        // Not remembered; it still works for this visit.
+      }
+      return !o;
+    });
+  };
+  const card = (cls: string, extra?: React.ReactNode, style?: React.CSSProperties) => (
+    <span className={`relative inline-flex h-4 w-6 shrink-0 items-center justify-center rounded-[4px] border ${cls}`} style={style}>
+      {extra}
+    </span>
+  );
+  return (
+    <div className="shrink-0 rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
+      <button type="button" onClick={toggle} className="flex w-full items-center gap-2 px-3 py-2 text-left">
+        <span className="flex-1 text-xs font-semibold">Key</span>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && (
+        <div className="space-y-2.5 border-t border-border px-3 pb-3 pt-2.5 text-[11px]">
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {showsSteps ? 'Steps' : 'Steps, when opened'}
+            </p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+              <span className="flex items-center gap-1.5">{card('border-border bg-background')} Done by a person</span>
+              <span className="flex items-center gap-1.5">{card('border-amber-200 bg-amber-50')} A decision</span>
+              <span className="flex items-center gap-1.5">
+                {card('border-emerald-200 bg-emerald-50', <Zap className="h-2.5 w-2.5" style={{ color: AUTOMATED }} />)} Runs on its own
+              </span>
+              <span className="flex items-center gap-1.5">
+                {card('border-indigo-300 bg-indigo-50', null, { boxShadow: '2px 2px 0 -1px white, 2px 2px 0 0 hsl(239 60% 82%)' })} Runs a process
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lines</p>
+            <div className="space-y-1.5">
+              <span className="flex items-center gap-1.5">
+                <svg width="24" height="8" aria-hidden="true">
+                  <path d="M1 4 H20" stroke="hsl(220 9% 62%)" strokeWidth="1.5" />
+                  <path d="M17 1.5 L21 4 L17 6.5" fill="none" stroke="hsl(220 9% 62%)" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                What happens next
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-flex h-4 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-[8px] text-muted-foreground">Yes</span>
+                The answer to a decision
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-6 shrink-0 border-t-2 border-dashed border-primary/60" />
+                Goes back, or runs another process
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Process cards</p>
+            <span className="flex h-1.5 w-full overflow-hidden rounded-full">
+              <span className="w-1/3" style={{ backgroundColor: AUTOMATED }} />
+              <span className="w-1/4" style={{ backgroundColor: REVIEW }} />
+              <span className="flex-1" style={{ backgroundColor: MANUAL }} />
+            </span>
+            <span className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+              <span>On its own</span>
+              <span>A person decides</span>
+              <span>By hand</span>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The details of one step, shown while you point at it. Drawn full size whatever the zoom. */
 function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<string, string> }) {
   const W = 288;
@@ -457,6 +548,20 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
   const markerHi = `flow-arrow-hi-${p.id}`;
   const bottom = Math.max(0, ...[...layout.pos.values()].map((v) => v.y + STEP_H));
   const [hoverStep, setHoverStep] = useState<{ id: string; box: DOMRect } | null>(null);
+  // Zooming, dragging or scrolling moves the step out from under the pointer without a mouse-leave,
+  // which left the panel stuck on the old step. Any of them closes it; pointing again reopens it.
+  useEffect(() => {
+    if (!hoverStep) return;
+    const close = () => setHoverStep(null);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [hoverStep]);
   const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const lit = (e: { from: string; to: string }) => !!hoverStep && (e.from === hoverStep.id || e.to === hoverStep.id);
   // The steps an arrow from the hovered step touches stay bright; the rest of the process steps back.
@@ -1582,7 +1687,7 @@ export default function Brain() {
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className="absolute left-4 top-4 z-20 flex w-[264px] cursor-default flex-col gap-2">
+      <div data-ui className="absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2">
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
@@ -1614,7 +1719,9 @@ export default function Brain() {
           </div>
         </div>
 
-        <div data-tour="lens" className="flex max-h-[calc(100vh-16rem)] min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
+        <BrainKey showsSteps={opened.size > 0} />
+
+        <div data-tour="lens" className="flex min-h-0 flex-col rounded-2xl border border-border bg-background/95 shadow-sm backdrop-blur">
           <div className="flex gap-1 p-1.5">
             {(['people', 'apps'] as const).map((t) => (
               <button
@@ -2016,19 +2123,7 @@ export default function Brain() {
         </aside>
       )}
 
-      {/* Bottom: a key for the colors, and the zoom controls. */}
-      <div data-ui className="absolute bottom-4 left-4 z-20 flex cursor-default flex-wrap gap-x-4 gap-y-1 rounded-full border border-border bg-background/95 px-4 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-        {[[AUTOMATED, 'Runs on its own'], [REVIEW, 'A person decides'], [MANUAL, 'Done by hand']].map(([c, l]) => (
-          <span key={l} className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c }} /> {l}
-          </span>
-        ))}
-        {links.length > 0 && (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-4 border-t-2 border-dashed border-primary" /> Runs another process
-          </span>
-        )}
-      </div>
+      {/* Bottom right: the zoom controls. */}
       <div
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
