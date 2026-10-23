@@ -1,8 +1,9 @@
 /** Sizes of one opened process on the Brain board, in board units. */
 export const STEP_W = 210;
 export const STEP_H = 104;
-export const STEP_GAP_X = 64;
-export const STEP_GAP_Y = 22;
+/** Wide enough for an arrow label such as "Yes, over the limit" to sit between two cards. */
+export const STEP_GAP_X = 136;
+export const STEP_GAP_Y = 30;
 export const FLOW_PAD = 28;
 export const FLOW_HEAD = 64;
 /** Room under the steps for arrows that loop back. */

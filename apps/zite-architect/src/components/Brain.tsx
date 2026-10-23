@@ -7,7 +7,7 @@ import {
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { flowLayout, FLOW_FOOT, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
+import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@project/components/ui/command';
@@ -469,18 +469,39 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
     }
   }
 
-  const chip = (x: number, y: number, label: string, on: boolean) =>
-    label ? (
-      <g>
+  // Labels never grow wider than the gap between two cards; the full text shows on hover.
+  const maxChars = Math.floor((STEP_GAP_X - 16 - 14) / 5.4);
+  const chip = (x: number, y: number, label: string, on: boolean) => {
+    if (!label) return null;
+    const text = label.length > maxChars ? `${label.slice(0, maxChars - 1).trimEnd()}…` : label;
+    const w = text.length * 5.4 + 14;
+    return (
+      <g style={{ pointerEvents: 'auto' }}>
+        <title>{label}</title>
         <rect
-          x={x - (label.length * 5.4 + 14) / 2} y={y - 9} width={label.length * 5.4 + 14} height={18} rx={9}
+          x={x - w / 2} y={y - 9} width={w} height={18} rx={9}
           fill="hsl(var(--background))" stroke={on ? 'hsl(var(--primary))' : 'hsl(var(--border))'}
         />
         <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={500} fill={on ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'}>
-          {label}
+          {text}
         </text>
       </g>
-    ) : null;
+    );
+  };
+  // Where an arrow's label sits: in the gap just before the card it points to, on the curve,
+  // so it never lands on a card it passes over.
+  const chipAt = (x1: number, y1: number, x2: number, y2: number, c: number) => {
+    const tx = x2 - STEP_GAP_X / 2;
+    if (tx <= x1) return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+    const bx = (t: number) => (1 - t) ** 3 * x1 + 3 * (1 - t) ** 2 * t * (x1 + c) + 3 * (1 - t) * t ** 2 * (x2 - c) + t ** 3 * x2;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 20; i++) {
+      const m = (lo + hi) / 2;
+      if (bx(m) < tx) lo = m; else hi = m;
+    }
+    const t = (lo + hi) / 2;
+    return { x: tx, y: (1 - t) ** 3 * y1 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t ** 2 * y2 + t ** 3 * y2 };
+  };
   const dot = (d: string, on: boolean) =>
     on && !reduceMotion ? (
       <circle r={3.5} fill="hsl(var(--primary))">
@@ -555,7 +576,6 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
               <path d={d} fill="none" stroke={on ? 'hsl(var(--primary))' : 'hsl(220 9% 62%)'} strokeWidth={on ? 2.25 : 1.5} markerEnd={`url(#${on ? markerHi : marker})`} />
               <circle cx={x1} cy={y1} r={2.5} fill={on ? 'hsl(var(--primary))' : 'hsl(220 9% 62%)'} />
               {dot(d, on)}
-              {chip((x1 + x2) / 2, (y1 + y2) / 2, e.label, on)}
             </g>
           );
         })}
@@ -577,7 +597,6 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
                 markerEnd={`url(#${on ? markerHi : marker})`}
               />
               {dot(d, on)}
-              {chip((x1 + x2) / 2, yb - 6, e.label || 'Goes back', on)}
             </g>
           );
         })}
@@ -665,6 +684,34 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
           </div>
         );
       })}
+
+      {/* Arrow labels sit above the cards so a card can never cover one. */}
+      <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={rect.w} height={rect.h} aria-hidden="true">
+        {layout.forward.map((e) => {
+          const a = layout.pos.get(e.from);
+          const b = layout.pos.get(e.to);
+          if (!a || !b || !e.label) return null;
+          const x1 = a.x + STEP_W, y1 = a.y + STEP_H / 2, x2 = b.x, y2 = b.y + STEP_H / 2;
+          const at = chipAt(x1, y1, x2, y2, Math.max(24, (x2 - x1) / 2));
+          const on = lit(e);
+          return (
+            <g key={`${e.from}->${e.to}`} opacity={hoverStep && !on ? 0.35 : 1}>
+              {chip(at.x, at.y, e.label, on)}
+            </g>
+          );
+        })}
+        {layout.back.map((e) => {
+          const a = layout.pos.get(e.from);
+          const b = layout.pos.get(e.to);
+          if (!a || !b) return null;
+          const on = lit(e);
+          return (
+            <g key={`${e.from}->${e.to}`} opacity={hoverStep && !on ? 0.35 : 1}>
+              {chip((a.x + b.x + STEP_W) / 2, bottom + FLOW_FOOT * 0.55 - 6, e.label || 'Goes back', on)}
+            </g>
+          );
+        })}
+      </svg>
 
       {hoverStep && byId.get(hoverStep.id) && <StepDetails st={byId.get(hoverStep.id)!} box={hoverStep.box} names={names} />}
     </>
