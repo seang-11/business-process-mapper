@@ -455,79 +455,56 @@ function BrainKey({ showsSteps }: { showsSteps: boolean }) {
   );
 }
 
-/** The details of one step, shown while you point at it. Drawn full size whatever the zoom. */
+/**
+ * The extra details of one step, shown while you point at it: a slim note tucked
+ * right under the card, as wide as the card, so it covers as little of the
+ * arrows around it as possible. Who and what are already on the card, so it
+ * only adds what isn't: the note, the apps, what it makes, and the checklist.
+ */
 function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<string, string> }) {
-  const W = 288;
-  const left = Math.min(Math.max(8, box.left), window.innerWidth - W - 8);
-  const below = box.bottom + 8 + 260 < window.innerHeight;
   const sub = st.subProcessId ? names.get(st.subProcessId) : null;
+  const apps = st.uses;
+  if (!st.description && !sub && apps.length === 0 && st.produces.length === 0 && st.checklist.length === 0 && !st.minutes) {
+    return null;
+  }
+  const W = Math.min(320, Math.max(220, box.width));
+  const left = Math.min(Math.max(8, box.left), window.innerWidth - W - 8);
+  const below = box.bottom + 4 + 160 < window.innerHeight;
   return createPortal(
     <div
-      className="pointer-events-none fixed z-[80] rounded-xl border border-border bg-popover p-3 shadow-xl"
+      className="pointer-events-none fixed z-[80] space-y-1.5 rounded-lg border border-border bg-popover px-2.5 py-2 text-[11px] leading-snug shadow-lg"
       style={{
         left,
         width: W,
-        top: below ? box.bottom + 8 : box.top - 8,
+        top: below ? box.bottom + 4 : box.top - 4,
         transform: below ? undefined : 'translateY(-100%)',
       }}
     >
-      <p className="flex items-center gap-1.5 text-xs font-semibold">
-        {st.who && <Icon w={st.who} size={14} />}
-        {st.who?.name ?? 'Nobody yet'}
-        {st.automated && (
-          <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: AUTOMATED }}>
-            <Zap className="h-3 w-3" /> Runs on its own
-          </span>
-        )}
-        {st.stepType === 'Decision' && <span className="ml-auto text-[10px] font-semibold text-amber-700">Decision</span>}
-        {st.stepType === 'Wait' && <span className="ml-auto text-[10px] font-semibold text-muted-foreground">Wait</span>}
-      </p>
-      <p className="mt-1.5 text-sm font-semibold leading-snug">{st.title}</p>
-      {st.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{st.description}</p>}
+      {st.description && <p className="line-clamp-3 text-muted-foreground">{st.description}</p>}
       {sub && (
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">
-          <Workflow className="h-3.5 w-3.5" /> Runs the {sub} process
+        <p className="inline-flex items-center gap-1 font-medium text-indigo-700">
+          <Workflow className="h-3 w-3" /> Runs the {sub} process
         </p>
       )}
-      {st.uses.length > 0 && (
-        <div className="mt-2.5">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Uses</p>
-          <div className="flex flex-wrap gap-1">
-            {st.uses.map((u) => (
-              <span key={u.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium">
-                <Icon w={u} size={12} /> {u.name}
-              </span>
-            ))}
-          </div>
-        </div>
+      {apps.length > 0 && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {apps.map((u) => (
+            <span key={u.id} className="inline-flex items-center gap-1 font-medium">
+              <Icon w={u} size={11} /> {u.name}
+            </span>
+          ))}
+        </p>
       )}
-      {st.checklist.length > 0 && (
-        <div className="mt-2.5">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Checklist</p>
-          <ol className="space-y-1">
-            {st.checklist.map((c, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs leading-snug">
-                <span className="mt-[1px] flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-border text-[8px] text-muted-foreground">
-                  {i + 1}
-                </span>
-                <span className="min-w-0 flex-1">{c.text}</span>
-                {c.app && <Icon w={c.app} size={11} />}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-      {st.produces.length > 0 && (
-        <div className="mt-2.5">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Produces</p>
-          <div className="flex flex-wrap gap-1">
-            {st.produces.map((n) => (
-              <span key={n} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium">
-                {n}
-              </span>
-            ))}
-          </div>
-        </div>
+      {(st.produces.length > 0 || st.checklist.length > 0 || !!st.minutes) && (
+        <p className="text-muted-foreground">
+          {[
+            st.minutes ? `About ${st.minutes} min` : '',
+            st.checklist.length ? plural(st.checklist.length, 'checklist item') : '',
+            st.produces.length ? `Makes ${st.produces.join(', ')}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
       )}
     </div>,
     document.body,
