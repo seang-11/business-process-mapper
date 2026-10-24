@@ -15,7 +15,7 @@ const app = z.object({ id: z.string(), name: z.string(), icon: z.string(), image
  */
 export default createEndpoint({
   authenticated: true,
-  description: 'Insights: people hours per process and role, share done by apps, hours future versions save, and manual steps ready to automate',
+  description: 'Insights: people hours per process and role, share done by apps, and manual steps ready to automate',
   inputSchema: z.object({}),
   outputSchema: z.object({
     processCount: z.number(),
@@ -26,7 +26,6 @@ export default createEndpoint({
     processesWithRuns: z.number(),
     peopleSteps: z.number(),
     peopleStepsWithMinutes: z.number(),
-    futureVersions: z.number(),
     processes: z.array(
       z.object({
         id: z.string(),
@@ -34,12 +33,9 @@ export default createEndpoint({
         runsPerMonth: z.number().nullable(),
         /** Null until the process has runs per month and at least one step has minutes. */
         hours: z.number().nullable(),
-        /** What the newest not-live version would cost, when there is one and it can be worked out. */
-        futureHours: z.number().nullable(),
-        futureName: z.string(),
       }),
     ),
-    roles: z.array(z.object({ id: z.string(), name: z.string(), hours: z.number(), saved: z.number() })),
+    roles: z.array(z.object({ id: z.string(), name: z.string(), hours: z.number() })),
     ready: z.array(
       z.object({
         stepId: z.string(),
@@ -63,7 +59,7 @@ export default createEndpoint({
 
     const empty = {
       processCount: 0, automatedSteps: 0, countedSteps: 0, processesWithRuns: 0,
-      peopleSteps: 0, peopleStepsWithMinutes: 0, futureVersions: 0, processes: [], roles: [], ready: [],
+      peopleSteps: 0, peopleStepsWithMinutes: 0, processes: [], roles: [], ready: [],
     };
     const processType = typeRes.records.find((t) => t.key === 'process');
     if (!processType) return empty;
@@ -94,15 +90,8 @@ export default createEndpoint({
     };
     const hoursOf = (minutes: number, runs: number | null) => (runs ? (minutes * runs) / 60 : 0);
 
-    // Per role: hours now, and in processes that have a future version, hours now and hours then.
-    type RoleTally = { hours: number; compared: number; future: number };
-    const roleHours = new Map<string, RoleTally>();
-    const tally = (id: string) => {
-      const r = roleHours.get(id) ?? { hours: 0, compared: 0, future: 0 };
-      roleHours.set(id, r);
-      return r;
-    };
-    let automatedSteps = 0, countedSteps = 0, peopleSteps = 0, peopleStepsWithMinutes = 0, futureVersions = 0;
+    const roleHours = new Map<string, number>();
+    let automatedSteps = 0, countedSteps = 0, peopleSteps = 0, peopleStepsWithMinutes = 0;
     const ready: {
       stepId: string; title: string; processId: string; processName: string; who: string;
       apps: z.infer<typeof app>[]; minutes: number | null; hours: number | null;
@@ -115,10 +104,6 @@ export default createEndpoint({
         const live =
           versions.find((v) => v.state === 'Current') ??
           versions.filter((v) => v.state !== 'Archived').sort((a, b) => (b.lastEdited ?? '').localeCompare(a.lastEdited ?? ''))[0];
-        const future = versions
-          .filter((v) => v.state === 'Future' && v.id !== live?.id)
-          .sort((a, b) => (b.lastEdited ?? '').localeCompare(a.lastEdited ?? ''))[0];
-        if (future) futureVersions += 1;
         const runs = p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null;
 
         let minutes = 0, timed = 0;
@@ -135,7 +120,7 @@ export default createEndpoint({
             peopleStepsWithMinutes += 1;
             timed += 1;
             minutes += m;
-            tally(performer!).hours += hoursOf(m, runs);
+            roleHours.set(performer!, (roleHours.get(performer!) ?? 0) + hoursOf(m, runs));
           }
           const apps = many(s.uses).filter((u) => classOf(u) === 'System');
           if ((s.stepType ?? 'Task') === 'Task' && apps.length >= 2) {
@@ -152,32 +137,16 @@ export default createEndpoint({
           }
         }
 
-        let futureHours: number | null = null;
-        if (future && runs && timed) {
-          let fm = 0;
-          for (const s of stepsOf(future.id)) {
-            if (!isPeopleStep(s) || !s.minutesPerRun) continue;
-            fm += s.minutesPerRun;
-            tally(one(s.performedBy)!).future += hoursOf(s.minutesPerRun, runs);
-          }
-          futureHours = hoursOf(fm, runs);
-          for (const s of live ? stepsOf(live.id) : []) {
-            if (isPeopleStep(s) && s.minutesPerRun) tally(one(s.performedBy)!).compared += hoursOf(s.minutesPerRun, runs);
-          }
-        }
-
         return {
           id: p.id,
           name: p.name ?? '',
           runsPerMonth: runs,
           hours: runs && timed ? hoursOf(minutes, runs) : null,
-          futureHours,
-          futureName: future?.name ?? '',
         };
       });
 
     const roles = [...roleHours]
-      .map(([id, r]) => ({ id, name: elementById.get(id)?.name ?? '', hours: r.hours, saved: Math.max(0, r.compared - r.future) }))
+      .map(([id, hours]) => ({ id, name: elementById.get(id)?.name ?? '', hours }))
       .filter((r) => r.hours > 0);
 
     return {
@@ -187,7 +156,6 @@ export default createEndpoint({
       processesWithRuns: processes.filter((p) => p.runsPerMonth).length,
       peopleSteps,
       peopleStepsWithMinutes,
-      futureVersions,
       processes: processes.sort((a, b) => (b.hours ?? -1) - (a.hours ?? -1) || a.name.localeCompare(b.name)),
       roles: roles.sort((a, b) => b.hours - a.hours),
       ready: ready.sort((a, b) => (b.hours ?? -1) - (a.hours ?? -1) || b.apps.length - a.apps.length),

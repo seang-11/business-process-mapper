@@ -45,7 +45,6 @@ export default function Insights() {
 
   function body(data: GetInsightsOutputType) {
     const totalHours = data.processes.reduce((n, p) => n + (p.hours ?? 0), 0);
-    const saved = data.processes.reduce((n, p) => n + (p.hours !== null && p.futureHours !== null ? Math.max(0, p.hours - p.futureHours) : 0), 0);
     const hasHours = totalHours > 0;
     const share = data.countedSteps ? Math.round((data.automatedSteps / data.countedSteps) * 100) : 0;
 
@@ -55,17 +54,15 @@ export default function Insights() {
             id: p.id,
             name: p.name,
             hours: p.hours,
-            saved: p.hours !== null && p.futureHours !== null ? Math.max(0, p.hours - p.futureHours) : 0,
             onClick: () => navigate(`/process/${p.id}`),
           }))
         : [
-            ...data.roles.slice(0, ROLES_SHOWN).map((r) => ({ id: r.id, name: r.name, hours: r.hours as number | null, saved: r.saved, onClick: () => navigate(`/roles/${r.id}`) })),
+            ...data.roles.slice(0, ROLES_SHOWN).map((r) => ({ id: r.id, name: r.name, hours: r.hours as number | null, onClick: () => navigate(`/roles/${r.id}`) })),
             ...(data.roles.length > ROLES_SHOWN
               ? [{
                   id: 'rest',
                   name: 'Everyone else',
                   hours: data.roles.slice(ROLES_SHOWN).reduce((n, r) => n + r.hours, 0) as number | null,
-                  saved: data.roles.slice(ROLES_SHOWN).reduce((n, r) => n + r.saved, 0),
                   onClick: undefined as undefined | (() => void),
                 }]
               : []),
@@ -75,15 +72,9 @@ export default function Insights() {
 
     return (
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Stat label="People time per month" value={hasHours ? hrs(totalHours) : '—'} note={hasHours ? undefined : 'Add time estimates to see this'} />
           <Stat label="Steps done by apps" value={`${share}%`} note={`${data.automatedSteps} of ${data.countedSteps} steps`} />
-          <Stat
-            label="Future versions save"
-            value={saved > 0 ? `${hrs(saved)}/mo` : '—'}
-            good={saved > 0}
-            note={data.futureVersions ? `${plural(data.futureVersions, 'version')} not live yet` : 'No versions in the works'}
-          />
         </div>
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -108,17 +99,13 @@ export default function Insights() {
               <div>
                 <p className="font-medium">No time estimates yet</p>
                 <p className="mt-1 text-muted-foreground">
-                  Give a process its runs per month (edit the process), and its people steps their minutes per run (edit a step).
-                  Rough guesses are fine: the point is to see where the time goes.
+                  Ask Claude to add them when it maps a process: how often it runs each month, and roughly how many minutes
+                  each step takes. You can also set them yourself in a process's settings and on each step.
                 </p>
               </div>
             </div>
           ) : (
             <>
-              <p className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> People hours now</span>
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-300" /> Saved by the future version</span>
-              </p>
               <div className="mt-3">
                 {rows.map((r) => (
                   <button
@@ -131,27 +118,18 @@ export default function Insights() {
                     <span className="truncate">{r.name}</span>
                     <span className="relative h-2.5 overflow-hidden rounded-full bg-muted">
                       {r.hours !== null && (
-                        <>
-                          <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(r.hours / max) * 100}%` }} />
-                          {r.saved > 0 && (
-                            <span
-                              className="absolute inset-y-0 bg-emerald-300"
-                              style={{ left: `${((r.hours - r.saved) / max) * 100}%`, width: `${(r.saved / max) * 100}%` }}
-                            />
-                          )}
-                        </>
+                        <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(r.hours / max) * 100}%` }} />
                       )}
                     </span>
                     <span className="text-right text-muted-foreground">
                       {r.hours === null ? <span className="text-xs">No estimate</span> : hrs(r.hours)}
-                      {r.saved > 0 && <span className="block text-[11px] text-emerald-700">−{hrs(r.saved)}</span>}
                     </span>
                   </button>
                 ))}
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Based on {data.processesWithRuns} of {data.processCount} processes with runs per month, and {data.peopleStepsWithMinutes} of{' '}
-                {data.peopleSteps} people steps with minutes.
+                Rough estimates: how often each process runs, times the minutes people spend on its steps. Numbers look off? Ask
+                Claude to update them, or open a process to change them.
               </p>
             </>
           )}
@@ -226,11 +204,11 @@ export default function Insights() {
   }
 }
 
-function Stat({ label, value, note, good }: { label: string; value: string; note?: string; good?: boolean }) {
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tracking-tight ${good ? 'text-emerald-700' : ''}`}>{value}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
       {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
     </div>
   );

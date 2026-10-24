@@ -49,7 +49,7 @@ ${claudeMd.trim()}
 ----- end -----
 
 BEFORE YOU ASK ME ANYTHING, LOOK AT THE APP (change nothing yet)
-1. Read the database tables so you know how a process is stored: Elements (people, roles, apps and documents, each with an Element Type), Process Versions (State is Current, Future or Archived), Steps (Title, Description, Step Type of Task, Decision, Wait or Sub-process, Performed By, Uses, Produces, Sequence), and Step Connections (From Step, To Step, Label).
+1. Read the database tables so you know how a process is stored: Elements (people, roles, apps and documents, each with an Element Type; a process also has Runs Per Month), Process Versions (State is Current, Future or Archived), Steps (Title, Description, Step Type of Task, Decision, Wait or Sub-process, Performed By, Uses, Produces, Sequence, Minutes Per Run), and Step Connections (From Step, To Step, Label).
 2. List the processes and elements that already exist, so you reuse them.
 3. Tell me in two sentences what you found, then start the interview.
 
@@ -58,8 +58,10 @@ HOW TO INTERVIEW ME
 - Start with: What is the process called, and what starts it?
 - Walk me through it in order. For each step ask who or what does it, which tools they use, and what comes next.
 - Ask what happens when something goes wrong, which steps repeat, and where a human has to check the work.
+- Ask how many times a month the process happens.
+- For each step a person on the team does, ask roughly how many minutes it takes. A rough guess is fine. Skip steps an app does on its own, and steps a client or prospect does.
 - If I ramble, that is fine. Pull out the steps yourself.
-- When I say "that's it", read the process back as a numbered list and ask what to fix.
+- When I say "that's it", read the process back as a numbered list with the minutes beside each step, and ask what to fix.
 
 RULES WHEN YOU BUILD IT (after I approve the list)
 - Create the process with a version called "v1 · Current state" (State: Current).
@@ -67,7 +69,8 @@ RULES WHEN YOU BUILD IT (after I approve the list)
 - Reuse existing people, roles and apps. Only create a new element if none fits.
 - Connect every step to the next with a Step Connection. A decision needs a labelled connection for each outcome, such as Yes and No. A loop back to an earlier step is fine.
 - Fill Sequence in order, starting at 1.
-- If I describe a better, more automated way, also build a second version called "v2 · Future state" (State: Future). Copy the v1 steps and set Copied From on each to the id of its v1 step, so the app can compare them.
+- Put how often it happens in the process's Runs Per Month, and each step's minutes in its Minutes Per Run. For a step that only happens sometimes (a decline, a chase), use the average per run, so weight it down. The app's Insights page uses these to show where the team's time goes.
+- If I describe a better, more automated way, also build a second version called "v2 · Future state" (State: Future). Copy the v1 steps and set Copied From on each to the id of its v1 step, so the app can compare them. Give the future steps their own minutes, so the comparison shows the time saved.
 - Finish by telling me what you created and where to open it in the app.
 `;
 

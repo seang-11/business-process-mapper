@@ -27,6 +27,8 @@ interface Props {
   embedded?: boolean;
   /** Viewers can read the comparison but not change it. */
   readOnly?: boolean;
+  /** How often the process runs, so step minutes can be read as hours a month. */
+  runsPerMonth?: number | null;
 }
 
 interface Side {
@@ -62,13 +64,19 @@ interface Stats {
   automated: number;
   handoffs: number;
   tools: number;
+  /** Minutes the team spends each time it runs, from the steps that have an estimate. */
+  peopleMinutes: number;
 }
 
 /** The numbers a side adds up to, so two versions can be read as a before and after. */
 function statsOf(side: Side): Stats {
   const apps = new Set<string>();
   let automated = 0;
+  let peopleMinutes = 0;
   for (const s of side.steps) {
+    // The same people time Insights counts: the team's own steps, not waits, sub-processes or a client's time.
+    const team = s.performedBy?.actorClass === 'Human' && s.performedBy.party !== 'External';
+    if (team && s.stepType !== 'Wait' && !s.subProcessId) peopleMinutes += s.minutesPerRun ?? 0;
     if (isApp(s.performedBy)) {
       automated += 1;
       apps.add(s.performedBy!.id);
@@ -81,6 +89,7 @@ function statsOf(side: Side): Stats {
     automated,
     handoffs: handoffs(side),
     tools: apps.size,
+    peopleMinutes,
   };
 }
 
@@ -115,7 +124,7 @@ const matchesFilter = (r: Row, f: Filter) =>
  * added, or handed to someone else. Numbers up top, then every step in order;
  * click a step to open its full detail.
  */
-export default function CompareVersions({ processName, versions, onClose, embedded, readOnly }: Props) {
+export default function CompareVersions({ processName, versions, onClose, embedded, readOnly, runsPerMonth }: Props) {
   const defaults = useMemo(() => {
     const current = versions.find((v) => v.state === 'Current') ?? versions[0];
     const future =
@@ -225,6 +234,14 @@ export default function CompareVersions({ processName, versions, onClose, embedd
 
   const before = useMemo(() => (left ? statsOf(left) : null), [left]);
   const after = useMemo(() => (right ? statsOf(right) : null), [right]);
+  // People hours a month on each side, once both the runs and some minutes are known.
+  const hours =
+    before && after && runsPerMonth && (before.peopleMinutes || after.peopleMinutes)
+      ? {
+          before: Math.round((before.peopleMinutes * runsPerMonth) / 60),
+          after: Math.round((after.peopleMinutes * runsPerMonth) / 60),
+        }
+      : null;
 
   // A plain-language read of the difference, written from the numbers, so the
   // card says something useful before anyone has written a note of their own.
@@ -246,6 +263,13 @@ export default function CompareVersions({ processName, versions, onClose, embedd
         `${plural(after.automated, 'step')} now run${after.automated === 1 ? 's' : ''} automatically${top ? `, mostly in ${top}` : ''}.`,
       );
     }
+    if (hours && hours.after !== hours.before) {
+      parts.push(
+        hours.after < hours.before
+          ? `It saves about ${hours.before - hours.after} hours of people time a month (${hours.before} down to ${hours.after}).`
+          : `It adds about ${hours.after - hours.before} hours of people time a month (${hours.before} up to ${hours.after}).`,
+      );
+    }
     if (after.byHand !== before.byHand) {
       parts.push(
         `Work done by people ${after.byHand < before.byHand ? 'drops' : 'rises'} from ${before.byHand} steps to ${after.byHand}.`,
@@ -262,7 +286,7 @@ export default function CompareVersions({ processName, versions, onClose, embedd
       parts.push(`${bits.join(' and ')}.`);
     }
     return parts.join(' ');
-  }, [before, after, right, summary]);
+  }, [before, after, right, summary, hours]);
 
   const rightNotes = (savedNotes[rightId] ?? versions.find((v) => v.id === rightId)?.notes ?? '').trim();
 
@@ -397,7 +421,8 @@ export default function CompareVersions({ processName, versions, onClose, embedd
               </div>
 
               {before && after && (
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className={`mt-3 grid grid-cols-2 gap-2 ${hours ? 'sm:grid-cols-6' : 'sm:grid-cols-5'}`}>
+                  {hours && <StatTile label="People hrs / month" before={hours.before} after={hours.after} better="down" />}
                   <StatTile label="Steps" before={before.steps} after={after.steps} better="none" />
                   <StatTile label="Done by people" before={before.byHand} after={after.byHand} better="down" />
                   <StatTile label="Automated" before={before.automated} after={after.automated} better="up" />

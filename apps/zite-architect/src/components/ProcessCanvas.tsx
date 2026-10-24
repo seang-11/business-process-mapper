@@ -703,7 +703,7 @@ export default function ProcessCanvas() {
               )}
               <div className="min-h-0 flex-1">
                 {overviewMode === 'side' && process && process.versions.length > 1 ? (
-                  <CompareVersions embedded readOnly={!canEdit} processName={process.name} versions={process.versions} />
+                  <CompareVersions embedded readOnly={!canEdit} processName={process.name} versions={process.versions} runsPerMonth={process.runsPerMonth} />
                 ) : (
                   <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
                 )}
