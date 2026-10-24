@@ -88,6 +88,14 @@ interface Lens {
 const stepMatches = (lens: Lens, s: Step) =>
   s.who?.id === lens.who.id || (lens.kind === 'app' && s.useIds.includes(lens.who.id));
 
+/** A step someone on the team spends time on: not an app, a client, a wait, or another process. */
+const isTeamStep = (s: Step) =>
+  s.who?.kind === 'person' && s.who.party !== 'External' && s.stepType !== 'Wait' && !s.subProcessId;
+/** Minutes to hours a month for one process, or null until it has runs and some minutes. */
+const hoursFrom = (minutes: number, p: Proc) => (p.runsPerMonth && minutes ? (minutes * p.runsPerMonth) / 60 : null);
+const hoursOf = (p: Proc) => hoursFrom(p.steps.reduce((n, s) => n + (isTeamStep(s) ? s.minutes ?? 0 : 0), 0), p);
+const fmtHrs = (h: number) => `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10} hrs`;
+
 /**
  * Lays the board out: one frame per department, closed processes in a tidy
  * grid inside, opened processes underneath as full-width flows, and frames
@@ -628,6 +636,7 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
         <span className="text-xs text-muted-foreground">
           {plural(p.stepCount, 'step')}
           {p.ownerName ? ` · ${p.ownerName}` : ''}
+          {hoursOf(p) !== null ? ` · ${fmtHrs(hoursOf(p)!)}/mo` : ''}
         </span>
         {runBy.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
@@ -826,6 +835,82 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
 // --- A department, opened ---
 
 /**
+ * What a department adds up to, worked out from its maps: hours, who does the
+ * most, where work comes in, and a few plain sentences that say how it runs.
+ */
+function deptInsight(title: string, procs: Proc[]) {
+  const roles = new Map<string, { who: Who; steps: number; hours: number }>();
+  const appSteps = new Map<string, number>();
+  const appNames = new Map<string, string>();
+  const starters = new Map<string, Who>();
+  const outside = new Map<string, Who>();
+  const ready: { id: string; title: string; apps: string[]; hours: number | null }[] = [];
+  let hours = 0;
+  let steps = 0;
+  let automated = 0;
+
+  for (const p of procs) {
+    hours += hoursOf(p) ?? 0;
+    const hasIncoming = new Set(p.links.map((l) => l.to));
+    for (const st of p.steps) {
+      if (st.stepType !== 'Wait') steps += 1;
+      if (st.automated) automated += 1;
+      for (const u of st.uses) {
+        if (u.kind !== 'app') continue;
+        appSteps.set(u.id, (appSteps.get(u.id) ?? 0) + 1);
+        appNames.set(u.id, u.name);
+      }
+      if (st.who?.kind === 'app') appSteps.set(st.who.id, (appSteps.get(st.who.id) ?? 0) + 1);
+      if (st.who && !hasIncoming.has(st.id)) starters.set(st.who.id, st.who);
+      if (st.who?.kind === 'person' && st.who.party === 'External') outside.set(st.who.id, st.who);
+      if (!isTeamStep(st)) continue;
+      const h = hoursFrom(st.minutes ?? 0, p) ?? 0;
+      const role = roles.get(st.who!.id) ?? { who: st.who!, steps: 0, hours: 0 };
+      role.steps += 1;
+      role.hours += h;
+      roles.set(st.who!.id, role);
+      const apps = st.uses.filter((u) => u.kind === 'app');
+      if (st.stepType === 'Task' && apps.length >= 2) {
+        ready.push({ id: st.id, title: st.title, apps: apps.map((u) => u.name), hours: st.minutes ? h : null });
+      }
+    }
+  }
+
+  const busiest = [...roles.values()].sort((x, y) => y.hours - x.hours || y.steps - x.steps)[0] ?? null;
+  const topApps = [...appSteps.entries()]
+    .filter(([id]) => appNames.has(id))
+    .sort((x, y) => y[1] - x[1])
+    .slice(0, 3)
+    .map(([id]) => appNames.get(id)!);
+  const list = (names: string[]) =>
+    names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  // "the Finance Lead", but a named person is just their name.
+  const nameOf = (w: Who) => (w.humanKind === 'Individual' ? w.name : `the ${w.name}`);
+  const the = (ws: Who[]) => list(ws.map(nameOf));
+
+  const parts = [
+    `${title} runs ${plural(procs.length, 'process')}${hours > 0 ? ` and takes about ${fmtHrs(hours)} of people time a month` : ''}.`,
+  ];
+  const startWho = [...starters.values()].filter((w) => !outside.has(w.id));
+  if (startWho.length) parts.push(`Work starts with ${the(startWho)}.`);
+  if (busiest) {
+    const who = nameOf(busiest.who);
+    parts.push(`${who[0].toUpperCase()}${who.slice(1)} does the most${topApps.length ? `, mostly in ${list(topApps)}` : ''}.`);
+  }
+  if (outside.size) parts.push(`It also involves ${the([...outside.values()])}.`);
+  parts.push(automated === 0 ? 'Nothing runs on its own yet.' : `Apps do ${automated} of ${steps} steps on their own.`);
+
+  return {
+    story: parts.join(' '),
+    hours,
+    roles,
+    appSteps,
+    busiest,
+    ready: ready.sort((x, y) => (y.hours ?? -1) - (x.hours ?? -1) || y.apps.length - x.apps.length).slice(0, 3),
+  };
+}
+
+/**
  * One department at full size: its summary and lead on top, then every process
  * in it laid out left to right at a readable size, one under the other. Wide
  * processes scroll sideways. Back returns to the board exactly as it was.
@@ -852,6 +937,27 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   const r = procs.reduce((n, p) => n + p.review, 0);
   const m = procs.reduce((n, p) => n + p.manual, 0);
   const color = `hsl(${hue} 45% 30%)`;
+
+  // A role or app chip lights up its steps here: pointing shows them, clicking keeps them lit.
+  // The board's own spotlight still shows when nothing here is picked.
+  const [hoverWho, setHoverWho] = useState<{ kind: Lens['kind']; who: Who } | null>(null);
+  const [pinnedWho, setPinnedWho] = useState<{ kind: Lens['kind']; who: Who } | null>(null);
+  const picked = hoverWho ?? pinnedWho;
+  const localLens: Lens | null = picked
+    ? (() => {
+        const l: Lens = { ...picked, ids: new Set(), pinned: !hoverWho };
+        for (const p of procs) if (p.steps.some((st) => stepMatches(l, st))) l.ids.add(p.id);
+        return l;
+      })()
+    : null;
+  const shownLens = localLens ?? lens;
+  const chipProps = (kind: Lens['kind'], who: Who) => ({
+    onMouseEnter: () => setHoverWho({ kind, who }),
+    onMouseLeave: () => setHoverWho(null),
+    onClick: () => setPinnedWho((cur) => (cur?.who.id === who.id ? null : { kind, who })),
+  });
+
+  const insight = useMemo(() => deptInsight(title, procs), [title, procs]);
 
   return (
     <div data-ui className="absolute inset-0 z-30 flex cursor-default flex-col bg-[hsl(220_20%_97.5%)]">
@@ -900,23 +1006,102 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
           </div>
         </div>
         {(people.length > 0 || apps.length > 0) && (
-          <div className="mt-4 flex flex-wrap items-center gap-1.5">
-            {people.map((w) => (
-              <span key={w.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-xs">
-                <Icon w={w} size={13} /> {w.name}
-              </span>
-            ))}
-            {apps.length > 0 && <span className="mx-1 h-4 w-px bg-border" />}
-            {apps.map((ap) => (
-              <span key={ap.id} title={ap.name} className="rounded-md border border-border bg-background p-1">
-                <Icon w={ap} size={14} />
-              </span>
-            ))}
-          </div>
+          <>
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              {people.map((w) => {
+                const on = picked?.who.id === w.id;
+                const role = insight.roles.get(w.id);
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    {...chipProps('person', w)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                      on ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background hover:border-primary/40'
+                    } ${pinnedWho?.who.id === w.id ? 'ring-2 ring-primary/25' : ''}`}
+                  >
+                    <Icon w={w} size={13} /> {w.name}
+                    {on && role && (
+                      <span className="text-[11px] opacity-80">
+                        · {plural(role.steps, 'step')}
+                        {role.hours > 0 ? ` · ${fmtHrs(role.hours)}/mo` : ''}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {apps.length > 0 && <span className="mx-1 h-4 w-px bg-border" />}
+              {apps.map((ap) => {
+                const on = picked?.who.id === ap.id;
+                return (
+                  <button
+                    key={ap.id}
+                    type="button"
+                    aria-label={ap.name}
+                    {...chipProps('app', ap)}
+                    className={`group relative rounded-md border p-1 transition-colors ${
+                      on ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/40'
+                    } ${pinnedWho?.who.id === ap.id ? 'ring-2 ring-primary/25' : ''}`}
+                  >
+                    <Icon w={ap} size={14} />
+                    <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-md group-hover:block">
+                      {ap.name}
+                      {insight.appSteps.get(ap.id) ? ` · ${plural(insight.appSteps.get(ap.id)!, 'step')}` : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {pinnedWho ? `Showing ${pinnedWho.who.name}'s steps. Click it again to clear.` : 'Point at a role or app to light up its steps. Click to keep them lit.'}
+            </p>
+          </>
         )}
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-8 py-6">
+        <section className="rounded-2xl border border-border bg-card px-7 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          <p className="text-sm font-semibold">How {title} works</p>
+          <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-muted-foreground">{insight.story}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-muted/50 px-4 py-3">
+              <p className="text-[11px] text-muted-foreground">People hours a month</p>
+              <p className="mt-0.5 text-xl font-semibold tracking-tight">{insight.hours > 0 ? fmtHrs(insight.hours) : '—'}</p>
+            </div>
+            <div className="rounded-xl bg-muted/50 px-4 py-3">
+              <p className="text-[11px] text-muted-foreground">Busiest role</p>
+              <p className="mt-1 truncate text-sm font-semibold">
+                {insight.busiest
+                  ? `${insight.busiest.who.name} · ${insight.busiest.hours > 0 ? fmtHrs(insight.busiest.hours) : plural(insight.busiest.steps, 'step')}`
+                  : '—'}
+              </p>
+            </div>
+            <div className="rounded-xl bg-muted/50 px-4 py-3">
+              <p className="text-[11px] text-muted-foreground">Done by apps</p>
+              <p className="mt-0.5 text-xl font-semibold tracking-tight">
+                {a} <span className="text-sm font-normal text-muted-foreground">of {a + r + m} steps</span>
+              </p>
+            </div>
+          </div>
+          {insight.ready.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ready to automate here</p>
+              <ol className="mt-1.5 space-y-1">
+                {insight.ready.map((st, i) => (
+                  <li key={st.id} className="flex flex-wrap items-center gap-x-2 text-sm">
+                    <span className="w-4 text-muted-foreground">{i + 1}.</span>
+                    <span className="font-medium">{st.title}</span>
+                    <span className="text-xs text-muted-foreground">
+                      · {st.apps.join(' → ')}
+                      {st.hours !== null ? ` · ${fmtHrs(st.hours)}/mo` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </section>
+
         {flows.map(({ p, layout }) => (
           <section key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             {p.steps.length === 0 ? (
@@ -934,7 +1119,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                     p={p}
                     rect={{ x: 0, y: 0, w: layout.width, h: layout.height }}
                     layout={layout}
-                    lens={lens && lens.ids.has(p.id) ? lens : null}
+                    lens={shownLens && shownLens.ids.has(p.id) ? shownLens : null}
                     names={names}
                     runBy={runByOf.get(p.id) ?? []}
                     onJump={onJump}

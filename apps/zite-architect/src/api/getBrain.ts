@@ -53,6 +53,8 @@ export default createEndpoint({
         ownerId: z.string().nullable(),
         ownerName: z.string(),
         live: z.boolean(),
+        /** How often it runs, for hours. Null when nobody has estimated it. */
+        runsPerMonth: z.number().nullable(),
         stepCount: z.number(),
         /** Steps an app does on its own, steps a person decides, and steps done by hand. Waiting steps are not counted. */
         automated: z.number(),
@@ -80,6 +82,8 @@ export default createEndpoint({
             checklist: z.array(z.object({ text: z.string(), app: participant.nullable() })),
             /** The process this step runs, when it is a sub-process step. */
             subProcessId: z.string().nullable(),
+            /** Rough minutes a person spends on it each run. Null when not estimated. */
+            minutes: z.number().nullable(),
           }),
         ),
         /** The arrows between those steps, so the board can lay the process out left to right. */
@@ -184,6 +188,7 @@ export default createEndpoint({
           ownerId,
           ownerName: ownerId ? elementById.get(ownerId)?.name ?? '' : '',
           live: !!live,
+          runsPerMonth: p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null,
           stepCount: steps.length,
           automated,
           review,
@@ -220,6 +225,7 @@ export default createEndpoint({
                 const sub = one(s.subProcess);
                 return sub && processIds.has(sub) && sub !== p.id ? sub : null;
               })(),
+              minutes: s.minutesPerRun && s.minutesPerRun > 0 ? s.minutesPerRun : null,
             };
           }),
         };
