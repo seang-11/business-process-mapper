@@ -1218,13 +1218,25 @@ export default function Brain() {
   );
 
   // Opening or closing changes the layout, so the camera moves once the board has been laid out again.
-  const [after, setAfter] = useState<{ fly?: string; frame?: string; fit?: boolean } | null>(null);
+  const [after, setAfter] = useState<{ fly?: string; frame?: string; fit?: boolean; start?: boolean } | null>(null);
   useEffect(() => {
     if (!after) return;
     if (after.fly) flyTo(after.fly);
     else if (after.frame) {
       const f = board.frames.find((x) => x.key === after.frame);
       if (f) frameBox(f);
+    } else if (after.start) {
+      // Every step, opened: start at the top left at a size where each step can be read and pointed at.
+      // Fitting the whole company would make every step a speck.
+      const el = stage.current;
+      const f = board.frames[0];
+      if (el && f) {
+        const r = el.getBoundingClientRect();
+        const left = r.width > 900 ? 296 : 24;
+        const z = 0.5;
+        setGlide(true);
+        setView({ z, x: left - f.x * z, y: 72 - f.y * z });
+      }
     } else if (after.fit) fit();
     setAfter(null);
   }, [board, after, flyTo, fit, frameBox]);
@@ -1253,7 +1265,7 @@ export default function Brain() {
   const allOpen = boardProcs.length > 0 && openable(boardProcs.map((p) => p.id)).every((id) => opened.has(id));
   const toggleAll = () => {
     setOpened(allOpen ? new Set() : new Set(openable(boardProcs.map((p) => p.id))));
-    setAfter({ fit: true });
+    setAfter(allOpen ? { fit: true } : { start: true });
   };
   useLayoutEffect(() => {
     if (procs && procs.length && !fitted.current) {
@@ -1469,7 +1481,8 @@ export default function Brain() {
   const sel = selected ? byId.get(selected) ?? null : null;
   const runBy = sel ? (procs ?? []).filter((p) => p.runs.some((r) => r.processId === sel.id)) : [];
   const profile = !sel ? pinned : null;
-  const panelOpen = !!sel || !!profile;
+  // Only the profile sits on the right; the process pop-up covers the middle.
+  const panelOpen = !!profile;
 
   if (failed) return <div className="mx-auto max-w-xl px-8 py-16"><PageError onRetry={load} /></div>;
   if (procs === null) return <div className="mx-auto max-w-5xl px-8 py-8"><PageLoading blocks={2} height="h-64" /></div>;
@@ -1984,11 +1997,17 @@ export default function Brain() {
         );
       })()}
 
-      {/* Right: the process you clicked. */}
+      {/* The process you clicked, in a pop-up in the middle of the screen. Clicking outside closes it. */}
       {sel && (
-        <aside
+        <div
           data-ui
-          className="absolute bottom-4 right-4 top-4 z-20 flex w-[340px] cursor-default flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+          className="absolute inset-0 z-40 flex cursor-default items-center justify-center bg-foreground/20 p-6 backdrop-blur-[2px]"
+          onClick={(e) => e.target === e.currentTarget && setSelected(null)}
+        >
+        <aside
+          role="dialog"
+          aria-label={sel.name}
+          className="flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
         >
           <div className="flex items-start gap-2 border-b border-border p-4">
             <div className="min-w-0 flex-1">
@@ -2043,6 +2062,7 @@ export default function Brain() {
                       key={w.id}
                       type="button"
                       onClick={() => {
+                        setSelected(null);
                         setTab('people');
                         pinLens('person', w, lenses.people.find((l) => l.who.id === w.id)?.ids ?? [sel.id]);
                       }}
@@ -2107,7 +2127,13 @@ export default function Brain() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => (opened.has(sel.id) ? (closeFlow(sel.id), setAfter({ fly: sel.id })) : openFlow(sel.id))}
+                onClick={() => {
+                  setSelected(null);
+                  if (opened.has(sel.id)) {
+                    closeFlow(sel.id);
+                    setAfter({ fly: sel.id });
+                  } else openFlow(sel.id);
+                }}
               >
                 {opened.has(sel.id) ? <Minimize2 className="mr-1.5 h-4 w-4" /> : <Maximize2 className="mr-1.5 h-4 w-4" />}
                 {opened.has(sel.id) ? 'Close the steps on the board' : 'Show the steps on the board'}
@@ -2123,6 +2149,7 @@ export default function Brain() {
             )}
           </div>
         </aside>
+        </div>
       )}
 
       {/* Bottom right: the zoom controls. */}

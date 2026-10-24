@@ -30,6 +30,7 @@ const TABLE_SCHEMAS: Record<string, FieldDef[]> = {
     { key: 'name', label: 'Process', type: 'single_line_text' },
     { key: 'ownerName', label: 'Owner', type: 'single_line_text' },
     { key: 'people', label: 'People', type: 'custom' },
+    { key: 'department', label: 'Department', type: 'single_line_text' },
     { key: 'apps', label: 'Apps', type: 'custom' },
     { key: 'stepCount', label: 'Steps', type: 'number' },
     { key: 'lastEdited', label: 'Last updated', type: 'datetime' },
@@ -132,10 +133,14 @@ export function useColumnConfig({ tableName, defaultVisible, overrides }: UseCol
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = loadSavedConfig(tableName);
     if (saved?.order) {
-      // Merge: add any new fields not in saved order
-      const known = new Set(saved.order);
-      const extra = fields.filter(f => !known.has(f.key)).map(f => f.key);
-      return [...saved.order.filter(k => fields.some(f => f.key === k)), ...extra];
+      // Merge: a field added since the order was saved goes in right after the field before it in the schema.
+      const order = saved.order.filter(k => fields.some(f => f.key === k));
+      fields.forEach((f, i) => {
+        if (order.includes(f.key)) return;
+        const prev = i > 0 ? order.indexOf(fields[i - 1].key) : -1;
+        order.splice(prev + 1, 0, f.key);
+      });
+      return order;
     }
     return defaultOrder;
   });
