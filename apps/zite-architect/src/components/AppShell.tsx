@@ -36,7 +36,7 @@ export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { me, isRealAdmin } = useMe();
+  const { me, isRealAdmin, canEdit } = useMe();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -58,7 +58,8 @@ export default function AppShell() {
   // Cmd/Ctrl+K opens the menu from anywhere. ? opens the shortcuts list unless you are typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      // Viewers have one list with its own search, so the jump-to menu is for editors.
+      if (canEdit && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setMenuOpen((o) => !o);
         return;
@@ -71,7 +72,7 @@ export default function AppShell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [canEdit]);
 
   const sorted = useMemo(() => [...processes].sort((a, b) => a.name.localeCompare(b.name)), [processes]);
 
@@ -105,6 +106,8 @@ export default function AppShell() {
           <span className="hidden text-[15px] font-semibold tracking-tight lg:block">Process Mapper</span>
         </button>
 
+        {/* Viewers only ever see the process list, so they get no tabs and no search box up here. */}
+        {canEdit && (
         <nav className="ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto md:ml-3" aria-label="Main">
           {links.map((l) => (
             <NavLink
@@ -121,8 +124,10 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
+        )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {canEdit && (
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -135,6 +140,7 @@ export default function AppShell() {
               {MOD_KEY} K
             </kbd>
           </button>
+          )}
 
           <PreviewSwitcher />
 

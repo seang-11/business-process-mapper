@@ -189,7 +189,7 @@ function arrowPath(a: Rect, b: Rect) {
   return `M ${x1} ${y1} C ${x1} ${y1 + c}, ${x2} ${y2 - c}, ${x2} ${y2}`;
 }
 
-function MixBar({ a, r, m, thick }: { a: number; r: number; m: number; thick?: boolean }) {
+export function MixBar({ a, r, m, thick }: { a: number; r: number; m: number; thick?: boolean }) {
   const total = a + r + m;
   const h = thick ? 'h-3' : 'h-1.5';
   if (total === 0) return <div className={`${h} rounded-full bg-muted`} />;
@@ -512,7 +512,7 @@ function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<st
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra }: {
+export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
@@ -524,7 +524,8 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
   onJump: (processId: string) => void;
   /** Leave out to hide the close button, as in the department view. */
   onClose?: () => void;
-  onOpenProcess: () => void;
+  /** Leave out to hide Open process, as on the viewer's read-only page. */
+  onOpenProcess?: () => void;
   /** Extra buttons in the header, such as Train. */
   extra?: React.ReactNode;
 }) {
@@ -634,14 +635,16 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
           </span>
         )}
         <span className="ml-auto flex items-center gap-1.5">
-          <button
-            type="button"
-            data-ui
-            onClick={onOpenProcess}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
-          >
-            Open process <ArrowRight className="h-3 w-3" />
-          </button>
+          {onOpenProcess && (
+            <button
+              type="button"
+              data-ui
+              onClick={onOpenProcess}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+            >
+              Open process <ArrowRight className="h-3 w-3" />
+            </button>
+          )}
           {extra}
           {onClose && (
             <button
