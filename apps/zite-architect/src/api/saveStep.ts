@@ -61,6 +61,12 @@ export default createEndpoint({
       id = created.id;
     }
 
+    // A role that now does a step is in use again.
+    const performer = await zite.elements.findOne({ id: input.performedById });
+    if (performer?.status === 'Inactive') {
+      await zite.elements.update({ id: input.performedById, record: { status: 'Active' } });
+    }
+
     const { records } = await zite.steps.findAll({ limit: 2000 });
     const count = records.filter((s) => one(s.version) === input.versionId).length;
     await zite.processVersions.update({

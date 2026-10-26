@@ -38,6 +38,11 @@ export const STATUS_TOKENS: Record<string, Token> = {
     badge: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
     dot: 'bg-emerald-500',
   },
+  Inactive: {
+    label: 'Inactive',
+    badge: 'border-border text-muted-foreground',
+    dot: 'bg-muted-foreground/40',
+  },
   Planned: {
     label: 'Planned',
     badge: 'border-sky-500/40 text-sky-600 dark:text-sky-400',

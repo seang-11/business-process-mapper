@@ -138,7 +138,7 @@ export type ElementsRecordType = {
   /** Links to elementTypes ("Element Types"). Single record only. "Type" */
   type?: string | string[];
   party?: "Internal" | "External" | string;
-  status?: "Active" | "Planned" | "Retired" | string;
+  status?: "Active" | "Planned" | "Retired" | "Inactive" | string;
   icon?: string;
   image?: string;
   /** "Effective From". Date-only field (YYYY-MM-DD string), null when unset, display as "local" format */
@@ -178,7 +178,7 @@ export type ElementsRecordInput = {
   description: string | null;
   type: string | string[] | null;
   party: "Internal" | "External" | string | null;
-  status: "Active" | "Planned" | "Retired" | string | null;
+  status: "Active" | "Planned" | "Retired" | "Inactive" | string | null;
   icon: string | null;
   image: string | null;
   effectiveFrom: string | Date | null;

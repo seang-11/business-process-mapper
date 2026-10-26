@@ -11,6 +11,7 @@ import ElementDialog from './ElementDialog';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import RoleAvatar from './RoleAvatar';
 import { deptTag } from '@/lib/deptColors';
+import { STATUS_TOKENS } from '@/lib/elementTokens';
 const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? word : many ?? `${word}s`}`;
 const fmtHrs = (h: number) => `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10} hrs`;
 
@@ -181,8 +182,13 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
   const deptHues = useMemo(() => new Map(data.departments.map((d) => [d.name, d.hue])), [data]);
   const byId = useMemo(() => new Map(summaries.map((r) => [r.who.id, r])), [summaries]);
   const avatarOf = useMemo(() => new Map(data.people.map((w) => [w.id, w])), [data]);
-  const rows = taxonomy.elements
-    .filter((e) => ROLE_TYPE_KEYS.has(e.typeKey))
+  // Active roles do work in a process today; everything else (Inactive, Planned, Retired) waits on the other tab.
+  const [show, setShow] = useState<'active' | 'inactive' | 'all'>('active');
+  const isActive = (e: ElementSummary) => !e.status || e.status === 'Active';
+  const allRoles = taxonomy.elements.filter((e) => ROLE_TYPE_KEYS.has(e.typeKey));
+  const counts = { active: allRoles.filter(isActive).length, inactive: allRoles.filter((e) => !isActive(e)).length, all: allRoles.length };
+  const rows = allRoles
+    .filter((e) => show === 'all' || (show === 'active') === isActive(e))
     .filter(
       (e) =>
         !query ||
@@ -192,12 +198,45 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
     )
     .sort((a, b) => (byId.get(b.id)?.steps ?? 0) - (byId.get(a.id)?.steps ?? 0) || a.name.localeCompare(b.name));
 
+  const tabs = (
+    <div className="mb-3 flex items-center gap-1 rounded-xl border border-border bg-card p-1 text-sm font-medium shadow-[0_1px_2px_rgba(16,24,40,0.04)] w-fit">
+      {([
+        ['active', 'Active'],
+        ['inactive', 'Inactive'],
+        ['all', 'All'],
+      ] as const).map(([k, label]) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => setShow(k)}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${
+            show === k ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          {k === 'active' && <span className={`h-2 w-2 rounded-full ${show === k ? 'bg-primary-foreground' : 'bg-emerald-500'}`} />}
+          {k === 'inactive' && <span className={`h-2 w-2 rounded-full ${show === k ? 'bg-primary-foreground/70' : 'bg-muted-foreground/40'}`} />}
+          {label}
+          <span className={`text-xs tabular-nums ${show === k ? 'opacity-80' : 'text-muted-foreground'}`}>{counts[k]}</span>
+        </button>
+      ))}
+    </div>
+  );
+
   if (rows.length === 0) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">{query ? 'No role matches that.' : 'No roles yet. Add the first one.'}</p>;
+    return (
+      <div>
+        {tabs}
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          {query ? 'No role matches that.' : show === 'inactive' ? 'Every role is in use.' : 'No roles yet. Add the first one.'}
+        </p>
+      </div>
+    );
   }
 
   const head = 'px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground';
   return (
+    <div>
+    {tabs}
     <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <table className="w-full min-w-[900px] text-sm">
         <thead className="border-b border-border">
@@ -279,7 +318,14 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
                   )}
                 </td>
                 <td className="px-3 py-3 text-xs">
-                  <span className={e.status === 'Active' || !e.status ? '' : 'text-amber-700'}>{e.status || 'Active'}</span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                      (STATUS_TOKENS[e.status || 'Active'] ?? STATUS_TOKENS.Active).badge
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${(STATUS_TOKENS[e.status || 'Active'] ?? STATUS_TOKENS.Active).dot}`} />
+                    {e.status || 'Active'}
+                  </span>
                 </td>
                 <td className="py-3 pl-3 pr-4">
                   <span className="flex items-center justify-end gap-1">
@@ -320,6 +366,7 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
         Click a row for its handover brief, or the pencil to change its name, description, who it reports to, or status. A role
         with no steps yet shows up on a process once someone assigns it a step.
       </p>
+    </div>
     </div>
   );
 }

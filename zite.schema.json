@@ -260,6 +260,11 @@
                   "value": "2QwZ",
                   "label": "Retired",
                   "color": "blue"
+                },
+                {
+                  "value": "dv4a",
+                  "label": "Inactive",
+                  "color": "gray"
                 }
               ],
               "disableColors": false
