@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
 import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
-import BrainGlobe from './BrainGlobe';
+import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
 import BrainHeat from './BrainHeat';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
@@ -1570,6 +1570,23 @@ export default function Brain() {
   const procs = data?.processes ?? null;
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
   const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
+  // Where one department's process runs another department's, for the arcs on the globe.
+  const handoffs = useMemo(() => {
+    const pairs = new Map<string, GlobeHandoff>();
+    for (const p of procs ?? []) {
+      const from = p.department || '';
+      for (const r of p.runs) {
+        const target = byId.get(r.processId);
+        if (!target || (target.department || '') === from) continue;
+        const to = target.department || '';
+        const key = `${from}>${to}`;
+        const h = pairs.get(key) ?? { from, to, items: [] };
+        h.items.push({ from: p.name, to: target.name });
+        pairs.set(key, h);
+      }
+    }
+    return [...pairs.values()];
+  }, [procs, byId]);
   const leads = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.lead])), [data]);
   // Each department's own color, worked out on the server so no two ever match.
   const deptHues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
@@ -2340,6 +2357,7 @@ export default function Brain() {
               lead: name ? leads.get(name)?.name ?? '' : '',
               processes: procs.filter((p) => (p.department || '') === name).map((p) => ({ id: p.id, name: p.name, stepCount: p.stepCount })),
             }))}
+          handoffs={handoffs}
           onOpen={(name) => setDeptOpen(name || '~none')}
         />
       )}

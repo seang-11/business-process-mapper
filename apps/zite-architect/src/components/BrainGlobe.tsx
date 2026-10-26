@@ -8,8 +8,43 @@ export interface GlobeDept {
   processes: { id: string; name: string; stepCount: number }[];
 }
 
+/** One department handing work to another: its processes that run the other's. */
+export interface GlobeHandoff {
+  from: string;
+  to: string;
+  items: { from: string; to: string }[];
+}
+
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 const TAU = Math.PI * 2;
+
+type Vec = { x: number; y: number; z: number };
+
+/**
+ * Points along an arc from one department to another: round the sphere the
+ * short way, lifted off the surface in the middle like a flight path. The
+ * farther apart they are, the higher it flies.
+ */
+function arcPoints(a: Vec, b: Vec, extraLift: number, n = 40): Vec[] {
+  const la = Math.hypot(a.x, a.y, a.z) || 1;
+  const lb = Math.hypot(b.x, b.y, b.z) || 1;
+  const ua = { x: a.x / la, y: a.y / la, z: a.z / la };
+  const ub = { x: b.x / lb, y: b.y / lb, z: b.z / lb };
+  const om = Math.acos(Math.max(-1, Math.min(1, ua.x * ub.x + ua.y * ub.y + ua.z * ub.z)));
+  const so = Math.sin(om);
+  const lift = 0.15 + 0.3 * (om / Math.PI) + extraLift;
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const t = i / n;
+    const wa = so < 1e-4 ? 1 - t : Math.sin((1 - t) * om) / so;
+    const wb = so < 1e-4 ? t : Math.sin(t * om) / so;
+    const x = ua.x * wa + ub.x * wb;
+    const y = ua.y * wa + ub.y * wb;
+    const z = ua.z * wa + ub.z * wb;
+    const m = Math.hypot(x, y, z) || 1;
+    const len = (la + (lb - la) * t) * (1 + lift * Math.sin(Math.PI * t));
+    return { x: (x / m) * len, y: (y / m) * len, z: (z / m) * len };
+  });
+}
 
 /** Rotate a point on the unit sphere: first around the up axis (yaw), then tip it towards you (pitch). */
 function rotate(p: { x: number; y: number; z: number }, yaw: number, pitch: number) {
@@ -33,10 +68,20 @@ const nearest = (from: number, to: number) => {
 /**
  * The company as a globe: each department a glowing sphere in its own color,
  * spread evenly over a slowly turning world, with its processes orbiting it
- * like moons. Drag to spin it; click a department to fly in and open it.
+ * like moons. Arcs fly between departments where one hands work to another,
+ * with light running along them in the direction the work goes. Drag to spin
+ * it; click a department to fly in and open it.
  * Drawn with plain elements and a little math, so it needs no 3D library.
  */
-export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOpen: (name: string) => void }) {
+export default function BrainGlobe({
+  depts,
+  handoffs,
+  onOpen,
+}: {
+  depts: GlobeDept[];
+  handoffs: GlobeHandoff[];
+  onOpen: (name: string) => void;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 });
   useLayoutEffect(() => {
@@ -61,6 +106,19 @@ export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOp
       }),
     [depts],
   );
+
+  // Each handoff's flight path, worked out once; only the turning changes per frame.
+  const arcs = useMemo(() => {
+    const at = new Map(points.map(({ d, base }) => [d.name, { base, hue: d.hue }]));
+    return handoffs.flatMap((h) => {
+      const a = at.get(h.from);
+      const b = at.get(h.to);
+      if (!a || !b) return [];
+      // Work going both ways between two departments: the second arc flies a little higher.
+      const extra = h.from > h.to && handoffs.some((o) => o.from === h.to && o.to === h.from) ? 0.12 : 0;
+      return [{ h, key: `arc:${h.from}>${h.to}`, fromHue: a.hue, toHue: b.hue, pts: arcPoints(a.base, b.base, extra) }];
+    });
+  }, [points, handoffs]);
 
   const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const view = useRef({ yaw: 0.4, pitch: -0.25, zoom: 1, t: 0 });
@@ -134,6 +192,28 @@ export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOp
       return { d, base, p, sx: cx + p.x * R, sy: cy + p.y * R, depth: (p.z + 1) / 2 };
     })
     .sort((a, b) => a.p.z - b.p.z);
+
+  // Point at a department and its arcs stand out while the rest step back.
+  const hoverDept = hover && !hover.startsWith('arc:') ? (hover === '~' ? '' : hover) : null;
+  const drawn = arcs.map((arc) => {
+    const scr = arc.pts.map((q) => {
+      const p = rotate(q, yaw, pitch);
+      return { x: cx + p.x * R, y: cy + p.y * R, hidden: p.z < 0 && Math.hypot(p.x, p.y) < 1 };
+    });
+    // Split into stretches in front of and behind the globe, so the far side can be drawn faint.
+    const runs: { hidden: boolean; d: string }[] = [];
+    scr.forEach((s, i) => {
+      const last = runs[runs.length - 1];
+      if (!last || last.hidden !== s.hidden) {
+        const prev = scr[i - 1];
+        runs.push({ hidden: s.hidden, d: prev ? `M${prev.x},${prev.y} L${s.x},${s.y}` : `M${s.x},${s.y}` });
+      } else last.d += ` L${s.x},${s.y}`;
+    });
+    const on = hover === arc.key;
+    const lit = on || (hoverDept !== null && (arc.h.from === hoverDept || arc.h.to === hoverDept));
+    return { arc, scr, runs, on, lit, dim: !lit && hover !== null };
+  });
+  const pointed = drawn.find((a) => a.on);
 
   return (
     <div
@@ -209,6 +289,93 @@ export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOp
         ))}
       </svg>
 
+      {/* Handoffs: arcs between departments, light running the way the work goes. */}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+        <defs>
+          {drawn.map(({ arc, scr }, i) => (
+            <linearGradient
+              key={arc.key}
+              id={`handoff-${i}`}
+              gradientUnits="userSpaceOnUse"
+              x1={scr[0].x}
+              y1={scr[0].y}
+              x2={scr[scr.length - 1].x}
+              y2={scr[scr.length - 1].y}
+            >
+              <stop offset="0%" stopColor={`hsl(${arc.fromHue} 90% 65%)`} />
+              <stop offset="100%" stopColor={`hsl(${arc.toHue} 90% 65%)`} />
+            </linearGradient>
+          ))}
+        </defs>
+        {drawn.map(({ arc, scr, runs, on, lit, dim }, i) => {
+          const width = Math.min(5, 1.2 + arc.h.items.length * 0.6) * (on ? 1.5 : 1);
+          const pulses = Math.min(4, arc.h.items.length + 1);
+          const last = scr.length - 1;
+          return (
+            <g key={arc.key} opacity={dim ? 0.15 : 1} style={{ transition: 'opacity 200ms' }}>
+              {runs.map((r, j) => (
+                <path
+                  key={j}
+                  d={r.d}
+                  fill="none"
+                  stroke={`url(#handoff-${i})`}
+                  strokeWidth={width}
+                  strokeLinecap="round"
+                  strokeOpacity={r.hidden ? 0.2 : lit ? 0.95 : 0.6}
+                  strokeDasharray={r.hidden ? '3 5' : undefined}
+                />
+              ))}
+              {/* Light running from the department that sends the work to the one that gets it. */}
+              {!reduceMotion &&
+                Array.from({ length: pulses }, (_, k) => {
+                  const u = ((t / 2400 + k / pulses) % 1) * last;
+                  const a = scr[Math.floor(u)];
+                  const b = scr[Math.min(last, Math.floor(u) + 1)];
+                  const f = u - Math.floor(u);
+                  const hue = arc.fromHue + (arc.toHue - arc.fromHue) * (u / last);
+                  const fade = a.hidden ? 0.25 : 1;
+                  return (
+                    <g key={k} transform={`translate(${a.x + (b.x - a.x) * f} ${a.y + (b.y - a.y) * f})`}>
+                      <circle r={width * 2.2} fill={`hsl(${hue} 95% 65%)`} opacity={0.3 * fade} />
+                      <circle r={Math.max(1.6, width * 0.8)} fill={`hsl(${hue} 100% 88%)`} opacity={fade} />
+                    </g>
+                  );
+                })}
+              {/* A wide invisible line, so the arc is easy to point at. */}
+              <path
+                d={`M${scr.map((s) => `${s.x},${s.y}`).join(' L')}`}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={16}
+                style={{ pointerEvents: 'stroke', cursor: 'help' }}
+                onMouseEnter={() => setHover(arc.key)}
+                onMouseLeave={() => setHover((h) => (h === arc.key ? null : h))}
+              />
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* What the arc you point at carries. */}
+      {pointed && (
+        <div
+          className="pointer-events-none absolute z-[200] max-w-xs rounded-lg border border-white/15 bg-slate-950/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur"
+          style={{ left: pointed.scr[pointed.scr.length >> 1].x, top: pointed.scr[pointed.scr.length >> 1].y - 16, transform: 'translate(-50%, -100%)' }}
+        >
+          <p className="font-semibold">
+            {pointed.arc.h.from || 'Other'} → {pointed.arc.h.to || 'Other'}
+          </p>
+          <ul className="mt-1 space-y-0.5 text-white/75">
+            {pointed.arc.h.items.slice(0, 4).map((it, i) => (
+              <li key={i}>
+                {it.from} <span className="text-white/45">runs</span> {it.to}
+              </li>
+            ))}
+            {pointed.arc.h.items.length > 4 && <li className="text-white/45">and {pointed.arc.h.items.length - 4} more</li>}
+          </ul>
+        </div>
+      )}
+
       {/* Departments, back to front, each with its processes orbiting. */}
       {placed.map(({ d, base, sx, sy, depth }) => {
         const front = depth > 0.55;
@@ -276,6 +443,15 @@ export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOp
                   {d.processes.length} {d.processes.length === 1 ? 'process' : 'processes'}
                   {on && d.lead ? ` · led by ${d.lead}` : ''}
                 </p>
+                {on && (() => {
+                  const sends = handoffs.filter((h) => h.from === d.name).reduce((n, h) => n + h.items.length, 0);
+                  const gets = handoffs.filter((h) => h.to === d.name).reduce((n, h) => n + h.items.length, 0);
+                  return sends + gets > 0 ? (
+                    <p className="text-[11px] text-white/70">
+                      Hands off {sends} · Receives {gets}
+                    </p>
+                  ) : null;
+                })()}
                 {on && <p className="mt-0.5 text-[11px] font-medium text-sky-300">Click to fly in</p>}
               </div>
             )}
@@ -284,7 +460,7 @@ export default function BrainGlobe({ depts, onOpen }: { depts: GlobeDept[]; onOp
       })}
 
       <p className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
-        Drag to spin · Click a department to fly in
+        Drag to spin · Click a department to fly in{arcs.length > 0 && ' · Arcs show work handed between departments'}
       </p>
     </div>
   );
