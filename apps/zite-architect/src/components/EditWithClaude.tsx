@@ -82,19 +82,21 @@ export default function EditWithClaude({ target, onClose }: { target: Target; on
     getWorkspaceLink({}).then(setLinks).catch(() => setLinks(null));
   }, []);
 
-  const copy = async (open: boolean) => {
-    // Open Claude straight away, so the browser treats it as part of the click.
-    const tab = open ? window.open('https://claude.ai/new', '_blank', 'noopener') : null;
+  // Copying and opening Claude are two clicks: opening a tab in the same click
+  // moves focus away, and the browser then refuses to copy.
+  const copy = async () => {
     try {
       await navigator.clipboard.writeText(buildEditPrompt(links, target, request));
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-      toast.success(open ? 'Prompt copied. Paste it into the new Claude chat.' : 'Prompt copied');
     } catch {
-      tab?.close();
       toast.error("Couldn't copy. Allow clipboard access and try again.");
     }
   };
+
+  // Typing a new request means the copied prompt is out of date.
+  useEffect(() => {
+    setCopied(false);
+  }, [request]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -119,19 +121,44 @@ export default function EditWithClaude({ target, onClose }: { target: Target; on
           Leave it empty and Claude will ask you what to change instead.
         </p>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => copy(true)}>
-            {copied ? <Check className="mr-1.5 h-4 w-4" /> : <ExternalLink className="mr-1.5 h-4 w-4" />}
-            Copy prompt and open Claude
-          </Button>
-          <Button variant="outline" onClick={() => copy(false)}>
-            <Copy className="mr-1.5 h-4 w-4" /> Copy only
-          </Button>
-        </div>
+        <ol className="space-y-2.5">
+          <li className="flex items-center gap-3">
+            <Step n={1} done={copied} />
+            <Button onClick={copy} variant={copied ? 'outline' : 'default'}>
+              {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy the prompt'}
+            </Button>
+          </li>
+          <li className="flex items-center gap-3">
+            <Step n={2} />
+            <Button variant={copied ? 'default' : 'outline'} asChild>
+              <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">
+                <img src={claudeLogo} alt="" className="mr-1.5 h-4 w-4" /> Open Claude
+                <ExternalLink className="ml-1.5 h-3.5 w-3.5 opacity-70" />
+              </a>
+            </Button>
+          </li>
+          <li className="flex items-center gap-3 text-sm">
+            <Step n={3} />
+            Paste it into the new chat and press Enter.
+          </li>
+        </ol>
         <p className="text-[11px] text-muted-foreground">
           First time? Connect Zite to Claude once from the "Just talk" card on Home, so Claude can make the changes for you.
         </p>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Step({ n, done }: { n: number; done?: boolean }) {
+  return (
+    <span
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+        done ? 'bg-emerald-100 text-emerald-700' : 'bg-primary/10 text-primary'
+      }`}
+    >
+      {done ? <Check className="h-3.5 w-3.5" /> : n}
+    </span>
   );
 }
