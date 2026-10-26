@@ -15,6 +15,7 @@ import { useMe } from '@/lib/me';
 import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import Train from './Train';
+import { hueFor } from './RoleAvatar';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessTimeline from './ProcessTimeline';
 import type { ElementSummary, ProcessStep } from '@/types';
@@ -61,14 +62,19 @@ export function ViewerHome() {
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
     <div className="mx-auto max-w-[880px] px-6 py-10">
-      <header>
-        <h1 className="text-[28px] font-semibold tracking-tight">{first ? `Welcome, ${first}` : 'Welcome'}</h1>
-        <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+      {/* A soft branded banner, so the page greets you with a bit of color. */}
+      <header className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-primary/[0.04] to-card px-7 py-7 shadow-[0_1px_3px_rgba(16,24,40,0.05)]">
+        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
+          <Workflow className="h-5 w-5" />
+        </span>
+        <h1 className="mt-4 text-[28px] font-semibold tracking-tight">{first ? `Welcome, ${first}` : 'Welcome'}</h1>
+        <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
           Every process the team runs, step by step. Open one to see who does each step and which tools they use.
         </p>
       </header>
 
-      <div className="relative mt-7">
+      <div className="relative mt-6">
         <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
@@ -92,8 +98,16 @@ export function ViewerHome() {
         ) : (
           groups.map(([dept, procs]) => (
             <section key={dept || '~'}>
-              <h2 className="mb-2.5 flex items-baseline gap-2 px-1">
-                <span className="text-sm font-semibold">{dept || 'Other'}</span>
+              <h2 className="mb-2.5 flex items-center gap-2 px-1">
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
+                  style={{
+                    backgroundColor: dept ? `hsl(${hueFor(dept)} 80% 93%)` : 'hsl(var(--muted))',
+                    color: dept ? `hsl(${hueFor(dept)} 45% 30%)` : undefined,
+                  }}
+                >
+                  {dept || 'Other'}
+                </span>
                 <span className="text-xs text-muted-foreground">
                   {procs.length} {procs.length === 1 ? 'process' : 'processes'}
                 </span>
@@ -104,8 +118,18 @@ export function ViewerHome() {
                     <button
                       type="button"
                       onClick={() => navigate(`/view/${p.id}`)}
-                      className="group flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-muted/40"
+                      className="group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40"
                     >
+                      {/* Each process wears its department's color, so the list has some life and groups read at a glance. */}
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{
+                          backgroundColor: dept ? `hsl(${hueFor(dept)} 80% 94%)` : 'hsl(var(--muted))',
+                          color: dept ? `hsl(${hueFor(dept)} 50% 38%)` : undefined,
+                        }}
+                      >
+                        <Workflow className="h-[18px] w-[18px]" />
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-medium">{p.name}</span>
                         {p.description && (
@@ -120,7 +144,7 @@ export function ViewerHome() {
                         )}
                         <span className="block">{p.stepCount} steps</span>
                       </span>
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-[13px] font-medium transition-colors group-hover:border-primary/40 group-hover:bg-primary group-hover:text-primary-foreground">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-[13px] font-medium text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         View <ArrowRight className="h-3.5 w-3.5" />
                       </span>
                     </button>
