@@ -32,6 +32,7 @@ import type { default as _SaveVersionEp } from '../src/api/saveVersion';
 import type { default as _SetDepartmentColorEp } from '../src/api/setDepartmentColor';
 import type { default as _SetDepartmentDescriptionEp } from '../src/api/setDepartmentDescription';
 import type { default as _SetDepartmentLeadEp } from '../src/api/setDepartmentLead';
+import type { default as _SetHeatColorEp } from '../src/api/setHeatColor';
 import type { default as _SetShareLinkEp } from '../src/api/setShareLink';
 import type { default as _SetStepMatchEp } from '../src/api/setStepMatch';
 
@@ -185,6 +186,11 @@ export type SetDepartmentLeadInputType = NonNullable<_SetDepartmentLeadCfg['inpu
 export type SetDepartmentLeadOutputType = Awaited<ReturnType<_SetDepartmentLeadCfg['execute']>>;
 export const setDepartmentLead = createCaller<SetDepartmentLeadInputType, SetDepartmentLeadOutputType>('setDepartmentLead');
 
+type _SetHeatColorCfg = typeof _SetHeatColorEp;
+export type SetHeatColorInputType = NonNullable<_SetHeatColorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetHeatColorCfg['execute']>[0]['input'];
+export type SetHeatColorOutputType = Awaited<ReturnType<_SetHeatColorCfg['execute']>>;
+export const setHeatColor = createCaller<SetHeatColorInputType, SetHeatColorOutputType>('setHeatColor');
+
 type _SetShareLinkCfg = typeof _SetShareLinkEp;
 export type SetShareLinkInputType = NonNullable<_SetShareLinkCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetShareLinkCfg['execute']>[0]['input'];
 export type SetShareLinkOutputType = Awaited<ReturnType<_SetShareLinkCfg['execute']>>;
@@ -227,6 +233,7 @@ export const api = {
   setDepartmentColor,
   setDepartmentDescription,
   setDepartmentLead,
+  setHeatColor,
   setShareLink,
   setStepMatch,
 };

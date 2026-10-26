@@ -367,6 +367,20 @@ export type DepartmentsRecordInput = {
   description: string | null;
 };
 
+/** A record in the "Settings" table, as it is read back. */
+export type SettingsRecordType = {
+  id: string;
+  /** Primary field. "Name" */
+  name?: string;
+  value?: string;
+};
+
+/** What you may write when creating or updating a record in the "Settings" table. */
+export type SettingsRecordInput = {
+  name: string | null;
+  value: string | null;
+};
+
 export interface ZiteAuthUser {
   id: string;
   name: string;
@@ -385,6 +399,7 @@ export const zite = {
   mapLayouts: createTableClient<MapLayoutsRecordType, MapLayoutsRecordInput>('MapLayouts'), // "Map Layouts"
   editors: createTableClient<EditorsRecordType, EditorsRecordInput>('Editors'), // "Editors"
   departments: createTableClient<DepartmentsRecordType, DepartmentsRecordInput>('Departments'), // "Departments"
+  settings: createTableClient<SettingsRecordType, SettingsRecordInput>('Settings'), // "Settings"
   sql: createSqlClient(),
   auth: createAuthClient<ZiteAuthUser>(),
 };

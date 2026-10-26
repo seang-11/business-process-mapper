@@ -46,6 +46,8 @@ export default createEndpoint({
     departments: z.array(z.object({ name: z.string(), lead: participant.nullable(), hue: z.number(), description: z.string() })),
     /** Everyone who could lead a department. */
     people: z.array(participant),
+    /** The heat map's color scale, picked by an admin. */
+    heatColor: z.string(),
     processes: z.array(
       z.object({
         id: z.string(),
@@ -106,7 +108,7 @@ export default createEndpoint({
     ]);
 
     const processType = typeRes.records.find((t) => t.key === 'process');
-    if (!processType) return { departments: [], people: [], processes: [] };
+    if (!processType) return { departments: [], people: [], processes: [], heatColor: '' };
     const typeById = new Map(typeRes.records.map((t) => [t.id, t]));
     const elementById = new Map(elementRes.records.map((e) => [e.id, e]));
     const processIds = new Set(elementRes.records.filter((e) => one(e.type) === processType.id).map((e) => e.id));
@@ -250,6 +252,8 @@ export default createEndpoint({
       .map((e) => describe(e.id)!)
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    return { departments, people, processes };
+    const settings = await zite.settings.findAll({ limit: 50 });
+    const heatColor = settings.records.find((r) => r.name === 'heatColor')?.value ?? '';
+    return { departments, people, processes, heatColor };
   },
 });

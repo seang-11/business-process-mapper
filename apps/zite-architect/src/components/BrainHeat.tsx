@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Flame } from 'lucide-react';
+import { Check, Flame, Palette } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
+import { HEAT_PALETTES, heatPalette } from '@/lib/heatPalettes';
 
 export interface HeatProc {
   id: string;
@@ -19,15 +21,6 @@ export interface HeatDept {
   procs: HeatProc[];
 }
 
-/** Five steps from cool to hot, with text that reads on each. */
-const SCALE = [
-  { bg: '#FAECE7', fg: '#712B13' },
-  { bg: '#F5C4B3', fg: '#712B13' },
-  { bg: '#F0997B', fg: '#4A1B0C' },
-  { bg: '#D85A30', fg: '#FFF4EF' },
-  { bg: '#993C1D', fg: '#FFF4EF' },
-];
-
 const fmt = (h: number) => (h >= 10 ? Math.round(h) : Math.round(h * 10) / 10);
 
 /**
@@ -35,8 +28,12 @@ const fmt = (h: number) => (h >= 10 ? Math.round(h) : Math.round(h * 10) / 10);
  * many people hours it takes a month, with a bar for how much apps already do.
  * A hot card with a short bar is the next thing worth automating.
  */
-export default function BrainHeat({ depts, onOpenProcess, onOpenDept }: {
+export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess, onOpenDept }: {
   depts: HeatDept[];
+  /** The color scale's id. */
+  palette: string;
+  /** Admins only: pick the color scale for everyone. */
+  onPickPalette?: (id: string) => void;
   onOpenProcess: (id: string) => void;
   onOpenDept: (name: string) => void;
 }) {
@@ -48,6 +45,7 @@ export default function BrainHeat({ depts, onOpenProcess, onOpenDept }: {
   const sorted = [...depts].sort((x, y) => deptHours(y) - deptHours(x));
   const hottestDept = sorted[0];
   const hottest = [...all].sort((x, y) => (y.hours ?? 0) - (x.hours ?? 0))[0];
+  const SCALE = heatPalette(palette).steps;
   const [focus, setFocus] = useState<HeatProc | null>(null);
 
   return (
@@ -69,15 +67,57 @@ export default function BrainHeat({ depts, onOpenProcess, onOpenDept }: {
                 />
                 <Tile label="Biggest single drain" value={hottest.name} extra={`${fmt(hottest.hours ?? 0)} hrs`} />
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                Fewer hours
-                <span className="flex overflow-hidden rounded">
-                  {SCALE.map((s) => (
-                    <span key={s.bg} className="h-2.5 w-6" style={{ background: s.bg }} />
-                  ))}
-                </span>
-                More hours
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-border bg-background px-4 py-3">
+              <span className="text-sm font-semibold">Hours a month</span>
+              <div className="flex items-end gap-1">
+                {SCALE.map((st, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1">
+                    <span className="h-5 w-16 rounded-md" style={{ background: st.bg }} />
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {i === 0 ? `Up to ${fmt(max / 5)}` : i === 4 ? `${fmt((max * 4) / 5)}+` : `${fmt((max * i) / 5)} to ${fmt((max * (i + 1)) / 5)}`}
+                    </span>
+                  </div>
+                ))}
               </div>
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="relative h-1.5 w-10 overflow-hidden rounded-full bg-muted">
+                  <span className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-foreground/60" />
+                </span>
+                Bar = share done by apps
+              </span>
+              {onPickPalette && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Palette className="h-3.5 w-3.5" /> Color
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-60 p-2">
+                    <p className="px-2 pb-1.5 text-xs text-muted-foreground">Heat map color, for everyone</p>
+                    {HEAT_PALETTES.map((pal) => (
+                      <button
+                        key={pal.id}
+                        type="button"
+                        onClick={() => onPickPalette(pal.id)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                      >
+                        <span className="flex overflow-hidden rounded">
+                          {pal.steps.map((st) => (
+                            <span key={st.bg} className="h-3.5 w-5" style={{ background: st.bg }} />
+                          ))}
+                        </span>
+                        <span className="flex-1">{pal.label}</span>
+                        {heatPalette(palette).id === pal.id && <Check className="h-3.5 w-3.5" />}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">

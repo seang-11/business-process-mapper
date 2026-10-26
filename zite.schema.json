@@ -1199,6 +1199,32 @@
           }
         }
       ]
+    },
+    {
+      "id": "th8gpQdsGhM",
+      "sdkName": "settings",
+      "name": "Settings",
+      "primaryFieldId": "fbb5piHFo1P",
+      "fields": [
+        {
+          "id": "fbb5piHFo1P",
+          "sdkName": "name",
+          "definition": {
+            "name": "Name",
+            "type": "single_line_text",
+            "template": {}
+          }
+        },
+        {
+          "id": "ffoZ5Jw1V8J",
+          "sdkName": "value",
+          "definition": {
+            "name": "Value",
+            "type": "single_line_text",
+            "template": {}
+          }
+        }
+      ]
     }
   ]
 }

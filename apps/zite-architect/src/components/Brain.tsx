@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getBrain, setDepartmentColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
+import { getBrain, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
   ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
@@ -1955,6 +1955,16 @@ export default function Brain() {
     };
   }, [pinned, procs, appById]);
 
+  // The heat map's color is one choice for everyone; show it at once, then save it.
+  const chooseHeatColor = async (palette: string) => {
+    setData((d) => (d ? { ...d, heatColor: palette } : d));
+    try {
+      await setHeatColor({ palette });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the color.');
+    }
+  };
+
   // --- Department leads ---
   const [leadFor, setLeadFor] = useState<string | null>(null);
   /** Edit always opens the process by person, the view that's built for changing it. */
@@ -2357,6 +2367,8 @@ export default function Brain() {
                 };
               }),
           }))}
+          palette={data?.heatColor ?? ''}
+          onPickPalette={canEdit ? chooseHeatColor : undefined}
           onOpenProcess={(id) => setSelected(id)}
           onOpenDept={(name) => setDeptOpen(name || '~none')}
         />
