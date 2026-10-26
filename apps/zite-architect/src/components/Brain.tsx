@@ -2403,7 +2403,7 @@ export default function Brain() {
         />
       )}
 
-      {/* How the board shows processes: as cards, every step laid out, a 3D globe of departments, or a heat map of hours. */}
+      {/* How the board shows processes: as cards, every step laid out, a heat map of hours, or a 3D globe of departments. */}
       <div
         data-ui
         data-tour="view"
@@ -2412,8 +2412,8 @@ export default function Brain() {
         {[
           { on: !globe && !heat && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); if (allOpen) toggleAll(); } },
           { on: !globe && !heat && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); if (!allOpen) toggleAll(); } },
-          { on: globe, label: '3D', Icon: Globe2, act: () => { setHeat(false); setGlobe(true); } },
           { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setHeat(true); } },
+          { on: globe, label: '3D', Icon: Globe2, act: () => { setHeat(false); setGlobe(true); } },
         ].map((b) => (
           <button
             key={b.label}
