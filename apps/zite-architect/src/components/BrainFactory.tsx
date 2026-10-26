@@ -18,10 +18,16 @@ interface Line {
   nodes: Node[];
 }
 
-/** World units: the gap between stations, between lines, and a station's size. */
-const STEP_X = 120;
-const LINE_Y = 140;
-const LEAD = 40;
+/** World units: the gap between stations, between lines, and room at the head of each line. */
+const STEP_X = 150;
+const LINE_Y = 190;
+const LEAD = 30;
+/** The belt runs across the middle of each line's lane; stations sit on it. */
+const BELT_Y = 40;
+const BELT_D = 34;
+/** How far a step back into the floor shifts things left and up: a view from the front, a little above and to the right. */
+const SLANT = 0.3;
+const RISE = 0.75;
 /** Piles by step type: a wait step stacks higher than waiting on someone outside the team. */
 const PILE_WAIT = 7;
 const PILE_OUTSIDE = 4;
@@ -85,17 +91,28 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
     return () => obs.disconnect();
   }, []);
 
+  const cam = useRef({ zoom: 1, px: 0, py: 0 });
+  /** One department's lines, or every line. */
+  const [dept, setDept] = useState<string | null>(null);
+  const depts = useMemo(
+    () => [...new Set(procs.filter((p) => p.steps.length > 0).map((p) => p.department || ''))].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b))),
+    [procs],
+  );
   const lines: Line[] = useMemo(
     () =>
       [...procs]
-        .filter((p) => p.steps.length > 0)
+        .filter((p) => p.steps.length > 0 && (dept === null || (p.department || '') === dept))
         .sort((a, b) => (a.department || '~').localeCompare(b.department || '~') || a.name.localeCompare(b.name))
         .map((p) => ({ p, hue: p.department ? hues.get(p.department) ?? 220 : 220, nodes: lineFor(p) })),
-    [procs, hues],
+    [procs, hues, dept],
   );
+  // A new set of lines starts back at the top.
+  useEffect(() => {
+    cam.current.px = 0;
+    cam.current.py = 0;
+  }, [dept]);
 
   const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const cam = useRef({ zoom: 1, px: 0, py: 0 });
   const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
   const mouse = useRef({ x: -1, y: -1 });
   const hits = useRef<Hit[]>([]);
@@ -105,9 +122,14 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
+    // Scroll to move through the lines; pinch (or hold Ctrl) to zoom.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      cam.current.zoom = Math.max(0.5, Math.min(3, cam.current.zoom * Math.exp(-e.deltaY * 0.0015)));
+      if (e.ctrlKey) cam.current.zoom = Math.max(0.5, Math.min(2.5, cam.current.zoom * Math.exp(-e.deltaY * 0.01)));
+      else {
+        cam.current.px -= e.deltaX;
+        cam.current.py -= e.deltaY;
+      }
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -126,9 +148,26 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
 
     const maxLen = Math.max(1, ...lines.map((l) => LEAD * 2 + l.nodes.length * STEP_X));
     const depth = lines.length * LINE_Y;
-    const reach = maxLen + depth;
-    const fit = Math.min((size.w - 120) / (reach * 0.87), (size.h - 230) / (reach * 0.5 + 80));
+    /** Room on the left for each line's name card. */
+    const HEAD_PX = 210;
+    // Fit the longest line between the name cards and the legend, but never so small the labels crowd; longer lines scroll sideways.
+    const fit = Math.min(1.2, Math.max(0.85, (size.w - HEAD_PX - 300) / (maxLen + LINE_Y * SLANT)));
     const hsl = (h: number, s: number, l: number, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
+    const pill = (text: string, x: number, y: number, fg: string, bg: string, px: number, weight = 500) => {
+      ctx.font = `${weight} ${px}px Inter, system-ui, sans-serif`;
+      const w = ctx.measureText(text).width + 12;
+      const h = px + 8;
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
+      ctx.fill();
+      ctx.fillStyle = fg;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x, y + 0.5);
+      ctx.textBaseline = 'alphabetic';
+    };
+    const short = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
 
     let raf = 0;
     const start = performance.now();
@@ -136,15 +175,16 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
       const t = reduceMotion ? 0 : now - start;
       const { zoom, px, py } = cam.current;
       const s = fit * zoom;
-      const ox = size.w / 2 - ((maxLen - depth) / 2) * 0.87 * s + px;
-      const oy = size.h / 2 + 30 - (reach / 2) * 0.5 * s + py;
-      const iso = (x: number, y: number, z: number) => ({ x: ox + (x - y) * 0.87 * s, y: oy + (x + y) * 0.5 * s - z * s });
-      const cube = (x: number, y: number, z: number, w: number, d: number, h: number, top: string, left: string, right: string) => {
+      const ox = HEAD_PX + 30 + px;
+      const oy = 150 + py;
+      // Lines stack straight down the screen; within a line, nearer is a little right and down, so each reads left to right like a row.
+      const iso = (x: number, y: number, z: number) => ({ x: ox + (x + (y % LINE_Y) * SLANT) * s, y: oy + (Math.floor(y / LINE_Y) * LINE_Y * RISE + (y % LINE_Y) * RISE * 0.6) * s - z * s });
+      const cube = (x: number, y: number, z: number, w: number, d: number, h: number, top: string, front: string, side: string) => {
         const a = iso(x, y, z + h), b = iso(x + w, y, z + h), c = iso(x + w, y + d, z + h), e = iso(x, y + d, z + h);
         const f = iso(x + w, y + d, z), g = iso(x, y + d, z), k = iso(x + w, y, z);
-        ctx.fillStyle = left;
+        ctx.fillStyle = front;
         ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(c.x, c.y); ctx.lineTo(f.x, f.y); ctx.lineTo(g.x, g.y); ctx.fill();
-        ctx.fillStyle = right;
+        ctx.fillStyle = side;
         ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(f.x, f.y); ctx.lineTo(k.x, k.y); ctx.fill();
         ctx.fillStyle = top;
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(e.x, e.y); ctx.fill();
@@ -152,68 +192,81 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
 
       ctx.fillStyle = '#0d1220';
       ctx.fillRect(0, 0, size.w, size.h);
-      // The floor's tiles.
-      ctx.strokeStyle = 'rgba(120,140,190,0.07)';
-      ctx.lineWidth = 1;
-      for (let gx = -1; gx <= Math.ceil(maxLen / 80) + 1; gx++) {
-        const a = iso(gx * 80, -60, 0), b = iso(gx * 80, depth + 20, 0);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
-      for (let gy = -1; gy <= Math.ceil((depth + 80) / 80); gy++) {
-        const a = iso(-80, gy * 80 - 60, 0), b = iso(maxLen + 40, gy * 80 - 60, 0);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
 
       const found: Hit[] = [];
-      const fontPx = Math.max(10, Math.min(13, 11 * zoom));
+      const labelPx = Math.round(Math.max(10, Math.min(13, 12 * zoom)));
       lines.forEach((line, li) => {
         const y = li * LINE_Y;
         const len = LEAD * 2 + line.nodes.length * STEP_X;
-        // The belt, with its slats sliding along.
-        cube(0, y + 22, 0, len, 26, 4, '#2a3247', '#1b2133', '#222a3d');
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        // Each line's own lane on the floor, so lines never run into each other.
+        const l0 = iso(-10, y + 8, 0), l1 = iso(len + 10, y + 8, 0), l2 = iso(len + 10, y + BELT_Y + BELT_D + 46, 0), l3 = iso(-10, y + BELT_Y + BELT_D + 46, 0);
+        if (l2.y < -40 || l0.y > size.h + 120) return;
+        ctx.fillStyle = hsl(line.hue, 30, 14, 0.55);
+        ctx.strokeStyle = hsl(line.hue, 50, 45, 0.35);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(l0.x, l0.y); ctx.lineTo(l1.x, l1.y); ctx.lineTo(l2.x, l2.y); ctx.lineTo(l3.x, l3.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+
+        // The belt, with its slats sliding along and an arrow showing which way work goes.
+        cube(0, y + BELT_Y, 0, len, BELT_D, 5, '#2b3349', '#1a2032', '#20283b');
+        ctx.strokeStyle = 'rgba(255,255,255,0.13)';
         ctx.lineWidth = 2;
-        for (let i = 0; i < len / 30; i++) {
-          const xx = (i * 30 + t * 0.04) % len;
-          const a = iso(xx, y + 35, 4.5), b = iso(Math.min(len, xx + 10), y + 35, 4.5);
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        for (let i = 0; i < len / 34; i++) {
+          const xx = (i * 34 + t * 0.04) % len;
+          const a1 = iso(xx, y + BELT_Y + BELT_D / 2, 5.5), b1 = iso(Math.min(len, xx + 12), y + BELT_Y + BELT_D / 2, 5.5);
+          ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
         }
-        // The process's name at the head of its line, in its department's color.
-        const lb = iso(-14, y + 35, 0);
-        ctx.fillStyle = hsl(line.hue, 70, 72);
-        ctx.font = `600 ${fontPx}px Inter, system-ui, sans-serif`;
-        ctx.textAlign = 'right';
-        ctx.fillText(line.p.name, lb.x - 4, lb.y + 4);
+        const endA = iso(len + 4, y + BELT_Y + BELT_D / 2, 3);
+        ctx.fillStyle = hsl(line.hue, 70, 65, 0.8);
+        ctx.beginPath(); ctx.moveTo(endA.x + 12, endA.y); ctx.lineTo(endA.x, endA.y - 7); ctx.lineTo(endA.x, endA.y + 7); ctx.fill();
+
+        // The line's name card at its head.
+        const head = iso(-14, y + BELT_Y + BELT_D / 2, 0);
+        ctx.font = `600 ${labelPx + 1}px Inter, system-ui, sans-serif`;
+        const nameW = Math.min(HEAD_PX - 30, ctx.measureText(line.p.name).width + 26);
+        ctx.fillStyle = 'rgba(15,22,42,0.92)';
+        ctx.strokeStyle = hsl(line.hue, 60, 55, 0.6);
+        ctx.beginPath(); ctx.roundRect(head.x - nameW - 8, head.y - 15, nameW, 30, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = hsl(line.hue, 70, 60);
+        ctx.beginPath(); ctx.arc(head.x - nameW + 4, head.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#eef2fb';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(short(line.p.name, 24), head.x - nameW + 14, head.y + 0.5);
+        ctx.textBaseline = 'alphabetic';
+        found.push({ x: head.x - nameW / 2 - 8, y: head.y, r: nameW / 2, line, node: { kind: 'station', who: null, steps: [] } });
 
         line.nodes.forEach((node, ni) => {
-          const x = LEAD + ni * STEP_X;
+          const x = LEAD + ni * STEP_X + 20;
+          const front = iso(x + 32, y + BELT_Y + BELT_D + 22, 0);
           if (node.kind === 'pile') {
             for (let k = 0; k < node.size; k++) {
               const col = k % 3;
               const row = Math.floor(k / 3);
-              cube(x + col * 16 - 6, y + 22 + ((k * 7) % 3) * 6, 4 + row * 14, 13, 13, 13, '#F0997B', '#993C1D', '#D85A30');
+              cube(x + 10 + col * 15, y + BELT_Y + 4 + (k % 2) * 10, 5 + row * 13, 12, 12, 12, '#F0997B', '#993C1D', '#D85A30');
             }
-            const tp = iso(x + 14, y + 30, 4 + Math.ceil(node.size / 3) * 14 + 14);
-            ctx.fillStyle = `rgba(226,75,74,${0.45 + 0.3 * Math.sin(t / 300)})`;
-            ctx.beginPath(); ctx.arc(tp.x, tp.y, 7, 0, Math.PI * 2); ctx.fill();
+            const tp = iso(x + 32, y + BELT_Y + 10, 5 + Math.ceil(node.size / 3) * 13 + 16);
+            ctx.fillStyle = `rgba(226,75,74,${0.5 + 0.3 * Math.sin(t / 300)})`;
+            ctx.beginPath(); ctx.arc(tp.x, tp.y, 8, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#fff';
-            ctx.font = '700 10px Inter, system-ui, sans-serif';
+            ctx.font = '700 11px Inter, system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('!', tp.x, tp.y + 3.5);
-            const hb = iso(x + 12, y + 30, 26);
-            found.push({ x: hb.x, y: hb.y, r: 30 * Math.max(0.7, zoom), line, node });
+            ctx.fillText('!', tp.x, tp.y + 4);
+            pill(node.reason === 'wait' ? 'Waiting' : 'Waiting on them', front.x, front.y, '#ffd2cf', 'rgba(120,30,30,0.75)', labelPx - 1);
+            const hb = iso(x + 32, y + BELT_Y + 12, 20);
+            found.push({ x: hb.x, y: hb.y, r: 34 * Math.max(0.7, zoom), line, node });
             return;
           }
           const robot = node.kind === 'robot';
           const outside = node.who?.party === 'External';
           const hue = robot ? 160 : node.who ? hueFor(node.who.name) : 220;
-          const sat = outside ? 15 : robot ? 55 : 45;
-          cube(x, y, 4, 58, 20, robot ? 34 : 28, hsl(hue, sat, robot ? 45 : 52), hsl(hue, sat, robot ? 26 : 30), hsl(hue, sat, robot ? 34 : 38));
+          const sat = outside ? 12 : robot ? 55 : 48;
+          cube(x, y + BELT_Y - 4, 5, 64, BELT_D + 8, robot ? 36 : 30, hsl(hue, sat, robot ? 46 : 54), hsl(hue, sat, robot ? 30 : 34), hsl(hue, sat, robot ? 24 : 27));
           if (robot) {
-            const base = iso(x + 29, y + 10, 38);
+            const base = iso(x + 32, y + BELT_Y + BELT_D / 2, 41);
             const ang = Math.sin(t / 260 + ni) * 0.9;
-            const ex = base.x + Math.cos(ang - 1.2) * 22 * zoom;
-            const ey = base.y + Math.sin(ang - 1.2) * 22 * zoom;
+            const reach = 24 * s;
+            const ex = base.x + Math.cos(ang - 1.3) * reach;
+            const ey = base.y + Math.sin(ang - 1.3) * reach;
             ctx.strokeStyle = '#9FE1CB';
             ctx.lineWidth = 4;
             ctx.lineCap = 'round';
@@ -224,29 +277,32 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
             // A worker for each step done here, up to three, bobbing as they work.
             const workers = Math.min(3, node.steps.length);
             for (let k = 0; k < workers; k++) {
-              const hp = iso(x + 12 + k * 16, y - 6, 30 + Math.abs(Math.sin(t / 400 + k + ni)) * 4);
-              ctx.fillStyle = hsl(hue, outside ? 20 : 70, 75);
-              ctx.beginPath(); ctx.arc(hp.x, hp.y, 4.5 * Math.max(0.8, zoom * 0.9), 0, Math.PI * 2); ctx.fill();
-              ctx.fillStyle = hsl(hue, outside ? 15 : 50, 40);
+              const hp = iso(x + 14 + k * 18, y + BELT_Y + BELT_D / 2, 38 + Math.abs(Math.sin(t / 400 + k + ni)) * 4);
+              ctx.fillStyle = hsl(hue, outside ? 15 : 70, 78);
+              ctx.beginPath(); ctx.arc(hp.x, hp.y, 4.5, 0, Math.PI * 2); ctx.fill();
+              ctx.fillStyle = hsl(hue, outside ? 12 : 50, 42);
               ctx.fillRect(hp.x - 3.5, hp.y + 5, 7, 8);
             }
           }
-          const name = node.who?.name ?? 'Nobody yet';
-          const lp = iso(x + 29, y + 24, robot ? 52 : 46);
-          ctx.fillStyle = robot ? '#9FE1CB' : outside ? '#b9c0cf' : '#ffffff';
-          ctx.font = `500 ${fontPx - 1}px Inter, system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.fillText(name.length > 18 ? `${name.slice(0, 17)}…` : name, lp.x, lp.y);
-          const hb = iso(x + 29, y + 10, 20);
-          found.push({ x: hb.x, y: hb.y, r: 34 * Math.max(0.7, zoom), line, node });
+          const name = short(node.who?.name ?? 'Nobody yet', 17);
+          pill(
+            name,
+            front.x,
+            front.y,
+            robot ? '#bff0de' : outside ? '#c8cdd8' : '#ffffff',
+            robot ? 'rgba(16,80,60,0.8)' : `hsla(${hue},${outside ? 10 : 45}%,22%,0.9)`,
+            labelPx - 1,
+          );
+          const hb = iso(x + 32, y + BELT_Y + BELT_D / 2, 20);
+          found.push({ x: hb.x, y: hb.y, r: 38 * Math.max(0.7, zoom), line, node });
         });
 
         // Jobs riding the belt; they vanish into a pile and come out the other side.
         for (let k = 0; k < 3; k++) {
-          const u = ((t / 5200 + k / 3 + li * 0.17) % 1 + 1) % 1;
+          const u = ((t / 6000 + k / 3 + li * 0.17) % 1 + 1) % 1;
           const xx = u * len;
-          const inPile = line.nodes.some((n, ni) => n.kind === 'pile' && Math.abs(LEAD + ni * STEP_X - xx) < 16);
-          if (!inPile) cube(xx, y + 29, 5, 11, 11, 11, '#FAC775', '#854F0B', '#BA7517');
+          const blocked = line.nodes.some((n, ni) => Math.abs(LEAD + ni * STEP_X + 20 + 32 - xx) < 40);
+          if (!blocked) cube(xx, y + BELT_Y + BELT_D / 2 - 6, 5, 12, 12, 12, '#FAC775', '#854F0B', '#BA7517');
         }
       });
       hits.current = found;
@@ -273,6 +329,23 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
     const right = hover.x < size.w - 280;
     const style = { left: right ? hover.x + 34 : hover.x - 274, top: Math.max(70, hover.y - 70) };
     const shell = 'pointer-events-none absolute z-[200] w-60 rounded-xl border bg-slate-950/90 px-4 py-3 text-xs text-white/85 shadow-xl backdrop-blur';
+    // The line's name card: what the whole line is.
+    if (node.kind === 'station' && node.steps.length === 0) {
+      const people = line.nodes.filter((n) => n.kind === 'station').length;
+      const robots = line.nodes.filter((n) => n.kind === 'robot').length;
+      const piles = line.nodes.filter((n) => n.kind === 'pile').length;
+      return (
+        <div className={`${shell} border-sky-300/45`} style={style}>
+          <p className="text-sm font-semibold" style={{ color: `hsl(${line.hue} 80% 72%)` }}>{line.p.name}</p>
+          <p className="mb-1.5 text-[11px] text-white/50">{line.p.department || 'No department'}</p>
+          <p>
+            {line.p.steps.length} steps · {people} {people === 1 ? 'station' : 'stations'} · {robots} {robots === 1 ? 'robot' : 'robots'} ·{' '}
+            {piles} {piles === 1 ? 'pile' : 'piles'}
+          </p>
+          <p className="mt-2 font-medium text-sky-300">Click to open this process</p>
+        </div>
+      );
+    }
     if (node.kind === 'pile') {
       return (
         <div className={`${shell} border-red-300/40`} style={style}>
@@ -340,7 +413,7 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
 
       {/* How to read it. */}
       <div
-        className="absolute left-4 top-4 z-[210] w-56 cursor-default rounded-xl border border-white/10 bg-slate-950/75 p-3 text-xs text-white/80 shadow-xl backdrop-blur"
+        className="absolute right-4 top-4 z-[210] max-h-[calc(100%-5rem)] w-60 cursor-default overflow-y-auto rounded-xl border border-white/10 bg-slate-950/80 p-3 text-xs text-white/80 shadow-xl backdrop-blur"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/45">How to read it</p>
@@ -353,12 +426,34 @@ export default function BrainFactory({ procs, hues, onOpenProcess }: {
         <p className="mt-2.5 text-[11px] leading-relaxed text-white/45">
           Tall piles are wait steps. Short piles are work waiting on someone outside the team.
         </p>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-medium uppercase tracking-wider text-white/45">Show</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[null, ...depts].map((d) => {
+            const on = dept === d;
+            const hue = d ? hues.get(d) ?? 220 : null;
+            return (
+              <button
+                key={d ?? '~all'}
+                type="button"
+                onClick={() => setDept(d)}
+                aria-pressed={on}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                  on ? 'border-white/40 bg-white/15 text-white' : 'border-white/10 text-white/65 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {hue !== null && <span className="h-2 w-2 rounded-full" style={{ background: `hsl(${hue} 70% 58%)` }} />}
+                {d === null ? 'All lines' : d || 'No department'}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {card}
 
       <p className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
-        Drag to move · Scroll to zoom · Point at a station or pile · Click to open the process
+        Scroll or drag to move · Pinch to zoom · Point at anything for details · Click to open the process
       </p>
     </div>
   );
