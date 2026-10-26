@@ -233,7 +233,7 @@ function Icon({ w, size }: { w: Who; size: number }) {
   );
 }
 
-/** The Edit button editors see on a process, on the board and in the pop-up. Opens it by person, ready to change. */
+/** The quiet pencil editors see on a process. Opens it by person, ready to change. */
 function EditPill({ onEdit, big }: { onEdit: () => void; big?: boolean }) {
   return (
     <button
@@ -244,11 +244,12 @@ function EditPill({ onEdit, big }: { onEdit: () => void; big?: boolean }) {
         onEdit();
       }}
       title="Edit this process"
-      className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 ${
-        big ? 'px-4 py-1.5 text-[20px]' : 'px-2.5 py-0.5 text-[11px]'
+      aria-label="Edit this process"
+      className={`-mt-0.5 shrink-0 cursor-pointer rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${
+        big ? 'p-2' : 'p-1'
       }`}
     >
-      <Pencil className={big ? 'h-5 w-5' : 'h-3 w-3'} /> Edit
+      <Pencil className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
     </button>
   );
 }
@@ -676,9 +677,11 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
               type="button"
               data-ui
               onClick={onEdit}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+              title="Edit this process"
+              aria-label={`Edit ${p.name}`}
+              className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"
             >
-              <Pencil className="h-3 w-3" /> Edit
+              <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
           {onOpenProcess && !onEdit && (
