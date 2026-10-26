@@ -55,6 +55,24 @@ export default function AppShell() {
     loadProcesses();
   }, [loadProcesses, location.pathname]);
 
+  // A trackpad pinch the page didn't catch zooms the whole browser page, and that zoom
+  // follows you to the next page (the edit page opened huge after zooming the Brain).
+  // The Brain and the process map zoom themselves; everywhere else a pinch does nothing.
+  useEffect(() => {
+    const stopPageZoom = (e: WheelEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+    };
+    const stopGesture = (e: Event) => e.preventDefault(); // Safari's own pinch events
+    window.addEventListener('wheel', stopPageZoom, { passive: false });
+    document.addEventListener('gesturestart', stopGesture);
+    document.addEventListener('gesturechange', stopGesture);
+    return () => {
+      window.removeEventListener('wheel', stopPageZoom);
+      document.removeEventListener('gesturestart', stopGesture);
+      document.removeEventListener('gesturechange', stopGesture);
+    };
+  }, []);
+
   // Cmd/Ctrl+K opens the menu from anywhere. ? opens the shortcuts list unless you are typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

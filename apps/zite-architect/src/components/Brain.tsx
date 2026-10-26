@@ -1563,7 +1563,13 @@ export default function Brain() {
     const el = stage.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if ((e.target as HTMLElement).closest('[data-ui]')) return;
+      const target = e.target as HTMLElement;
+      // Over the panels that sit on top of the board, scrolling scrolls them. A pinch there does
+      // nothing, rather than zooming the whole browser page (which then stuck on the next page).
+      if (target.closest('[data-ui]') && !target.closest('[data-board]')) {
+        if (e.ctrlKey || e.metaKey) e.preventDefault();
+        return;
+      }
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const mouseWheel = e.deltaMode === 1 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
@@ -1822,6 +1828,7 @@ export default function Brain() {
     >
       {/* The board itself. One transform moves and zooms everything on it. */}
       <div
+        data-board
         className="absolute left-0 top-0 origin-top-left"
         style={{
           width: board.width,
