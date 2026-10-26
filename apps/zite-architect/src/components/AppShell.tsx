@@ -37,7 +37,7 @@ export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { me, isRealAdmin, canEdit } = useMe();
+  const { me, isAdmin, canEdit } = useMe();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -110,7 +110,8 @@ export default function AppShell() {
     { to: '/brain', label: 'Brain', active: location.pathname === '/brain' },
     { to: '/roles', label: 'Roles', active: location.pathname.startsWith('/roles') },
     { to: '/training', label: 'Training', active: location.pathname === '/training' },
-    ...(isRealAdmin ? [{ to: '/team', label: 'Team and access', active: location.pathname === '/team' }] : []),
+    // Follows the preview: an admin previewing as a viewer sees what a viewer sees.
+    ...(isAdmin ? [{ to: '/team', label: 'Team and access', active: location.pathname === '/team' }] : []),
   ];
 
   const name = me?.name || me?.email || 'You';
