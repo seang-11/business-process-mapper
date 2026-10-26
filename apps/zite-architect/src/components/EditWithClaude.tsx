@@ -3,7 +3,6 @@ import { getWorkspaceLink, GetWorkspaceLinkOutputType } from 'zitejs/api';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
-import { Textarea } from '@project/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
 import claudeLogo from '../assets/logos/claude.svg';
 // The same two notes the Just talk prompt carries, so Claude knows how Zite apps work.
@@ -21,15 +20,17 @@ interface Target {
   versionState: string;
 }
 
-/** Everything Claude needs to change one process, plus what the person wants changed (if they wrote it). */
-export function buildEditPrompt(links: Links | null, t: Target, request: string) {
+/** Everything Claude needs to change one process. Claude asks what to change. */
+export function buildEditPrompt(links: Links | null, t: Target) {
   const live = t.versionState === 'Current';
   return `You are my process-mapping assistant for my Business Process Mapper app, built on Zite.
 
 WHAT I WANT
 Change one process: "${t.processName}" (process id ${t.processId}).
 Work on the version "${t.versionName}" (${live ? 'the live version' : t.versionState === 'Future' ? 'a future version, not live yet' : t.versionState}, version id ${t.versionId}). Leave every other process and version alone unless I say so.
-${request.trim() ? `\nWhat I want different:\n${request.trim()}\n` : '\nAsk me what I want to change, one short question at a time.\n'}${
+
+Ask me what I want to change, one short question at a time.
+${
     links
       ? `
 MY WORKSPACE
@@ -71,11 +72,10 @@ RULES WHEN YOU CHANGE IT
 }
 
 /**
- * For editors: describe a change in plain words, then hand it to Claude with
- * everything it needs about this process already in the prompt.
+ * For editors: copy a prompt that already tells Claude which process and
+ * version to change, open Claude, paste, and say what to change there.
  */
 export default function EditWithClaude({ target, onClose }: { target: Target; onClose: () => void }) {
-  const [request, setRequest] = useState('');
   const [links, setLinks] = useState<Links | null>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -86,17 +86,12 @@ export default function EditWithClaude({ target, onClose }: { target: Target; on
   // moves focus away, and the browser then refuses to copy.
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(buildEditPrompt(links, target, request));
+      await navigator.clipboard.writeText(buildEditPrompt(links, target));
       setCopied(true);
     } catch {
       toast.error("Couldn't copy. Allow clipboard access and try again.");
     }
   };
-
-  // Typing a new request means the copied prompt is out of date.
-  useEffect(() => {
-    setCopied(false);
-  }, [request]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -106,20 +101,9 @@ export default function EditWithClaude({ target, onClose }: { target: Target; on
             <img src={claudeLogo} alt="" className="h-5 w-5" /> Edit with Claude
           </DialogTitle>
           <DialogDescription>
-            Say what should change in {target.processName}. The prompt already tells Claude which process and version to work on.
+            The prompt tells Claude to work on {target.processName}. Once it's pasted, just tell Claude what to change.
           </DialogDescription>
         </DialogHeader>
-
-        <Textarea
-          value={request}
-          onChange={(e) => setRequest(e.target.value)}
-          rows={5}
-          autoFocus
-          placeholder="Example: The Finance Lead no longer emails the invoice. QuickBooks sends it automatically, and the Finance Lead only checks it first."
-        />
-        <p className="-mt-1 text-xs text-muted-foreground">
-          Leave it empty and Claude will ask you what to change instead.
-        </p>
 
         <ol className="space-y-2.5">
           <li className="flex items-center gap-3">
@@ -140,7 +124,7 @@ export default function EditWithClaude({ target, onClose }: { target: Target; on
           </li>
           <li className="flex items-center gap-3 text-sm">
             <Step n={3} />
-            Paste it into the new chat and press Enter.
+            Paste it into the new chat, then tell Claude what to change.
           </li>
         </ol>
         <p className="text-[11px] text-muted-foreground">
