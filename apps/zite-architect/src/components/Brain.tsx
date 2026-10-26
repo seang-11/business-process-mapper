@@ -886,18 +886,17 @@ function DeptColorPicker({ hue, big, onPick }: { hue: number; big?: boolean; onP
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
+        {/* Just the color itself: a dot you click to change it. */}
         <button
           type="button"
           data-ui
-          title="Pick this department's color"
-          className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border bg-white/80 font-medium transition-colors hover:bg-white ${
-            big ? 'px-4 py-2 text-[22px]' : 'px-2.5 py-1.5 text-[13px]'
+          title="Change this department's color"
+          aria-label="Change this department's color"
+          className={`shrink-0 cursor-pointer rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(16,24,40,0.12),0_1px_3px_rgba(16,24,40,0.15)] transition-transform hover:scale-110 ${
+            big ? 'h-10 w-10' : 'h-6 w-6'
           }`}
-          style={{ borderColor: `hsl(${hue} 55% 86%)` }}
-        >
-          <span className={`rounded-full ${big ? 'h-6 w-6' : 'h-3.5 w-3.5'}`} style={{ backgroundColor: `hsl(${hue} 60% 55%)` }} />
-          Color
-        </button>
+          style={{ backgroundColor: `hsl(${hue} 60% 55%)` }}
+        />
       </PopoverTrigger>
       <PopoverContent data-ui align="end" className="w-60 p-3">
         <p className="text-sm font-semibold">Department color</p>
