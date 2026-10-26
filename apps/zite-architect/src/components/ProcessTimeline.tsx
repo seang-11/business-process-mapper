@@ -7,7 +7,8 @@ import ElementIcon from './ElementIcon';
 interface Props {
   steps: ProcessStep[];
   connections: ProcessConnection[];
-  onOpenStep: (step: ProcessStep) => void;
+  /** Leave out for a read-only timeline, as viewers get. */
+  onOpenStep?: (step: ProcessStep) => void;
 }
 
 const isApp = (e: ElementRef | null | undefined): boolean => e?.actorClass === 'System';
@@ -73,7 +74,7 @@ export default function ProcessTimeline({ steps, connections, onOpenStep }: Prop
                     {it.branch!.label}
                   </Event>
                 )}
-                <StepCard item={it} total={total} outline={outline} onOpen={() => onOpenStep(it.step)} />
+                <StepCard item={it} total={total} outline={outline} onOpen={onOpenStep ? () => onOpenStep(it.step) : undefined} />
                 {loopTo && (
                   <Event accent>
                     <Repeat2 className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
@@ -116,7 +117,7 @@ function StepCard({ item, total, outline, onOpen }: {
   item: OutlineItem;
   total: number;
   outline: ReturnType<typeof buildOutline>;
-  onOpen: () => void;
+  onOpen?: () => void;
 }) {
   const { step } = item;
   const who = step.performedBy;
@@ -137,11 +138,13 @@ function StepCard({ item, total, outline, onOpen }: {
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
       onClick={onOpen}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen()}
-      className="relative my-3 cursor-pointer rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors hover:border-primary/50"
+      onKeyDown={(e) => onOpen && (e.key === 'Enter' || e.key === ' ') && onOpen()}
+      className={`relative my-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm transition-colors ${
+        onOpen ? 'cursor-pointer hover:border-primary/50' : ''
+      }`}
     >
       <span
         className="absolute -left-[33px] top-4 h-3.5 w-3.5 rounded-full ring-4 ring-muted"

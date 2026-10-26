@@ -9,7 +9,7 @@ import {
   GetProcessGraphOutputType,
   getTaxonomy,
 } from 'zitejs/api';
-import { AppWindow, ArrowLeft, ArrowRight, Search, Users, Workflow } from 'lucide-react';
+import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { useMe } from '@/lib/me';
 import { FlowView, MixBar } from './Brain';
@@ -17,6 +17,7 @@ import { PageEmpty, PageError, PageLoading } from './PageState';
 import { hueFor } from './RoleAvatar';
 import Train from './Train';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
+import ProcessTimeline from './ProcessTimeline';
 import type { ElementSummary, ProcessStep } from '@/types';
 
 type Data = GetBrainOutputType;
@@ -120,11 +121,12 @@ export function ViewerHome() {
   );
 }
 
-type Look = 'flow' | LaneGrouping;
+type Look = 'flow' | LaneGrouping | 'overview';
 const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
   { key: 'flow', label: 'Steps', Icon: Workflow },
   { key: 'people', label: 'Swim lanes by person', Icon: Users },
   { key: 'app', label: 'Swim lanes by app', Icon: AppWindow },
+  { key: 'overview', label: 'Overview', Icon: FileText },
 ];
 
 /**
@@ -136,7 +138,8 @@ export function ViewerProcess() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const look: Look = params.get('lanes') === 'people' ? 'people' : params.get('lanes') === 'app' ? 'app' : 'flow';
+  const asked = params.get('lanes');
+  const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' ? asked : 'flow';
   const setLook = (next: Look) => setParams(next === 'flow' ? {} : { lanes: next }, { replace: true });
   const { data, failed, load } = useBrain();
   const p = data?.processes.find((x) => x.id === id && x.live) ?? null;
@@ -163,6 +166,7 @@ export function ViewerProcess() {
 
   return (
     <div className="flex h-full flex-col px-6 py-6">
+      {/* Back, then the ways to look at it, side by side on the left where they're easy to find. */}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -172,7 +176,7 @@ export function ViewerProcess() {
           <ArrowLeft className="h-4 w-4" /> All processes
         </button>
         {p && (
-          <div className="ml-auto flex rounded-xl border border-border bg-card p-1 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          <div className="flex flex-wrap rounded-xl border border-border bg-card p-1 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             {LOOKS.map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -189,6 +193,12 @@ export function ViewerProcess() {
           </div>
         )}
       </div>
+      {p && look !== 'flow' && (
+        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+          {p.name}
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
+        </h1>
+      )}
       {p?.description && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{p.description}</p>}
       <div className="mt-4 min-h-0 flex-1">
         {failed ? (
@@ -217,16 +227,20 @@ export function ViewerProcess() {
           <PageError onRetry={() => setLanesFailed(false)} />
         ) : !lanes ? (
           <PageLoading blocks={1} height="h-64" />
+        ) : look === 'overview' ? (
+          <section className="h-full min-h-[480px] overflow-hidden rounded-2xl border border-border shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+            <ProcessTimeline steps={lanes.graph.steps as ProcessStep[]} connections={lanes.graph.connections} />
+          </section>
         ) : (
           <section className="relative h-full min-h-[480px] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <SwimlaneDiagram
               steps={lanes.graph.steps as ProcessStep[]}
               connections={lanes.graph.connections}
-              grouping={look}
+              grouping={look as LaneGrouping}
               elements={lanes.elements}
               onClickStep={() => {}}
               onOpenSubProcess={(next) => navigate(`/view/${next}`)}
-              laneOrder={lanes.graph.laneOrder?.[look] ?? []}
+              laneOrder={lanes.graph.laneOrder?.[look as LaneGrouping] ?? []}
               viewKey={`${lanes.graph.version?.id ?? id}-${look}`}
             />
           </section>
