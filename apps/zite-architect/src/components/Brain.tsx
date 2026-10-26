@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getBrain, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
+import { getBrain, setCompany, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Orbit, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
 import BrainHeat from './BrainHeat';
+import BrainSolar from './BrainSolar';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -1571,6 +1572,22 @@ export default function Brain() {
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
   const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
   // Where one department's process runs another department's, for the arcs on the globe.
+  /** The departments for the 3D views: name, color, lead, hours and processes. */
+  const spaceDepts = (list: Proc[]) =>
+    [...new Set(list.map((p) => p.department || ''))]
+      .sort((x, y) => (x === '' ? 1 : y === '' ? -1 : x.localeCompare(y)))
+      .map((name) => {
+        const mine = list.filter((p) => (p.department || '') === name);
+        const hrs = mine.map(hoursOf).filter((h): h is number => h !== null);
+        return {
+          name,
+          hue: name ? deptHues.get(name) ?? 220 : 220,
+          lead: name ? leads.get(name)?.name ?? '' : '',
+          hours: hrs.length ? hrs.reduce((n, h) => n + h, 0) : null,
+          processes: mine.map((p) => ({ id: p.id, name: p.name, stepCount: p.stepCount })),
+        };
+      });
+
   const handoffs = useMemo(() => {
     const pairs = new Map<string, GlobeHandoff>();
     for (const p of procs ?? []) {
@@ -1795,16 +1812,18 @@ export default function Brain() {
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
   /** The 3D globe of departments, in place of the board. */
   const [globe, setGlobe] = useState(false);
+  /** The departments as a solar system round the company, in place of the board. */
+  const [solar, setSolar] = useState(false);
   /** Leaving a department while the globe is up flies back out of it; the count makes each return new. */
   const [globeReturn, setGlobeReturn] = useState<{ name: string; n: number } | null>(null);
   const lastDept = useRef<string | null>(null);
   useEffect(() => {
-    if (lastDept.current && !deptOpen && globe) {
+    if (lastDept.current && !deptOpen && (globe || solar)) {
       const name = lastDept.current === '~none' ? '' : lastDept.current;
       setGlobeReturn((r) => ({ name, n: (r?.n ?? 0) + 1 }));
     }
     lastDept.current = deptOpen;
-  }, [deptOpen, globe]);
+  }, [deptOpen, globe, solar]);
   /** The heat map of people hours, in place of the board. */
   const [heat, setHeat] = useState(false);
   setDeptOpenRef.current = setDeptOpen;
@@ -1981,6 +2000,16 @@ export default function Brain() {
       perProcess,
     };
   }, [pinned, procs, appById]);
+
+  // The company in the solar system's sun.
+  const saveCompany = async (name: string, website: string) => {
+    try {
+      await setCompany({ name, website });
+      setData(await getBrain({}));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the company.');
+    }
+  };
 
   // The heat map's color is one choice for everyone; show it at once, then save it.
   const chooseHeatColor = async (palette: string) => {
@@ -2269,7 +2298,7 @@ export default function Brain() {
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat ? 'hidden' : ''}`}>
+      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat || solar ? 'hidden' : ''}`}>
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
@@ -2359,19 +2388,21 @@ export default function Brain() {
       {/* Departments as a spinning globe, over the board. */}
       {globe && procs && (
         <BrainGlobe
-          depts={[...new Set(procs.map((p) => p.department || ''))]
-            .sort((x, y) => (x === '' ? 1 : y === '' ? -1 : x.localeCompare(y)))
-            .map((name) => ({
-              name,
-              hue: name ? deptHues.get(name) ?? 220 : 220,
-              lead: name ? leads.get(name)?.name ?? '' : '',
-              hours: (() => {
-                const hrs = procs.filter((p) => (p.department || '') === name).map(hoursOf).filter((h): h is number => h !== null);
-                return hrs.length ? hrs.reduce((n, h) => n + h, 0) : null;
-              })(),
-              processes: procs.filter((p) => (p.department || '') === name).map((p) => ({ id: p.id, name: p.name, stepCount: p.stepCount })),
-            }))}
+          depts={spaceDepts(procs)}
           handoffs={handoffs}
+          onOpen={(name) => setDeptOpen(name || '~none')}
+          onOpenProcess={(id) => setSelected(id)}
+          returnFrom={globeReturn}
+        />
+      )}
+
+      {/* The departments as planets round the company's own sun. */}
+      {solar && procs && (
+        <BrainSolar
+          depts={spaceDepts(procs)}
+          handoffs={handoffs}
+          company={data?.company ?? { name: '', website: '' }}
+          onSaveCompany={canEdit ? saveCompany : undefined}
           onOpen={(name) => setDeptOpen(name || '~none')}
           onOpenProcess={(id) => setSelected(id)}
           returnFrom={globeReturn}
@@ -2418,17 +2449,18 @@ export default function Brain() {
         />
       )}
 
-      {/* How the board shows processes: as cards, every step laid out, a heat map of hours, or a 3D globe of departments. */}
+      {/* How the board shows processes: as cards, every step laid out, a heat map of hours, a 3D globe, or a solar system. */}
       <div
         data-ui
         data-tour="view"
         className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur"
       >
         {[
-          { on: !globe && !heat && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); if (allOpen) toggleAll(); } },
-          { on: !globe && !heat && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); if (!allOpen) toggleAll(); } },
-          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setHeat(true); } },
-          { on: globe, label: '3D', Icon: Globe2, act: () => { setHeat(false); setGlobe(true); } },
+          { on: !globe && !heat && !solar && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (allOpen) toggleAll(); } },
+          { on: !globe && !heat && !solar && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (!allOpen) toggleAll(); } },
+          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setSolar(false); setHeat(true); } },
+          { on: globe, label: 'Globe', Icon: Globe2, act: () => { setHeat(false); setSolar(false); setGlobe(true); } },
+          { on: solar, label: 'Solar system', Icon: Orbit, act: () => { setHeat(false); setGlobe(false); setSolar(true); } },
         ].map((b) => (
           <button
             key={b.label}
@@ -2794,7 +2826,7 @@ export default function Brain() {
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
           panelOpen ? 'right-[364px]' : 'right-4'
-        } ${globe || heat ? 'hidden' : ''}`}
+        } ${globe || heat || solar ? 'hidden' : ''}`}
       >
         {(() => {
           const center = () => {

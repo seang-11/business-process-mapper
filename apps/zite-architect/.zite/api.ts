@@ -29,6 +29,7 @@ import type { default as _SaveElementTypeEp } from '../src/api/saveElementType';
 import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
+import type { default as _SetCompanyEp } from '../src/api/setCompany';
 import type { default as _SetDepartmentColorEp } from '../src/api/setDepartmentColor';
 import type { default as _SetDepartmentDescriptionEp } from '../src/api/setDepartmentDescription';
 import type { default as _SetDepartmentLeadEp } from '../src/api/setDepartmentLead';
@@ -171,6 +172,11 @@ export type SaveVersionInputType = NonNullable<_SaveVersionCfg['inputSchema']> e
 export type SaveVersionOutputType = Awaited<ReturnType<_SaveVersionCfg['execute']>>;
 export const saveVersion = createCaller<SaveVersionInputType, SaveVersionOutputType>('saveVersion');
 
+type _SetCompanyCfg = typeof _SetCompanyEp;
+export type SetCompanyInputType = NonNullable<_SetCompanyCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetCompanyCfg['execute']>[0]['input'];
+export type SetCompanyOutputType = Awaited<ReturnType<_SetCompanyCfg['execute']>>;
+export const setCompany = createCaller<SetCompanyInputType, SetCompanyOutputType>('setCompany');
+
 type _SetDepartmentColorCfg = typeof _SetDepartmentColorEp;
 export type SetDepartmentColorInputType = NonNullable<_SetDepartmentColorCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetDepartmentColorCfg['execute']>[0]['input'];
 export type SetDepartmentColorOutputType = Awaited<ReturnType<_SetDepartmentColorCfg['execute']>>;
@@ -230,6 +236,7 @@ export const api = {
   saveLaneOrder,
   saveStep,
   saveVersion,
+  setCompany,
   setDepartmentColor,
   setDepartmentDescription,
   setDepartmentLead,
