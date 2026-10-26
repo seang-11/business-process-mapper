@@ -131,9 +131,11 @@
   100% { opacity: 0; transform: translateY(280px) rotate(560deg); }
 }
 
-/* Printing a handover brief: show only the brief, flowing over as many pages as it needs. */
+/* Printing from training: show only the brief, flowing over as many pages as it needs.
+   Only while training is on screen. Without that check, every other page (the shared
+   process's Save as PDF, a role brief) printed blank. */
 @media print {
-  body * {
+  body:has(.train-print) * {
     visibility: hidden !important;
   }
   .train-print,
