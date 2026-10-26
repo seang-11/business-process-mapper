@@ -148,7 +148,7 @@ export default function EditProcessDialog({
               placeholder="20"
               className="w-32"
             />
-            <p className="text-[11px] text-muted-foreground">How many times this process happens in a month. A rough guess is fine. Used on Insights.</p>
+            <p className="text-[11px] text-muted-foreground">How many times this process happens in a month. A rough guess is fine. Used to show people hours.</p>
           </div>
         </div>
 

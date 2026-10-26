@@ -13,7 +13,6 @@ import type { default as _DeleteVersionEp } from '../src/api/deleteVersion';
 import type { default as _EnsureCoreTypesEp } from '../src/api/ensureCoreTypes';
 import type { default as _GetBrainEp } from '../src/api/getBrain';
 import type { default as _GetElementDetailEp } from '../src/api/getElementDetail';
-import type { default as _GetInsightsEp } from '../src/api/getInsights';
 import type { default as _GetMeEp } from '../src/api/getMe';
 import type { default as _GetProcessGraphEp } from '../src/api/getProcessGraph';
 import type { default as _GetProcessesEp } from '../src/api/getProcesses';
@@ -88,11 +87,6 @@ type _GetElementDetailCfg = typeof _GetElementDetailEp;
 export type GetElementDetailInputType = NonNullable<_GetElementDetailCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetElementDetailCfg['execute']>[0]['input'];
 export type GetElementDetailOutputType = Awaited<ReturnType<_GetElementDetailCfg['execute']>>;
 export const getElementDetail = createCaller<GetElementDetailInputType, GetElementDetailOutputType>('getElementDetail');
-
-type _GetInsightsCfg = typeof _GetInsightsEp;
-export type GetInsightsInputType = NonNullable<_GetInsightsCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetInsightsCfg['execute']>[0]['input'];
-export type GetInsightsOutputType = Awaited<ReturnType<_GetInsightsCfg['execute']>>;
-export const getInsights = createCaller<GetInsightsInputType, GetInsightsOutputType>('getInsights');
 
 type _GetMeCfg = typeof _GetMeEp;
 export type GetMeInputType = NonNullable<_GetMeCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_GetMeCfg['execute']>[0]['input'];
@@ -202,7 +196,6 @@ export const api = {
   ensureCoreTypes,
   getBrain,
   getElementDetail,
-  getInsights,
   getMe,
   getProcessGraph,
   getProcesses,

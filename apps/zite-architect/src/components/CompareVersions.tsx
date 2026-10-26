@@ -74,7 +74,7 @@ function statsOf(side: Side): Stats {
   let automated = 0;
   let peopleMinutes = 0;
   for (const s of side.steps) {
-    // The same people time Insights counts: the team's own steps, not waits, sub-processes or a client's time.
+    // People time counts the team's own steps, not waits, sub-processes or a client's time.
     const team = s.performedBy?.actorClass === 'Human' && s.performedBy.party !== 'External';
     if (team && s.stepType !== 'Wait' && !s.subProcessId) peopleMinutes += s.minutesPerRun ?? 0;
     if (isApp(s.performedBy)) {

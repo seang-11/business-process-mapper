@@ -23,7 +23,7 @@ export default createEndpoint({
     backupOwnerId: z.string().nullable().optional(),
     /** Which team a process belongs to, such as Sales or Delivery. Empty clears it. */
     department: z.string().optional(),
-    /** How often a process runs, for Insights. Null clears it. */
+    /** How often a process runs, for people hours. Null clears it. */
     runsPerMonth: z.number().min(0).nullable().optional(),
     effectiveFrom: z.string().nullable().optional(),
     effectiveTo: z.string().nullable().optional(),

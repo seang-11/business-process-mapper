@@ -69,7 +69,7 @@ RULES WHEN YOU BUILD IT (after I approve the list)
 - Reuse existing people, roles and apps. Only create a new element if none fits.
 - Connect every step to the next with a Step Connection. A decision needs a labelled connection for each outcome, such as Yes and No. A loop back to an earlier step is fine.
 - Fill Sequence in order, starting at 1.
-- Put how often it happens in the process's Runs Per Month, and each step's minutes in its Minutes Per Run. For a step that only happens sometimes (a decline, a chase), use the average per run, so weight it down. The app's Insights page uses these to show where the team's time goes.
+- Put how often it happens in the process's Runs Per Month, and each step's minutes in its Minutes Per Run. For a step that only happens sometimes (a decline, a chase), use the average per run, so weight it down. The app uses these to show where the team's time goes.
 - If I describe a better, more automated way, also build a second version called "v2 · Future state" (State: Future). Copy the v1 steps and set Copied From on each to the id of its v1 step, so the app can compare them. Give the future steps their own minutes, so the comparison shows the time saved.
 - Finish by telling me what you created and where to open it in the app.
 `;

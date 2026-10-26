@@ -11,7 +11,6 @@ import TeamAccess from '@/components/TeamAccess';
 import NotFound from '@/components/NotFound';
 import Brain from '@/components/Brain';
 import Roles from '@/components/Roles';
-import Insights from '@/components/Insights';
 import RoleBrief from '@/components/RoleBrief';
 import SharedProcess from '@/components/SharedProcess';
 import { MeProvider } from '@/lib/me';
@@ -57,7 +56,6 @@ function MemberApp() {
           <Route element={<AppShell />}>
             <Route path="/" element={<WorkspaceList />} />
             <Route path="/brain" element={<Brain />} />
-            <Route path="/insights" element={<Insights />} />
             <Route path="/roles" element={<Roles />} />
             <Route path="/roles/:id" element={<RoleBrief />} />
             <Route path="/training" element={<TrainingHome />} />

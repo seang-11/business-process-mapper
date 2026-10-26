@@ -674,7 +674,7 @@ export default function StepDialog({
               className="w-32"
             />
             <p className="text-[11px] text-muted-foreground">
-              Roughly how long a person spends on this each time. Leave empty for steps an app does. Used on Insights.
+              Roughly how long a person spends on this each time. Leave empty for steps an app does. Used to show people hours.
             </p>
           </div>
 
