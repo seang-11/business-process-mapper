@@ -1,10 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import PlanetArt, { PLANET_LABEL, planetTypes } from './PlanetArt';
 
 export interface GlobeDept {
   /** The department's name, or '' for processes with none. */
   name: string;
   hue: number;
   lead: string;
+  /** People hours a month across its processes, or null with no estimates. */
+  hours: number | null;
   processes: { id: string; name: string; stepCount: number }[];
 }
 
@@ -67,6 +70,13 @@ const STARS = Array.from({ length: 140 }, (_, i) => ({
   big: i % 9 === 0,
 }));
 
+/** A nearer layer of stars, for depth when the view turns. */
+const NEAR = Array.from({ length: 45 }, (_, i) => ({
+  x: ((i * 7919) % 1000) / 1000,
+  y: ((i * 104729) % 997) / 997,
+  r: 1 + ((i * 31) % 10) / 10,
+}));
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /** The shortest way round from one angle to another. */
@@ -89,11 +99,14 @@ export default function BrainGlobe({
   depts,
   handoffs,
   onOpen,
+  onOpenProcess,
   returnFrom,
 }: {
   depts: GlobeDept[];
   handoffs: GlobeHandoff[];
   onOpen: (name: string) => void;
+  /** A moon was clicked: open that process. */
+  onOpenProcess: (id: string) => void;
   /** Set when you come Back from a department, to fly back out of it. The count makes each return new. */
   returnFrom?: { name: string; n: number } | null;
 }) {
@@ -137,7 +150,8 @@ export default function BrainGlobe({
 
   const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   /** warp: 0 at rest, 1 deep inside a department. travel: how far the stars have streamed. */
-  const view = useRef({ yaw: 0.4, pitch: -0.25, zoom: 1, t: 0, warp: 0, travel: 0, target: null as string | null });
+  const view = useRef({ yaw: 0.4, pitch: -0.25, zoom: 1, t: 0, warp: 0, travel: 0, target: null as string | null, mt: 0, home: 1 });
+  const types = useMemo(() => planetTypes(depts.map((d) => d.name)), [depts]);
   const [, setFrame] = useState(0);
   const drag = useRef<{ x: number; y: number; yaw: number; pitch: number; moved: boolean } | null>(null);
   const flight = useRef<{
@@ -186,6 +200,8 @@ export default function BrainGlobe({
         v.yaw += dt * 0.00012;
       }
       v.t += dt;
+      // Moons hold still while you point at something, so they're easy to click.
+      if (!hoverRef.current) v.mt += dt;
       v.travel += dt * v.warp * 0.0011;
       setFrame((n) => (n + 1) % 1_000_000);
       raf = requestAnimationFrame(tick);
@@ -206,14 +222,30 @@ export default function BrainGlobe({
       openRef.current(name);
       return;
     }
+    v.home = v.zoom;
+    setHover(null);
     flight.current = {
       from: { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom },
-      to: { yaw: nearest(v.yaw, yaw), pitch, zoom: 1.6 },
+      to: { yaw: nearest(v.yaw, yaw), pitch, zoom: Math.max(1.6, v.zoom) },
       start: performance.now(),
       name,
       dir: 1,
     };
   };
+
+  // Scroll or pinch to move closer or farther. Listened to directly so the page itself never scrolls.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const v = view.current;
+      if (flight.current || v.warp > 0) return;
+      v.zoom = Math.max(0.6, Math.min(1.9, v.zoom * Math.exp(-e.deltaY * 0.0015)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   // Back from a department: the same trip in reverse, from inside it out to the whole globe.
   useEffect(() => {
@@ -221,14 +253,14 @@ export default function BrainGlobe({
     const v = view.current;
     if (reduceMotion || v.warp === 0) {
       v.warp = 0;
-      v.zoom = 1;
+      v.zoom = v.home;
       v.target = null;
       return;
     }
     v.target = returnFrom.name;
     flight.current = {
       from: { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom },
-      to: { yaw: v.yaw, pitch: v.pitch, zoom: 1 },
+      to: { yaw: v.yaw, pitch: v.pitch, zoom: v.home },
       start: performance.now(),
       name: returnFrom.name,
       dir: -1,
@@ -254,7 +286,7 @@ export default function BrainGlobe({
     .sort((a, b) => a.p.z - b.p.z);
 
   // Point at a department and its arcs stand out while the rest step back.
-  const hoverDept = hover && !hover.startsWith('arc:') ? (hover === '~' ? '' : hover) : null;
+  const hoverDept = hover && !hover.startsWith('arc:') && !hover.startsWith('moon:') ? (hover === '~' ? '' : hover) : null;
   const drawn = arcs.map((arc) => {
     const scr = arc.pts.map((q) => {
       const p = rotate(q, yaw, pitch);
@@ -273,7 +305,7 @@ export default function BrainGlobe({
     const lit = on || (hoverDept !== null && (arc.h.from === hoverDept || arc.h.to === hoverDept));
     return { arc, scr, runs, on, lit, dim: !lit && hover !== null };
   });
-  const pointed = drawn.find((a) => a.on);
+  const mt = view.current.mt;
 
   return (
     <div
@@ -324,6 +356,37 @@ export default function BrainGlobe({
         })}
       </svg>
 
+      {/* Nebula clouds drifting slowly, and a nearer layer of stars that slides further when you turn, so space has depth. */}
+      <div className="pointer-events-none absolute inset-0" style={{ opacity: 1 - warp }} aria-hidden="true">
+        {[
+          { x: 22, y: 30, r: 46, h: 265 },
+          { x: 78, y: 68, r: 52, h: 200 },
+          { x: 64, y: 18, r: 34, h: 320 },
+          { x: 30, y: 80, r: 38, h: 185 },
+        ].map((n, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: `calc(${n.x}% + ${Math.sin(t / 9000 + i) * 18 - yaw * 12}px)`,
+              top: `calc(${n.y}% + ${Math.cos(t / 11000 + i) * 14 + pitch * 10}px)`,
+              width: `${n.r}vmin`,
+              height: `${n.r * 0.7}vmin`,
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(ellipse at center, hsl(${n.h} 80% 55% / 0.2), hsl(${n.h} 80% 45% / 0.07) 45%, transparent 70%)`,
+              filter: 'blur(8px)',
+            }}
+          />
+        ))}
+        <svg className="absolute inset-0 h-full w-full">
+          {NEAR.map((st, i) => {
+            const x = (((st.x * size.w - yaw * 90) % size.w) + size.w) % size.w;
+            const y = (((st.y * size.h + pitch * 60) % size.h) + size.h) % size.h;
+            return <circle key={i} cx={x} cy={y} r={st.r} fill="white" opacity={0.75} />;
+          })}
+        </svg>
+      </div>
+
       {/* The globe itself: a glowing sphere with its grid. It falls away as you warp in. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" opacity={Math.max(0, 1 - warp * 1.8)}>
         <defs>
@@ -365,7 +428,7 @@ export default function BrainGlobe({
         ))}
       </svg>
 
-      {/* Handoffs: arcs between departments, light running the way the work goes. */}
+      {/* Handoffs: only for the department you point at, light running the way the work goes. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" opacity={Math.max(0, 1 - warp * 2.5)}>
         <defs>
           {drawn.map(({ arc, scr }, i) => (
@@ -383,12 +446,13 @@ export default function BrainGlobe({
             </linearGradient>
           ))}
         </defs>
-        {drawn.map(({ arc, scr, runs, on, lit, dim }, i) => {
-          const width = Math.min(5, 1.2 + arc.h.items.length * 0.6) * (on ? 1.5 : 1);
+        {drawn.map(({ arc, scr, runs, lit }, i) => {
+          if (!lit) return null;
+          const width = Math.min(5, 1.2 + arc.h.items.length * 0.6);
           const pulses = Math.min(4, arc.h.items.length + 1);
           const last = scr.length - 1;
           return (
-            <g key={arc.key} opacity={dim ? 0.15 : 1} style={{ transition: 'opacity 200ms' }}>
+            <g key={arc.key}>
               {runs.map((r, j) => (
                 <path
                   key={j}
@@ -397,11 +461,10 @@ export default function BrainGlobe({
                   stroke={`url(#handoff-${i})`}
                   strokeWidth={width}
                   strokeLinecap="round"
-                  strokeOpacity={r.hidden ? 0.2 : lit ? 0.95 : 0.6}
+                  strokeOpacity={r.hidden ? 0.25 : 0.95}
                   strokeDasharray={r.hidden ? '3 5' : undefined}
                 />
               ))}
-              {/* Light running from the department that sends the work to the one that gets it. */}
               {!reduceMotion &&
                 Array.from({ length: pulses }, (_, k) => {
                   const u = ((((t / 2400 + k / pulses) % 1) + 1) % 1) * last;
@@ -418,46 +481,16 @@ export default function BrainGlobe({
                     </g>
                   );
                 })}
-              {/* A wide invisible line, so the arc is easy to point at. */}
-              <path
-                d={`M${scr.map((s) => `${s.x},${s.y}`).join(' L')}`}
-                fill="none"
-                stroke="transparent"
-                strokeWidth={16}
-                style={{ pointerEvents: 'stroke', cursor: 'help' }}
-                onMouseEnter={() => setHover(arc.key)}
-                onMouseLeave={() => setHover((h) => (h === arc.key ? null : h))}
-              />
             </g>
           );
         })}
       </svg>
 
-      {/* What the arc you point at carries. */}
-      {pointed && (
-        <div
-          className="pointer-events-none absolute z-[200] max-w-xs rounded-lg border border-white/15 bg-slate-950/90 px-3 py-2 text-xs text-white shadow-xl backdrop-blur"
-          style={{ left: pointed.scr[pointed.scr.length >> 1].x, top: pointed.scr[pointed.scr.length >> 1].y - 16, transform: 'translate(-50%, -100%)' }}
-        >
-          <p className="font-semibold">
-            {pointed.arc.h.from || 'Other'} → {pointed.arc.h.to || 'Other'}
-          </p>
-          <ul className="mt-1 space-y-0.5 text-white/75">
-            {pointed.arc.h.items.slice(0, 4).map((it, i) => (
-              <li key={i}>
-                {it.from} <span className="text-white/45">runs</span> {it.to}
-              </li>
-            ))}
-            {pointed.arc.h.items.length > 4 && <li className="text-white/45">and {pointed.arc.h.items.length - 4} more</li>}
-          </ul>
-        </div>
-      )}
-
-      {/* Departments, back to front, each with its processes orbiting. */}
+      {/* Departments, back to front: each a planet in its own color, with its processes as moons. */}
       {placed.map(({ d, base, sx: gx, sy: gy, depth }) => {
         const front = depth > 0.55;
         const s = 0.55 + depth * 0.65;
-        const plain = 46 * s * (zoom > 1 ? 1 + (zoom - 1) * 0.3 : 1);
+        const plain = 50 * s * (zoom > 1 ? 1 + (zoom - 1) * 0.45 : zoom);
         const key = d.name || '~';
         const on = hover === key && !warping;
         // In a warp, the department you picked swells to fill the screen; the rest fly off the edges.
@@ -467,6 +500,7 @@ export default function BrainGlobe({
         const sx = isTarget ? gx + (cx - gx) * warp : cx + (gx - cx) * (1 + warp * 3);
         const sy = isTarget ? gy + (cy - gy) * warp : cy + (gy - cy) * (1 + warp * 3);
         const fade = isTarget ? 1 : 1 - warp;
+        const type = types.get(d.name) ?? 'rocky';
         return (
           <div
             key={key}
@@ -474,36 +508,52 @@ export default function BrainGlobe({
             style={{
               left: sx,
               top: sy,
-              zIndex: isTarget ? 150 : Math.round(depth * 100),
-              opacity: (isTarget ? 1 : 0.3 + depth * 0.7) * fade,
+              zIndex: isTarget ? 150 : on ? 120 : Math.round(depth * 100),
+              opacity: (isTarget ? 1 : 0.35 + depth * 0.65) * fade,
               pointerEvents: warping ? 'none' : undefined,
             }}
           >
-            {/* Moons: one per process. */}
-            {!warping && d.processes.map((p, i) => {
-              const a = (t / 2600) * (reduceMotion ? 0 : 1) + (i / d.processes.length) * TAU;
-              const orbit = size * 0.95;
-              const mx = Math.cos(a) * orbit;
-              const my = Math.sin(a) * orbit * 0.42;
-              const behind = Math.sin(a) < 0;
-              const ms = (5 + Math.min(6, p.stepCount / 4)) * s;
-              return (
-                <span
-                  key={p.id}
-                  title={p.name}
-                  className="absolute rounded-full"
-                  style={{
-                    left: mx - ms / 2,
-                    top: my - ms / 2,
-                    width: ms,
-                    height: ms,
-                    zIndex: behind ? -1 : 2,
-                    background: `hsl(${d.hue} 85% 78%)`,
-                    boxShadow: `0 0 ${6 * s}px hsl(${d.hue} 90% 70% / 0.8)`,
-                  }}
-                />
-              );
-            })}
+            {/* Moons: one per process. Point at one for its name; click to open it. */}
+            {!warping &&
+              d.processes.map((p, i) => {
+                const a = (mt / 2600) * (reduceMotion ? 0 : 1) + (i / d.processes.length) * TAU;
+                const orbit = size * 1.05;
+                const mx = Math.cos(a) * orbit;
+                const my = Math.sin(a) * orbit * 0.42;
+                const behind = Math.sin(a) < 0;
+                const ms = (6 + Math.min(6, p.stepCount / 4)) * s;
+                const moonKey = `moon:${p.id}`;
+                const lit = hover === moonKey;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-label={`Open ${p.name}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => onOpenProcess(p.id)}
+                    onMouseEnter={() => setHover(moonKey)}
+                    onMouseLeave={() => setHover((h) => (h === moonKey ? null : h))}
+                    className="absolute flex cursor-pointer items-center justify-center rounded-full"
+                    style={{ left: mx - 9, top: my - 9, width: 18, height: 18, zIndex: lit ? 5 : behind ? -1 : 2 }}
+                  >
+                    <span
+                      className="block rounded-full transition-transform duration-150"
+                      style={{
+                        width: ms,
+                        height: ms,
+                        transform: `scale(${lit ? 1.6 : 1})`,
+                        background: `radial-gradient(circle at 35% 30%, hsl(${d.hue} 60% 92%), hsl(${d.hue} 40% 62%) 70%, hsl(${d.hue} 40% 35%))`,
+                        boxShadow: `0 0 ${(lit ? 12 : 6) * s}px hsl(${d.hue} 90% 70% / ${lit ? 1 : 0.7})`,
+                      }}
+                    />
+                    {lit && (
+                      <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-sky-300/40 bg-slate-950/85 px-2 py-1 text-[11px] text-white shadow-lg backdrop-blur">
+                        {p.name} <span className="text-sky-300">· click to open</span>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
@@ -515,48 +565,119 @@ export default function BrainGlobe({
               style={{
                 width: size,
                 height: size,
-                transform: `translate(-50%, -50%) scale(${on ? 1.12 : 1})`,
+                transform: `translate(-50%, -50%) scale(${on ? 1.15 : 1})`,
                 transition: warping ? 'none' : undefined,
-                background: `radial-gradient(circle at 35% 30%, hsl(${d.hue} 95% 82%), hsl(${d.hue} 75% 52%) 45%, hsl(${d.hue} 70% 28%) 100%)`,
                 boxShadow: isTarget
                   ? `0 0 ${40 + 120 * warp}px ${20 * warp}px hsl(${d.hue} 95% 65% / 0.8)`
-                  : `0 0 ${18 * s}px hsl(${d.hue} 90% 60% / ${on ? 0.9 : 0.55}), inset -${4 * s}px -${5 * s}px ${10 * s}px rgba(0,0,0,0.35)`,
+                  : `0 0 ${(on ? 30 : 16) * s}px ${on ? 4 : 1}px hsl(${d.hue} 90% 62% / ${on ? 0.85 : 0.45})`,
               }}
-            />
-            {/* The label: always on the front half, and for whatever you point at. */}
+            >
+              <PlanetArt type={type} hue={d.hue} id={`g-${key.replace(/[^a-zA-Z0-9]/g, '')}`} spin={reduceMotion ? 0 : t / 400 + key.length * 17} />
+            </button>
+            {/* The name: always on the front half, and for whatever you point at. */}
             {(front || on) && !warping && (
               <div
                 className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
-                style={{ top: size / 2 + 10 * s }}
+                style={{ top: size / 2 + (type === 'ringed' ? 16 : 10) * s }}
               >
                 <p className="font-semibold text-white drop-shadow" style={{ fontSize: 12 + 4 * s }}>
                   {d.name || 'Other'}
                 </p>
-                <p className="text-[11px] text-white/70">
+                <p className="text-[11px] text-white/65">
                   {d.processes.length} {d.processes.length === 1 ? 'process' : 'processes'}
-                  {on && d.lead ? ` · led by ${d.lead}` : ''}
                 </p>
-                {on && (() => {
-                  const sends = handoffs.filter((h) => h.from === d.name).reduce((n, h) => n + h.items.length, 0);
-                  const gets = handoffs.filter((h) => h.to === d.name).reduce((n, h) => n + h.items.length, 0);
-                  return sends + gets > 0 ? (
-                    <p className="text-[11px] text-white/70">
-                      Hands off {sends} · Receives {gets}
-                    </p>
-                  ) : null;
-                })()}
-                {on && <p className="mt-0.5 text-[11px] font-medium text-sky-300">Click to fly in</p>}
               </div>
             )}
           </div>
         );
       })}
 
+      {/* The hologram card for the planet you point at. */}
+      {(() => {
+        const h = !warping && hoverDept !== null ? placed.find((p) => p.d.name === hoverDept) : null;
+        if (!h) return null;
+        const d = h.d;
+        const sends = handoffs.filter((x) => x.from === d.name);
+        const gets = handoffs.filter((x) => x.to === d.name);
+        const right = h.sx < size.w - 280;
+        return (
+          <div
+            className="pointer-events-none absolute z-[200] w-60 rounded-xl border border-sky-300/45 bg-slate-950/75 px-4 py-3 text-xs text-white/85 shadow-[0_0_30px_rgba(56,189,248,0.25)] backdrop-blur-md duration-200 animate-in fade-in-0 zoom-in-95"
+            style={{ left: right ? h.sx + 56 : h.sx - 56 - 240, top: h.sy - 70 }}
+          >
+            <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/80 to-transparent" />
+            <p className="text-sm font-semibold" style={{ color: `hsl(${d.hue} 90% 75%)` }}>
+              {d.name || 'Other processes'}
+            </p>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-sky-200/60">{PLANET_LABEL[types.get(d.name) ?? 'rocky']}</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {d.lead && (
+                <>
+                  <dt className="text-white/50">Lead</dt>
+                  <dd>{d.lead}</dd>
+                </>
+              )}
+              <dt className="text-white/50">Processes</dt>
+              <dd>{d.processes.length}</dd>
+              {d.hours !== null && (
+                <>
+                  <dt className="text-white/50">People time</dt>
+                  <dd>{d.hours >= 10 ? Math.round(d.hours) : Math.round(d.hours * 10) / 10} hrs a month</dd>
+                </>
+              )}
+              {sends.length > 0 && (
+                <>
+                  <dt className="text-white/50">Hands to</dt>
+                  <dd>{sends.map((x) => x.to || 'Other').join(', ')}</dd>
+                </>
+              )}
+              {gets.length > 0 && (
+                <>
+                  <dt className="text-white/50">Gets from</dt>
+                  <dd>{gets.map((x) => x.from || 'Other').join(', ')}</dd>
+                </>
+              )}
+            </dl>
+            <p className="mt-2 font-medium text-sky-300">Click to fly in</p>
+          </div>
+        );
+      })()}
+
+      {/* Every department in a list: point to find it, click to fly there. */}
+      <div
+        className="absolute left-4 top-4 z-[210] w-48 rounded-xl border border-white/10 bg-slate-950/60 p-2 backdrop-blur transition-opacity"
+        style={{ opacity: warping ? 0 : 1, pointerEvents: warping ? 'none' : undefined }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-white/45">Departments</p>
+        {points.map(({ d, base }, i) => {
+          const key = d.name || '~';
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => !flight.current && flyTo(d.name, base)}
+              onMouseEnter={() => setHover(key)}
+              onMouseLeave={() => setHover((h) => (h === key ? null : h))}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs text-white/85 transition-colors ${
+                hover === key ? 'bg-white/10' : 'hover:bg-white/10'
+              }`}
+            >
+              <span className="relative h-4 w-4 shrink-0">
+                <PlanetArt type={types.get(d.name) ?? 'rocky'} hue={d.hue} id={`l${i}`} />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{d.name || 'Other'}</span>
+              <span className="tabular-nums text-white/40">{d.processes.length}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* The flash at the end of the dive, as you land in the department. */}
       {warp > 0.82 && <div className="pointer-events-none absolute inset-0 z-[300] bg-white" style={{ opacity: Math.min(1, (warp - 0.82) / 0.18) }} />}
 
       <p style={{ opacity: warping ? 0 : 1 }} className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
-        Drag to spin · Click a department to fly in{arcs.length > 0 && ' · Arcs show work handed between departments'}
+        Drag to turn · Scroll to zoom · Point at a planet for details · Click to fly in
       </p>
     </div>
   );

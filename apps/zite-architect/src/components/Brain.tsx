@@ -2365,10 +2365,15 @@ export default function Brain() {
               name,
               hue: name ? deptHues.get(name) ?? 220 : 220,
               lead: name ? leads.get(name)?.name ?? '' : '',
+              hours: (() => {
+                const hrs = procs.filter((p) => (p.department || '') === name).map(hoursOf).filter((h): h is number => h !== null);
+                return hrs.length ? hrs.reduce((n, h) => n + h, 0) : null;
+              })(),
               processes: procs.filter((p) => (p.department || '') === name).map((p) => ({ id: p.id, name: p.name, stepCount: p.stepCount })),
             }))}
           handoffs={handoffs}
           onOpen={(name) => setDeptOpen(name || '~none')}
+          onOpenProcess={(id) => setSelected(id)}
           returnFrom={globeReturn}
         />
       )}
