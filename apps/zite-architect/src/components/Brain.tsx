@@ -948,7 +948,7 @@ function deptInsight(title: string, procs: Proc[]) {
   const appNames = new Map<string, string>();
   const starters = new Map<string, Who>();
   const outside = new Map<string, Who>();
-  const ready: { id: string; title: string; apps: string[]; hours: number | null }[] = [];
+  const ready: { id: string; title: string; apps: Who[]; who: Who; process: string; processId: string; hours: number | null }[] = [];
   let hours = 0;
   let steps = 0;
   let automated = 0;
@@ -975,7 +975,7 @@ function deptInsight(title: string, procs: Proc[]) {
       roles.set(st.who!.id, role);
       const apps = st.uses.filter((u) => u.kind === 'app');
       if (st.stepType === 'Task' && apps.length >= 2) {
-        ready.push({ id: st.id, title: st.title, apps: apps.map((u) => u.name), hours: st.minutes ? h : null });
+        ready.push({ id: st.id, title: st.title, apps, who: st.who!, process: p.name, processId: p.id, hours: st.minutes ? h : null });
       }
     }
   }
@@ -1090,68 +1090,75 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
           <ArrowRight className="h-4 w-4 rotate-180" /> {backLabel}
         </button>
         <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-3">
-          <div className="min-w-0">
+          {/* Takes the room it needs so the description reads as a paragraph, not a narrow column. */}
+          <div className="min-w-0 flex-1 basis-[28rem]">
             <h2 className="text-3xl font-semibold tracking-tight" style={{ color }}>{title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {plural(procs.length, 'process')} · {plural(people.length, 'person')} · {plural(apps.length, 'app')}
               {a + r + m > 0 ? ` · ${Math.round((a / (a + r + m)) * 100)}% automated` : ''}
             </p>
             {/* What the department does, up top: an admin's own words, or one written from the map. */}
-            {draft !== null ? (
-              <div className="mt-3 max-w-3xl space-y-2">
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  rows={4}
-                  autoFocus
-                  placeholder={insight.story}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-[15px] leading-relaxed outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    disabled={savingText}
-                    onClick={async () => {
-                      setSavingText(true);
-                      try {
-                        await onSaveDescription?.(draft);
-                        setDraft(null);
-                      } finally {
-                        setSavingText(false);
-                      }
-                    }}
-                  >
-                    {savingText ? 'Saving…' : 'Save'}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                    Cancel
-                  </Button>
-                  {description && (
-                    <button
-                      type="button"
-                      onClick={() => setDraft('')}
-                      className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            <div className="mt-3 flex max-w-3xl items-start gap-2">
+              <p className="text-[15px] leading-relaxed text-foreground/80">{description || insight.story}</p>
+              {onSaveDescription && (
+                <button
+                  type="button"
+                  onClick={() => setDraft(description || insight.story)}
+                  title="Edit the description"
+                  aria-label="Edit the description"
+                  className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {draft !== null && (
+              <Dialog open onOpenChange={(o) => !o && setDraft(null)}>
+                <DialogContent className="max-w-2xl" data-ui>
+                  <DialogHeader>
+                    <DialogTitle>Describe {title}</DialogTitle>
+                    <DialogDescription>
+                      What the department does, in your own words. Everyone sees this at the top of {title}.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    rows={9}
+                    autoFocus
+                    placeholder={insight.story}
+                    className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      disabled={savingText}
+                      onClick={async () => {
+                        setSavingText(true);
+                        try {
+                          await onSaveDescription?.(draft);
+                          setDraft(null);
+                        } finally {
+                          setSavingText(false);
+                        }
+                      }}
                     >
-                      Clear it to use the one written from the map
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="group/desc mt-3 flex max-w-3xl items-start gap-2">
-                <p className="text-[15px] leading-relaxed text-foreground/80">{description || insight.story}</p>
-                {onSaveDescription && (
-                  <button
-                    type="button"
-                    onClick={() => setDraft(description || insight.story)}
-                    title="Edit the description"
-                    aria-label="Edit the description"
-                    className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-white/70 hover:text-foreground"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+                      {savingText ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setDraft(null)}>
+                      Cancel
+                    </Button>
+                    {description && (
+                      <button
+                        type="button"
+                        onClick={() => setDraft('')}
+                        className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        Clear it to use the one written from the map
+                      </button>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
           {canEdit && onPickColor && <DeptColorPicker hue={hue} onPick={onPickColor} />}
@@ -1235,45 +1242,119 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-8 py-6">
-        <section className="rounded-2xl border border-border bg-card px-7 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-          <p className="text-sm font-semibold">{title} at a glance</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-muted/50 px-4 py-3">
-              <p className="text-[11px] text-muted-foreground">People hours a month</p>
-              <p className="mt-0.5 text-xl font-semibold tracking-tight">{insight.hours > 0 ? fmtHrs(insight.hours) : '—'}</p>
+        {/* At a glance: where the people time goes, each process, and what to hand to apps next. */}
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight">{title} at a glance</h3>
+              <p className="mt-0.5 text-sm text-muted-foreground">Where the team's time goes, and what to hand to apps next.</p>
             </div>
-            <div className="rounded-xl bg-muted/50 px-4 py-3">
-              <p className="text-[11px] text-muted-foreground">Busiest role</p>
-              <p className="mt-1 truncate text-sm font-semibold">
-                {insight.busiest
-                  ? `${insight.busiest.who.name} · ${insight.busiest.hours > 0 ? fmtHrs(insight.busiest.hours) : plural(insight.busiest.steps, 'step')}`
-                  : '—'}
-              </p>
-            </div>
-            <div className="rounded-xl bg-muted/50 px-4 py-3">
-              <p className="text-[11px] text-muted-foreground">Done by apps</p>
-              <p className="mt-0.5 text-xl font-semibold tracking-tight">
-                {a} <span className="text-sm font-normal text-muted-foreground">of {a + r + m} steps</span>
-              </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full px-3 py-1.5 text-sm font-semibold" style={{ backgroundColor: `hsl(${hue} 80% 95%)`, color }}>
+                {insight.hours > 0 ? `${fmtHrs(insight.hours)} of people time a month` : `${plural(m + r, 'step')} done by people`}
+              </span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+                {a + r + m > 0 ? Math.round((a / (a + r + m)) * 100) : 0}% done by apps
+              </span>
             </div>
           </div>
-          {insight.ready.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ready to automate here</p>
-              <ol className="mt-1.5 space-y-1">
-                {insight.ready.map((st, i) => (
-                  <li key={st.id} className="flex flex-wrap items-center gap-x-2 text-sm">
-                    <span className="w-4 text-muted-foreground">{i + 1}.</span>
-                    <span className="font-medium">{st.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      · {st.apps.join(' → ')}
-                      {st.hours !== null ? ` · ${fmtHrs(st.hours)}/mo` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-3">
+            {/* Who spends the time. */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Where the hours go</p>
+              <ul className="space-y-3">
+                {(() => {
+                  const list = [...insight.roles.values()].sort((x, y) => y.hours - x.hours || y.steps - x.steps).slice(0, 5);
+                  const max = Math.max(1, ...list.map((r) => (insight.hours > 0 ? r.hours : r.steps)));
+                  return list.map((r) => {
+                    const v = insight.hours > 0 ? r.hours : r.steps;
+                    return (
+                      <li key={r.who.id}>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Icon w={r.who} size={16} />
+                          <span className="min-w-0 flex-1 truncate font-medium">{r.who.name}</span>
+                          <span className="tabular-nums text-muted-foreground">{insight.hours > 0 ? fmtHrs(r.hours) : plural(r.steps, 'step')}</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full" style={{ width: `${(v / max) * 100}%`, backgroundColor: `hsl(${hue} 60% 55%)` }} />
+                        </div>
+                      </li>
+                    );
+                  });
+                })()}
+              </ul>
             </div>
-          )}
+
+            {/* Each process: its time, and how much already runs on its own. */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Processes</p>
+              <ul className="space-y-2">
+                {procs.map((p) => {
+                  const work = p.automated + p.review + p.manual;
+                  const h = hoursOf(p);
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenProcess(p.id)}
+                        className="group w-full rounded-xl border border-border px-3.5 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.name}</span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {plural(p.stepCount, 'step')}
+                          {h !== null ? ` · ${fmtHrs(h)}/mo` : ''}
+                          {work > 0 ? ` · ${Math.round((p.automated / work) * 100)}% by apps` : ''}
+                        </span>
+                        <span className="mt-2 block">
+                          <MixBar a={p.automated} r={p.review} m={p.manual} />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* The steps people still do by hand, moving work between apps: the next things to automate. */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Next to automate</p>
+              {insight.ready.length === 0 ? (
+                <p className="rounded-xl bg-muted/50 px-4 py-6 text-center text-sm text-muted-foreground">
+                  No hand-done steps moving work between apps here.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {insight.ready.map((st) => (
+                    <li key={st.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-3.5 py-3">
+                      <p className="text-sm font-semibold leading-snug">{st.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {st.who.name} · {st.process}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1">
+                          {st.apps.map((app, i) => (
+                            <span key={app.id} className="flex items-center gap-1">
+                              {i > 0 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
+                              <span title={app.name} className="rounded-md border border-border bg-background p-1">
+                                <Icon w={app} size={13} />
+                              </span>
+                            </span>
+                          ))}
+                        </span>
+                        {st.hours !== null && (
+                          <span className="shrink-0 text-xs font-semibold text-emerald-700">frees up {fmtHrs(st.hours)}/mo</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </section>
 
         {flows.map(({ p, layout }) => (
