@@ -136,7 +136,8 @@ export default function BrainGlobe({
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const dt = Math.min(64, now - last);
+      // The first frame's timestamp can be a hair before the one we started from.
+      const dt = Math.max(0, Math.min(64, now - last));
       last = now;
       const v = view.current;
       const f = flight.current;
@@ -328,10 +329,11 @@ export default function BrainGlobe({
               {/* Light running from the department that sends the work to the one that gets it. */}
               {!reduceMotion &&
                 Array.from({ length: pulses }, (_, k) => {
-                  const u = ((t / 2400 + k / pulses) % 1) * last;
-                  const a = scr[Math.floor(u)];
-                  const b = scr[Math.min(last, Math.floor(u) + 1)];
-                  const f = u - Math.floor(u);
+                  const u = ((((t / 2400 + k / pulses) % 1) + 1) % 1) * last;
+                  const i0 = Math.max(0, Math.min(last, Math.floor(u)));
+                  const a = scr[i0];
+                  const b = scr[Math.min(last, i0 + 1)];
+                  const f = u - i0;
                   const hue = arc.fromHue + (arc.toHue - arc.fromHue) * (u / last);
                   const fade = a.hidden ? 0.25 : 1;
                   return (
