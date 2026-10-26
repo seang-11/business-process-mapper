@@ -134,3 +134,40 @@ export default function PlanetArt({ type, hue, id, spin = 0 }: { type: PlanetTyp
     </svg>
   );
 }
+
+/** A small globe: a lit sphere with its grid. For the 3D view switch. */
+export function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <defs>
+        <radialGradient id="gi-fill" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="hsl(200 95% 75%)" />
+          <stop offset="100%" stopColor="hsl(225 70% 40%)" />
+        </radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r="9" fill="url(#gi-fill)" />
+      <g fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="1">
+        <ellipse cx="12" cy="12" rx="4" ry="9" />
+        <path d="M3.5 9h17M3.5 15h17" />
+      </g>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="hsl(200 95% 80%)" strokeOpacity="0.6" />
+    </svg>
+  );
+}
+
+/** A small solar system: a glowing sun, a tilted orbit and a planet on it. For the 3D view switch. */
+export function SolarIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <defs>
+        <radialGradient id="si-sun" cx="40%" cy="35%" r="70%">
+          <stop offset="0%" stopColor="hsl(48 100% 85%)" />
+          <stop offset="100%" stopColor="hsl(30 100% 55%)" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="12" cy="12" rx="10.5" ry="4.5" fill="none" stroke="currentColor" strokeOpacity="0.55" transform="rotate(-20 12 12)" />
+      <circle cx="12" cy="12" r="4.2" fill="url(#si-sun)" />
+      <circle cx="20.2" cy="8.4" r="2.1" fill="hsl(265 80% 65%)" />
+    </svg>
+  );
+}

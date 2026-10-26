@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setCompany, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Orbit, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/
 import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
 import BrainHeat from './BrainHeat';
 import BrainSolar from './BrainSolar';
+import { GlobeIcon, SolarIcon } from './PlanetArt';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -1814,6 +1815,26 @@ export default function Brain() {
   const [globe, setGlobe] = useState(false);
   /** The departments as a solar system round the company, in place of the board. */
   const [solar, setSolar] = useState(false);
+  /** Which 3D view the 3D button opens: the last one you picked. */
+  const open3d = (mode?: 'globe' | 'solar') => {
+    let m = mode;
+    if (!m) {
+      try {
+        m = localStorage.getItem('bpm_space_mode') === 'solar' ? 'solar' : 'globe';
+      } catch {
+        m = 'globe';
+      }
+    } else {
+      try {
+        localStorage.setItem('bpm_space_mode', m);
+      } catch {
+        /* private mode: just this visit */
+      }
+    }
+    setHeat(false);
+    setGlobe(m === 'globe');
+    setSolar(m === 'solar');
+  };
   /** Leaving a department while the globe is up flies back out of it; the count makes each return new. */
   const [globeReturn, setGlobeReturn] = useState<{ name: string; n: number } | null>(null);
   const lastDept = useRef<string | null>(null);
@@ -2459,8 +2480,7 @@ export default function Brain() {
           { on: !globe && !heat && !solar && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (allOpen) toggleAll(); } },
           { on: !globe && !heat && !solar && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (!allOpen) toggleAll(); } },
           { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setSolar(false); setHeat(true); } },
-          { on: globe, label: 'Globe', Icon: Globe2, act: () => { setHeat(false); setSolar(false); setGlobe(true); } },
-          { on: solar, label: 'Solar system', Icon: Orbit, act: () => { setHeat(false); setGlobe(false); setSolar(true); } },
+          { on: globe || solar, label: '3D', Icon: Globe2, act: () => { if (!globe && !solar) open3d(); } },
         ].map((b) => (
           <button
             key={b.label}
@@ -2475,6 +2495,31 @@ export default function Brain() {
           </button>
         ))}
       </div>
+
+      {/* Inside 3D: the globe or the solar system. */}
+      {(globe || solar) && (
+        <div
+          data-ui
+          className="absolute left-1/2 top-[64px] z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-white/15 bg-slate-950/70 p-1 shadow-lg backdrop-blur"
+        >
+          {[
+            { on: globe, mode: 'globe' as const, label: 'Globe', Icon: GlobeIcon },
+            { on: solar, mode: 'solar' as const, label: 'Solar system', Icon: SolarIcon },
+          ].map((b) => (
+            <button
+              key={b.mode}
+              type="button"
+              onClick={() => open3d(b.mode)}
+              aria-pressed={b.on}
+              className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                b.on ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <b.Icon className="h-4 w-4 text-white" /> {b.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The spotlight, in one line, with a way to hide everything else. */}
       {pinned && spot && (
