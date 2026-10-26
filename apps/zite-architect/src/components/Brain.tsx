@@ -3,13 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setDepartmentColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, ChevronDown, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
 import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
+import BrainGlobe from './BrainGlobe';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -1768,6 +1769,8 @@ export default function Brain() {
   const [query, setQuery] = useState('');
   // The department opened at full size, by its frame key.
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
+  /** The 3D globe of departments, in place of the board. */
+  const [globe, setGlobe] = useState(false);
   setDeptOpenRef.current = setDeptOpen;
 
   // Opened from a link, Back returns to that page rather than to a board you never saw.
@@ -2220,7 +2223,7 @@ export default function Brain() {
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className="absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2">
+      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe ? 'hidden' : ''}`}>
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
@@ -2307,15 +2310,31 @@ export default function Brain() {
         </div>
       </div>
 
-      {/* How the board shows processes: as cards, or every step laid out. */}
+      {/* Departments as a spinning globe, over the board. */}
+      {globe && procs && (
+        <BrainGlobe
+          depts={[...new Set(procs.map((p) => p.department || ''))]
+            .sort((x, y) => (x === '' ? 1 : y === '' ? -1 : x.localeCompare(y)))
+            .map((name) => ({
+              name,
+              hue: name ? deptHues.get(name) ?? 220 : 220,
+              lead: name ? leads.get(name)?.name ?? '' : '',
+              processes: procs.filter((p) => (p.department || '') === name).map((p) => ({ id: p.id, name: p.name, stepCount: p.stepCount })),
+            }))}
+          onOpen={(name) => setDeptOpen(name || '~none')}
+        />
+      )}
+
+      {/* How the board shows processes: as cards, every step laid out, or as a 3D globe of departments. */}
       <div
         data-ui
         data-tour="view"
         className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur"
       >
         {[
-          { on: !allOpen, label: 'Cards', Icon: Minimize2, act: () => allOpen && toggleAll() },
-          { on: allOpen, label: 'Every step', Icon: Maximize2, act: () => !allOpen && toggleAll() },
+          { on: !globe && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); if (allOpen) toggleAll(); } },
+          { on: !globe && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); if (!allOpen) toggleAll(); } },
+          { on: globe, label: '3D', Icon: Globe2, act: () => setGlobe(true) },
         ].map((b) => (
           <button
             key={b.label}
@@ -2681,7 +2700,7 @@ export default function Brain() {
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
           panelOpen ? 'right-[364px]' : 'right-4'
-        }`}
+        } ${globe ? 'hidden' : ''}`}
       >
         {(() => {
           const center = () => {
