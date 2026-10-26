@@ -55,6 +55,18 @@ function rotate(p: { x: number; y: number; z: number }, yaw: number, pitch: numb
   return { x: x1, y: y2, z: z2 };
 }
 
+/** How long the warp dive takes, in and back out. */
+const WARP_MS = 1500;
+/** The warp builds after the camera has started turning, so the trip reads as turn, then dive. */
+const warpAt = (k: number) => ease(Math.max(0, Math.min(1, (k - 0.2) / 0.8)));
+
+/** Stars for the warp: each at an angle and a depth, streaming outward as you travel. */
+const STARS = Array.from({ length: 140 }, (_, i) => ({
+  a: ((i * 2654435761) % 1000) / 1000 * Math.PI * 2,
+  z: (((i * 40503) % 997) / 997) * 0.95 + 0.05,
+  big: i % 9 === 0,
+}));
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /** The shortest way round from one angle to another. */
@@ -77,10 +89,13 @@ export default function BrainGlobe({
   depts,
   handoffs,
   onOpen,
+  returnFrom,
 }: {
   depts: GlobeDept[];
   handoffs: GlobeHandoff[];
   onOpen: (name: string) => void;
+  /** Set when you come Back from a department, to fly back out of it. The count makes each return new. */
+  returnFrom?: { name: string; n: number } | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 700 });
@@ -121,10 +136,18 @@ export default function BrainGlobe({
   }, [points, handoffs]);
 
   const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const view = useRef({ yaw: 0.4, pitch: -0.25, zoom: 1, t: 0 });
+  /** warp: 0 at rest, 1 deep inside a department. travel: how far the stars have streamed. */
+  const view = useRef({ yaw: 0.4, pitch: -0.25, zoom: 1, t: 0, warp: 0, travel: 0, target: null as string | null });
   const [, setFrame] = useState(0);
   const drag = useRef<{ x: number; y: number; yaw: number; pitch: number; moved: boolean } | null>(null);
-  const flight = useRef<{ from: typeof view.current; to: { yaw: number; pitch: number; zoom: number }; start: number; name: string } | null>(null);
+  const flight = useRef<{
+    from: { yaw: number; pitch: number; zoom: number };
+    to: { yaw: number; pitch: number; zoom: number };
+    start: number;
+    name: string;
+    /** 1 diving in, -1 flying back out. */
+    dir: 1 | -1;
+  } | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const hoverRef = useRef(hover);
   hoverRef.current = hover;
@@ -142,21 +165,28 @@ export default function BrainGlobe({
       const v = view.current;
       const f = flight.current;
       if (f) {
-        const k = Math.min(1, (now - f.start) / 900);
+        const k = Math.min(1, (now - f.start) / WARP_MS);
         const e = ease(k);
         v.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * e;
         v.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * e;
         v.zoom = f.from.zoom + (f.to.zoom - f.from.zoom) * e;
+        v.warp = f.dir === 1 ? warpAt(k) : warpAt(1 - k);
         if (k >= 1) {
           flight.current = null;
-          openRef.current(f.name);
-          // Back from the department, the globe is waiting where it was, at normal size.
-          v.zoom = 1;
+          if (f.dir === 1) {
+            // Stay deep inside (all white) under the department page, ready to fly back out.
+            v.warp = 1;
+            openRef.current(f.name);
+          } else {
+            v.warp = 0;
+            v.target = null;
+          }
         }
-      } else if (!drag.current && !hoverRef.current && !reduceMotion) {
+      } else if (!drag.current && !hoverRef.current && !reduceMotion && v.warp === 0) {
         v.yaw += dt * 0.00012;
       }
       v.t += dt;
+      v.travel += dt * v.warp * 0.0011;
       setFrame((n) => (n + 1) % 1_000_000);
       raf = requestAnimationFrame(tick);
     };
@@ -170,15 +200,44 @@ export default function BrainGlobe({
     const yaw = Math.atan2(base.x, base.z);
     const z1 = base.x * Math.sin(yaw) + base.z * Math.cos(yaw);
     const pitch = Math.atan2(base.y, z1);
+    v.target = name;
+    if (reduceMotion) {
+      // No warp for anyone who asked for less motion: straight to the department.
+      openRef.current(name);
+      return;
+    }
     flight.current = {
-      from: { ...v },
-      to: { yaw: nearest(v.yaw, yaw), pitch, zoom: 2.2 },
+      from: { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom },
+      to: { yaw: nearest(v.yaw, yaw), pitch, zoom: 1.6 },
       start: performance.now(),
       name,
+      dir: 1,
     };
   };
 
-  const { yaw, pitch, zoom, t } = view.current;
+  // Back from a department: the same trip in reverse, from inside it out to the whole globe.
+  useEffect(() => {
+    if (!returnFrom) return;
+    const v = view.current;
+    if (reduceMotion || v.warp === 0) {
+      v.warp = 0;
+      v.zoom = 1;
+      v.target = null;
+      return;
+    }
+    v.target = returnFrom.name;
+    flight.current = {
+      from: { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom },
+      to: { yaw: v.yaw, pitch: v.pitch, zoom: 1 },
+      start: performance.now(),
+      name: returnFrom.name,
+      dir: -1,
+    };
+  }, [returnFrom, reduceMotion]);
+
+  const { yaw, pitch, zoom, t, warp, travel, target } = view.current;
+  const warping = warp > 0;
+  const diag = Math.hypot(size.w, size.h);
   const cx = size.w / 2;
   const cy = size.h / 2 + 10;
   const R = Math.min(size.w, size.h) * 0.34 * zoom;
@@ -239,18 +298,34 @@ export default function BrainGlobe({
         setTimeout(() => (drag.current = null), 0);
       }}
     >
-      {/* Stars, fixed so the globe turns in front of them. */}
+      {/* Stars, fixed so the globe turns in front of them. In a warp they stream past as streaks. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-        {Array.from({ length: 90 }, (_, i) => {
-          const x = ((i * 9301 + 49297) % 233280) / 233280;
-          const y = ((i * 4931 + 12345) % 104729) / 104729;
-          const tw = 0.35 + 0.35 * Math.sin(t / 900 + i);
-          return <circle key={i} cx={`${x * 100}%`} cy={`${y * 100}%`} r={i % 7 === 0 ? 1.4 : 0.8} fill="white" opacity={reduceMotion ? 0.5 : tw} />;
+        {STARS.map((st, i) => {
+          const far = Math.hypot(size.w, size.h) / 2;
+          const z = (((st.z - travel) % 1) + 1) % 1 || 1;
+          const r = Math.min(far * 1.2, (far * 0.06) / Math.max(0.05, z));
+          const r0 = r * (1 - 0.55 * warp);
+          const ca = Math.cos(st.a);
+          const sa = Math.sin(st.a);
+          const tw = warping ? 0.5 + 0.5 * (1 - z) : reduceMotion ? 0.5 : 0.35 + 0.35 * Math.sin(t / 900 + i);
+          return (
+            <line
+              key={i}
+              x1={cx + ca * r0}
+              y1={cy + sa * r0}
+              x2={cx + ca * r}
+              y2={cy + sa * r}
+              stroke={warping ? 'hsl(215 100% 90%)' : 'white'}
+              strokeWidth={(st.big ? 2.6 : 1.6) * (1 + warp * 0.8)}
+              strokeLinecap="round"
+              opacity={tw}
+            />
+          );
         })}
       </svg>
 
-      {/* The globe itself: a glowing sphere with its grid. */}
-      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+      {/* The globe itself: a glowing sphere with its grid. It falls away as you warp in. */}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" opacity={Math.max(0, 1 - warp * 1.8)}>
         <defs>
           <radialGradient id="globe-fill" cx="40%" cy="35%" r="70%">
             <stop offset="0%" stopColor="hsl(215 70% 45%)" stopOpacity="0.55" />
@@ -291,7 +366,7 @@ export default function BrainGlobe({
       </svg>
 
       {/* Handoffs: arcs between departments, light running the way the work goes. */}
-      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" opacity={Math.max(0, 1 - warp * 2.5)}>
         <defs>
           {drawn.map(({ arc, scr }, i) => (
             <linearGradient
@@ -379,20 +454,33 @@ export default function BrainGlobe({
       )}
 
       {/* Departments, back to front, each with its processes orbiting. */}
-      {placed.map(({ d, base, sx, sy, depth }) => {
+      {placed.map(({ d, base, sx: gx, sy: gy, depth }) => {
         const front = depth > 0.55;
         const s = 0.55 + depth * 0.65;
-        const size = 46 * s * (zoom > 1 ? 1 + (zoom - 1) * 0.3 : 1);
+        const plain = 46 * s * (zoom > 1 ? 1 + (zoom - 1) * 0.3 : 1);
         const key = d.name || '~';
-        const on = hover === key;
+        const on = hover === key && !warping;
+        // In a warp, the department you picked swells to fill the screen; the rest fly off the edges.
+        const isTarget = warping && target === d.name;
+        const fill = (diag * 1.15) / plain;
+        const size = isTarget ? plain * (1 + Math.pow(warp, 2.2) * (fill - 1)) : plain;
+        const sx = isTarget ? gx + (cx - gx) * warp : cx + (gx - cx) * (1 + warp * 3);
+        const sy = isTarget ? gy + (cy - gy) * warp : cy + (gy - cy) * (1 + warp * 3);
+        const fade = isTarget ? 1 : 1 - warp;
         return (
           <div
             key={key}
             className="absolute"
-            style={{ left: sx, top: sy, zIndex: Math.round(depth * 100), opacity: 0.3 + depth * 0.7 }}
+            style={{
+              left: sx,
+              top: sy,
+              zIndex: isTarget ? 150 : Math.round(depth * 100),
+              opacity: (isTarget ? 1 : 0.3 + depth * 0.7) * fade,
+              pointerEvents: warping ? 'none' : undefined,
+            }}
           >
             {/* Moons: one per process. */}
-            {d.processes.map((p, i) => {
+            {!warping && d.processes.map((p, i) => {
               const a = (t / 2600) * (reduceMotion ? 0 : 1) + (i / d.processes.length) * TAU;
               const orbit = size * 0.95;
               const mx = Math.cos(a) * orbit;
@@ -428,12 +516,15 @@ export default function BrainGlobe({
                 width: size,
                 height: size,
                 transform: `translate(-50%, -50%) scale(${on ? 1.12 : 1})`,
+                transition: warping ? 'none' : undefined,
                 background: `radial-gradient(circle at 35% 30%, hsl(${d.hue} 95% 82%), hsl(${d.hue} 75% 52%) 45%, hsl(${d.hue} 70% 28%) 100%)`,
-                boxShadow: `0 0 ${18 * s}px hsl(${d.hue} 90% 60% / ${on ? 0.9 : 0.55}), inset -${4 * s}px -${5 * s}px ${10 * s}px rgba(0,0,0,0.35)`,
+                boxShadow: isTarget
+                  ? `0 0 ${40 + 120 * warp}px ${20 * warp}px hsl(${d.hue} 95% 65% / 0.8)`
+                  : `0 0 ${18 * s}px hsl(${d.hue} 90% 60% / ${on ? 0.9 : 0.55}), inset -${4 * s}px -${5 * s}px ${10 * s}px rgba(0,0,0,0.35)`,
               }}
             />
             {/* The label: always on the front half, and for whatever you point at. */}
-            {(front || on) && (
+            {(front || on) && !warping && (
               <div
                 className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center"
                 style={{ top: size / 2 + 10 * s }}
@@ -461,7 +552,10 @@ export default function BrainGlobe({
         );
       })}
 
-      <p className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
+      {/* The flash at the end of the dive, as you land in the department. */}
+      {warp > 0.82 && <div className="pointer-events-none absolute inset-0 z-[300] bg-white" style={{ opacity: Math.min(1, (warp - 0.82) / 0.18) }} />}
+
+      <p style={{ opacity: warping ? 0 : 1 }} className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
         Drag to spin · Click a department to fly in{arcs.length > 0 && ' · Arcs show work handed between departments'}
       </p>
     </div>

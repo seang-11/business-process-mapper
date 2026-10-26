@@ -1095,7 +1095,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   const insight = useMemo(() => deptInsight(title, procs), [title, procs]);
 
   return (
-    <div data-ui className="absolute inset-0 z-30 flex cursor-default flex-col bg-[hsl(220_20%_97.5%)]">
+    <div data-ui className="absolute inset-0 z-30 flex cursor-default flex-col bg-[hsl(220_20%_97.5%)] duration-300 animate-in fade-in-0 zoom-in-[0.98]">
       <header
         className="shrink-0 border-b border-border px-8 pb-5 pt-5"
         style={{ background: `linear-gradient(180deg, hsl(${hue} 80% 95%), hsl(${hue} 80% 97% / 0.4))` }}
@@ -1795,6 +1795,16 @@ export default function Brain() {
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
   /** The 3D globe of departments, in place of the board. */
   const [globe, setGlobe] = useState(false);
+  /** Leaving a department while the globe is up flies back out of it; the count makes each return new. */
+  const [globeReturn, setGlobeReturn] = useState<{ name: string; n: number } | null>(null);
+  const lastDept = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastDept.current && !deptOpen && globe) {
+      const name = lastDept.current === '~none' ? '' : lastDept.current;
+      setGlobeReturn((r) => ({ name, n: (r?.n ?? 0) + 1 }));
+    }
+    lastDept.current = deptOpen;
+  }, [deptOpen, globe]);
   /** The heat map of people hours, in place of the board. */
   const [heat, setHeat] = useState(false);
   setDeptOpenRef.current = setDeptOpen;
@@ -2359,6 +2369,7 @@ export default function Brain() {
             }))}
           handoffs={handoffs}
           onOpen={(name) => setDeptOpen(name || '~none')}
+          returnFrom={globeReturn}
         />
       )}
 
