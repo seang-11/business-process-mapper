@@ -1046,6 +1046,22 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   onTrain: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const [glanceOpen, setGlanceOpen] = useState(() => {
+    try {
+      return localStorage.getItem('bpm_dept_glance') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggleGlance = () =>
+    setGlanceOpen((o) => {
+      try {
+        localStorage.setItem('bpm_dept_glance', o ? '0' : '1');
+      } catch {
+        // Not remembered; fine for this visit.
+      }
+      return !o;
+    });
   const [savingText, setSavingText] = useState(false);
   const flows = useMemo(() => procs.map((p) => ({ p, layout: flowLayout(p.steps.map((s) => s.id), p.links) })), [procs]);
   const people = [...new Map(procs.flatMap((p) => p.people).map((w) => [w.id, w])).values()];
@@ -1243,27 +1259,27 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-8 py-6">
         {/* At a glance: where the people time goes, each process, and what to hand to apps next. */}
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight">{title} at a glance</h3>
-              <p className="mt-0.5 text-sm text-muted-foreground">Where the team's time goes, and what to hand to apps next.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full px-3 py-1.5 text-sm font-semibold" style={{ backgroundColor: `hsl(${hue} 80% 95%)`, color }}>
+        <section className="rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+          {/* Click the header to fold it away; the choice is remembered. */}
+          <button type="button" onClick={toggleGlance} aria-expanded={glanceOpen} className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3 text-left">
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${glanceOpen ? '' : '-rotate-90'}`} />
+            <span className="text-sm font-semibold">{title} at a glance</span>
+            <span className="ml-auto flex flex-wrap gap-1.5">
+              <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: `hsl(${hue} 80% 95%)`, color }}>
                 {insight.hours > 0 ? `${fmtHrs(insight.hours)} of people time a month` : `${plural(m + r, 'step')} done by people`}
               </span>
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                 {a + r + m > 0 ? Math.round((a / (a + r + m)) * 100) : 0}% done by apps
               </span>
-            </div>
-          </div>
+            </span>
+          </button>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-3">
+          {glanceOpen && (
+          <div className="grid gap-5 border-t border-border px-5 pb-5 pt-4 lg:grid-cols-3">
             {/* Who spends the time. */}
             <div>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Where the hours go</p>
-              <ul className="space-y-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Where the hours go</p>
+              <ul className="space-y-2">
                 {(() => {
                   const list = [...insight.roles.values()].sort((x, y) => y.hours - x.hours || y.steps - x.steps).slice(0, 5);
                   const max = Math.max(1, ...list.map((r) => (insight.hours > 0 ? r.hours : r.steps)));
@@ -1271,12 +1287,12 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                     const v = insight.hours > 0 ? r.hours : r.steps;
                     return (
                       <li key={r.who.id}>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Icon w={r.who} size={16} />
+                        <div className="flex items-center gap-2 text-[13px]">
+                          <Icon w={r.who} size={14} />
                           <span className="min-w-0 flex-1 truncate font-medium">{r.who.name}</span>
                           <span className="tabular-nums text-muted-foreground">{insight.hours > 0 ? fmtHrs(r.hours) : plural(r.steps, 'step')}</span>
                         </div>
-                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
                           <div className="h-full rounded-full" style={{ width: `${(v / max) * 100}%`, backgroundColor: `hsl(${hue} 60% 55%)` }} />
                         </div>
                       </li>
@@ -1288,7 +1304,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
 
             {/* Each process: its time, and how much already runs on its own. */}
             <div>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Processes</p>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Processes</p>
               <ul className="space-y-2">
                 {procs.map((p) => {
                   const work = p.automated + p.review + p.manual;
@@ -1298,10 +1314,10 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                       <button
                         type="button"
                         onClick={() => onOpenProcess(p.id)}
-                        className="group w-full rounded-xl border border-border px-3.5 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
+                        className="group w-full rounded-lg border border-border px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
                       >
                         <span className="flex items-center gap-2">
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{p.name}</span>
                           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -1309,7 +1325,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                           {h !== null ? ` · ${fmtHrs(h)}/mo` : ''}
                           {work > 0 ? ` · ${Math.round((p.automated / work) * 100)}% by apps` : ''}
                         </span>
-                        <span className="mt-2 block">
+                        <span className="mt-1.5 block">
                           <MixBar a={p.automated} r={p.review} m={p.manual} />
                         </span>
                       </button>
@@ -1321,7 +1337,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
 
             {/* The steps people still do by hand, moving work between apps: the next things to automate. */}
             <div>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Next to automate</p>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Next to automate</p>
               {insight.ready.length === 0 ? (
                 <p className="rounded-xl bg-muted/50 px-4 py-6 text-center text-sm text-muted-foreground">
                   No hand-done steps moving work between apps here.
@@ -1329,12 +1345,12 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
               ) : (
                 <ul className="space-y-2">
                   {insight.ready.map((st) => (
-                    <li key={st.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-3.5 py-3">
-                      <p className="text-sm font-semibold leading-snug">{st.title}</p>
+                    <li key={st.id} className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2">
+                      <p className="text-[13px] font-semibold leading-snug">{st.title}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {st.who.name} · {st.process}
                       </p>
-                      <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1">
                           {st.apps.map((app, i) => (
                             <span key={app.id} className="flex items-center gap-1">
@@ -1355,6 +1371,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
               )}
             </div>
           </div>
+          )}
         </section>
 
         {flows.map(({ p, layout }) => (
