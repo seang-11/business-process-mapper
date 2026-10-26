@@ -12,6 +12,7 @@ import {
 import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { deptTag } from '@/lib/deptColors';
+import { useBack } from '@/lib/backTrail';
 import { useMe } from '@/lib/me';
 import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
@@ -170,6 +171,7 @@ const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
 export function ViewerProcess() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const back = useBack('/', 'Home');
   const [params, setParams] = useSearchParams();
   const asked = params.get('lanes');
   const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' ? asked : 'flow';
@@ -203,10 +205,10 @@ export function ViewerProcess() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={back.go}
           className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> All processes
+          <ArrowLeft className="h-4 w-4" /> {back.name === 'Home' ? 'All processes' : `Back to ${back.name}`}
         </button>
         {p && (
           <div className="flex flex-wrap rounded-xl border border-border bg-card p-1 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -295,6 +297,8 @@ export function ViewerProcessGate() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  // Hooks before any early return.
+  const { go: back } = useBack('/', 'Home');
   const train = params.get('train');
   const view = params.get('view');
   const [procs, setProcs] = useState<GetProcessesOutputType['processes'] | null>(null);
@@ -310,7 +314,6 @@ export function ViewerProcessGate() {
   const p = procs.find((x) => x.id === id);
   const live = p?.versions.find((v) => v.state === 'Current');
   if (!p || !live) return <Navigate to="/" replace />;
-  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
   return (
     <Train
       processName={p.name}

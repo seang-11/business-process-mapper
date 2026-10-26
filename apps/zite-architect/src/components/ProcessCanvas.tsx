@@ -77,6 +77,7 @@ import claudeLogo from '../assets/logos/claude.svg';
 import Train from './Train';
 import ShareDialog from './ShareDialog';
 import { useMe } from '@/lib/me';
+import { useBack } from '@/lib/backTrail';
 import StepDialog from './StepDialog';
 import VersionsDialog from './VersionsDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
@@ -88,6 +89,7 @@ type ProcessRow = GetProcessesOutputType['processes'][number];
 export default function ProcessCanvas() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const back = useBack('/', 'Home');
   // Viewers can look at everything, but nothing in here changes the process for them.
   const { canEdit, isRealAdmin, viewAs, setViewAs } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -418,8 +420,9 @@ export default function ProcessCanvas() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
-          onClick={() => navigate('/')}
-          aria-label="Back to home"
+          onClick={back.go}
+          aria-label={`Back to ${back.name}`}
+          title={`Back to ${back.name}`}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>

@@ -12,6 +12,7 @@ import ElementIcon from './ElementIcon';
 import { TokenBadge } from './TokenBadge';
 import ElementDialog from './ElementDialog';
 import DeleteElementDialog from './DeleteElementDialog';
+import { useBack } from '@/lib/backTrail';
 import { useMe } from '@/lib/me';
 
 type Detail = GetElementDetailOutputType;
@@ -52,6 +53,7 @@ interface UsedProcess {
 export default function ElementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const back = useBack('/?tab=elements', 'elements');
   const { canEdit } = useMe();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [elements, setElements] = useState<ElementSummary[]>([]);
@@ -154,8 +156,8 @@ export default function ElementDetail() {
     return (
       <div className="flex min-h-full flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">That element no longer exists.</p>
-        <Button variant="outline" size="sm" onClick={() => navigate('/?tab=elements')}>
-          Back to elements
+        <Button variant="outline" size="sm" onClick={() => back.go()}>
+          Back to {back.name}
         </Button>
       </div>
     );
@@ -179,14 +181,14 @@ export default function ElementDetail() {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => navigate('/?tab=elements')}
-            aria-label="Back to elements"
+            onClick={() => back.go()}
+            aria-label={`Back to ${back.name}`}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <button
             type="button"
-            onClick={() => navigate('/?tab=elements')}
+            onClick={() => back.go()}
             className="text-muted-foreground transition-colors hover:text-foreground"
           >
             Elements
@@ -438,7 +440,7 @@ export default function ElementDetail() {
         <DeleteElementDialog
           element={summary}
           onClose={() => setDeleting(false)}
-          onDeleted={() => navigate('/?tab=elements')}
+          onDeleted={() => back.go()}
         />
       )}
     </div>

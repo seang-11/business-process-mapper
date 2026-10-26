@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@project/components/ui/dropdown-menu';
 import { useMe } from '@/lib/me';
+import { useTrackTrail } from '@/lib/backTrail';
 import CommandMenu from './CommandMenu';
 import ShortcutsDialog from './ShortcutsDialog';
 import PreviewSwitcher from './PreviewSwitcher';
@@ -54,6 +55,9 @@ export default function AppShell() {
   useEffect(() => {
     loadProcesses();
   }, [loadProcesses, location.pathname]);
+
+  // Remember the pages visited, so Back buttons return to where you came from.
+  useTrackTrail();
 
   // A trackpad pinch the page didn't catch zooms the whole browser page, and that zoom
   // follows you to the next page (the edit page opened huge after zooming the Brain).

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
 import { deptTag } from '@/lib/deptColors';
+import { useBack } from '@/lib/backTrail';
 import { ArrowLeft, ChevronDown, Download, GraduationCap, Link2, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
@@ -54,6 +55,7 @@ function Linked({ items, word }: { items: Neighbour[]; word: string }) {
 export default function RoleBrief() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const back = useBack('/roles', 'Roles');
   const [data, setData] = useState<GetBrainOutputType | null>(null);
   const [failed, setFailed] = useState(false);
   /** The process opened in place. One at a time keeps the page short. */
@@ -102,8 +104,8 @@ export default function RoleBrief() {
       <style>{PRINT_CSS}</style>
 
       <div className="flex items-center gap-2 print:hidden">
-        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate('/roles')}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" /> All roles
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={back.go}>
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> {back.name === 'Roles' ? 'All roles' : `Back to ${back.name}`}
         </Button>
         <span className="ml-auto" />
         <Button variant="outline" size="sm" onClick={copyLink}>
