@@ -670,6 +670,19 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
             </span>
           </>
         )}
+        {/* Open and Train sit by the name, so a long process never hides them off to the right. */}
+        {onOpenProcess && (
+          <button
+            type="button"
+            data-ui
+            onClick={onOpenProcess}
+            title="See it by person, by app, as an overview, or Watch it Live"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+          >
+            Open process <ArrowRight className="h-3 w-3" />
+          </button>
+        )}
+        {extra}
         <span className="text-xs text-muted-foreground">
           {plural(p.stepCount, 'step')}
           {p.ownerName ? ` · ${p.ownerName}` : ''}
@@ -693,18 +706,6 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
               <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
-          {onOpenProcess && (
-            <button
-              type="button"
-              data-ui
-              onClick={onOpenProcess}
-              title="See it by person, by app, as an overview, or Watch it Live"
-              className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
-            >
-              Open process <ArrowRight className="h-3 w-3" />
-            </button>
-          )}
-          {extra}
           {onClose && (
             <button
               type="button"
