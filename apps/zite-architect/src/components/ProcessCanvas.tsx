@@ -11,7 +11,7 @@ import {
   GetProcessGraphOutputType,
   GetProcessesOutputType,
 } from 'zitejs/api';
-import { ArrowLeft, Share2, Plus, Copy, FilePlus, Layers, Trash2, Settings, Play, GraduationCap, Radio, ChevronDown, ChevronRight, HelpCircle, Check, Columns2, Eye } from 'lucide-react';
+import { ArrowLeft, Share2, Plus, Copy, FilePlus, Layers, Trash2, Settings, PlayCircle, GraduationCap, Radio, ChevronDown, ChevronRight, HelpCircle, Check, Columns2, Eye } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { Input } from '@project/components/ui/input';
 import {
@@ -71,7 +71,7 @@ import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
 import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
-import Walkthrough from './Walkthrough';
+import WatchLive from './WatchLive';
 import EditWithClaude from './EditWithClaude';
 import claudeLogo from '../assets/logos/claude.svg';
 import Train from './Train';
@@ -114,10 +114,8 @@ export default function ProcessCanvas() {
   const [editingProcess, setEditingProcess] = useState(false);
   /** The lane whose panel is open, in the current view. */
   const [openLane, setOpenLane] = useState<string | null>(null);
-  // The walkthrough plays the version open on the map. A step edited from it
-  // opens in an editor docked inside the walkthrough, keyed by id so it picks
-  // up the saved version after each reload.
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  /** "Watch it Live": the version on screen plays like a video, in place of the map. */
+  const [watching, setWatching] = useState(false);
   /** Role training for the version on screen. */
   const [trainOpen, setTrainOpen] = useState(false);
   /** Describing a change to hand to Claude. */
@@ -126,7 +124,6 @@ export default function ProcessCanvas() {
   const [makeLiveOpen, setMakeLiveOpen] = useState(false);
   const [liveDay, setLiveDay] = useState('');
   const [goingLive, setGoingLive] = useState(false);
-  const [walkthroughEditId, setWalkthroughEditId] = useState<string | null>(null);
 
   // The panel shows one thing at a time, so opening either view closes the
   // other — otherwise "Add Step" while a step is open changes nothing.
@@ -453,8 +450,9 @@ export default function ProcessCanvas() {
           {(['people', 'app'] as LaneGrouping[]).map((mode) => (
             <button
               key={mode}
-              className={segBtn(!showOverview && laneGrouping === mode)}
+              className={segBtn(!watching && !showOverview && laneGrouping === mode)}
               onClick={() => {
+                setWatching(false);
                 setShowOverview(false);
                 setLaneGrouping(mode);
                 rememberView(mode);
@@ -466,14 +464,26 @@ export default function ProcessCanvas() {
             </button>
           ))}
           <button
-            className={segBtn(showOverview)}
+            className={segBtn(!watching && showOverview)}
             onClick={() => {
+              setWatching(false);
               setShowOverview(true);
               rememberView('overview');
               setOpenLane(null);
             }}
           >
             Overview
+          </button>
+          <button
+            className={segBtn(watching)}
+            onClick={() => {
+              setWatching(true);
+              setOpenLane(null);
+              setEditStep(null);
+              setAddingStep(false);
+            }}
+          >
+            <PlayCircle className="mr-1 inline h-3.5 w-3.5 -translate-y-px" /> Watch it Live
           </button>
         </div>
 
@@ -585,9 +595,6 @@ export default function ProcessCanvas() {
           <Button size="sm" className="h-8 rounded-full px-4" onClick={() => setTrainOpen(true)}>
             <GraduationCap className="mr-1.5 h-4 w-4" /> Start training
           </Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-full px-4" onClick={() => setWalkthroughOpen(true)}>
-            <Play className="mr-1.5 h-3.5 w-3.5" /> Walkthrough
-          </Button>
           {process && process.versions.length > 1 && (
             <Button
               size="sm"
@@ -689,7 +696,11 @@ export default function ProcessCanvas() {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Depth comes from the gap between this and the white cards on it. */}
         <div className="flex-1 bg-muted overflow-hidden min-w-0">
-          {showOverview ? (
+          {watching && graph?.version ? (
+            <div className="h-full overflow-y-auto bg-background p-6">
+              <WatchLive steps={steps} connections={connections} processName={process?.name ?? 'this process'} />
+            </div>
+          ) : showOverview ? (
             <div className="flex h-full flex-col">
               {/* Only worth showing once there is a second version to put beside the first. */}
               {process && process.versions.length > 1 && (
@@ -791,42 +802,6 @@ export default function ProcessCanvas() {
                 setSearchParams({ version: versionOfStep });
               }
             }}
-          />
-        )}
-
-        {walkthroughOpen && graph?.version && (
-          <Walkthrough
-            processName={process?.name ?? 'This process'}
-            processDescription={process?.description ?? ''}
-            versionName={graph.version.name}
-            steps={steps}
-            connections={connections}
-            onClose={() => {
-              setWalkthroughOpen(false);
-              setWalkthroughEditId(null);
-            }}
-            onEditStep={canEdit ? (s) => setWalkthroughEditId(s.id) : undefined}
-            editor={
-              walkthroughEditId && steps.some((s) => s.id === walkthroughEditId) ? (
-                <StepDialog
-                  key={walkthroughEditId}
-                  step={steps.find((s) => s.id === walkthroughEditId)!}
-                  versionId={graph.version.id}
-                  processId={id ?? ''}
-                  elements={elements}
-                  types={types}
-                  allSteps={steps}
-                  connections={connections}
-                  onSaved={load}
-                  onDeleted={(stepId) => {
-                    removeStepLocally(stepId);
-                    setWalkthroughEditId(null);
-                  }}
-                  onClose={() => setWalkthroughEditId(null)}
-                  onCreateElement={handleCreateElement}
-                />
-              ) : null
-            }
           />
         )}
 

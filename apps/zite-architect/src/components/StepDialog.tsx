@@ -679,7 +679,7 @@ export default function StepDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Walkthrough line</Label>
+            <Label className="text-xs">Caption for Watch it Live</Label>
             <Textarea
               value={walkthroughLine}
               onChange={(e) => setWalkthroughLine(e.target.value)}
@@ -687,7 +687,7 @@ export default function StepDialog({
               rows={2}
             />
             <p className="text-[11px] text-muted-foreground">
-              Optional. Shown in place of the title when the walkthrough plays.
+              Optional. The sentence shown under the map when this step plays. Empty uses the first sentence of the notes.
             </p>
           </div>
 

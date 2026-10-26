@@ -9,7 +9,7 @@ import {
   GetProcessGraphOutputType,
   getTaxonomy,
 } from 'zitejs/api';
-import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
+import { AppWindow, ArrowLeft, ArrowRight, FileText, PlayCircle, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { deptTag } from '@/lib/deptColors';
 import { processIcon } from '@/lib/processIcon';
@@ -20,6 +20,7 @@ import { PageEmpty, PageError, PageLoading } from './PageState';
 import Train from './Train';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessTimeline from './ProcessTimeline';
+import WatchLive from './WatchLive';
 import type { ElementSummary, ProcessStep } from '@/types';
 
 type Data = GetBrainOutputType;
@@ -159,12 +160,13 @@ export function ViewerHome() {
   );
 }
 
-type Look = 'flow' | LaneGrouping | 'overview';
+type Look = 'flow' | LaneGrouping | 'overview' | 'watch';
 const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
   { key: 'flow', label: 'Steps', Icon: Workflow },
   { key: 'people', label: 'By person', Icon: Users },
   { key: 'app', label: 'By app', Icon: AppWindow },
   { key: 'overview', label: 'Overview', Icon: FileText },
+  { key: 'watch', label: 'Watch it Live', Icon: PlayCircle },
 ];
 
 /**
@@ -178,7 +180,7 @@ export function ViewerProcess() {
   const back = useBack('/', 'Home');
   const [params, setParams] = useSearchParams();
   const asked = params.get('lanes');
-  const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' ? asked : 'flow';
+  const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' || asked === 'watch' ? asked : 'flow';
   const setLook = (next: Look) => setParams(next === 'flow' ? {} : { lanes: next }, { replace: true });
   const { data, failed, load } = useBrain();
   const p = data?.processes.find((x) => x.id === id && x.live) ?? null;
@@ -268,6 +270,8 @@ export function ViewerProcess() {
           <PageError onRetry={() => setLanesFailed(false)} />
         ) : !lanes ? (
           <PageLoading blocks={1} height="h-64" />
+        ) : look === 'watch' ? (
+          <WatchLive steps={lanes.graph.steps as ProcessStep[]} connections={lanes.graph.connections} processName={p.name} />
         ) : look === 'overview' ? (
           <section className="h-full min-h-[480px] overflow-hidden rounded-2xl border border-border shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <ProcessTimeline steps={lanes.graph.steps as ProcessStep[]} connections={lanes.graph.connections} />
