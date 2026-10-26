@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getBrain, GetBrainOutputType, getProcesses, GetProcessesOutputType } from 'zitejs/api';
-import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
+import {
+  getBrain,
+  GetBrainOutputType,
+  getProcesses,
+  GetProcessesOutputType,
+  getProcessGraph,
+  GetProcessGraphOutputType,
+  getTaxonomy,
+} from 'zitejs/api';
+import { AppWindow, ArrowLeft, ArrowRight, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { useMe } from '@/lib/me';
 import { FlowView, MixBar } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import { hueFor } from './RoleAvatar';
 import Train from './Train';
+import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
+import type { ElementSummary, ProcessStep } from '@/types';
 
 type Data = GetBrainOutputType;
 
@@ -110,13 +120,24 @@ export function ViewerHome() {
   );
 }
 
+type Look = 'flow' | LaneGrouping;
+const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
+  { key: 'flow', label: 'Steps', Icon: Workflow },
+  { key: 'people', label: 'Swim lanes by person', Icon: Users },
+  { key: 'app', label: 'Swim lanes by app', Icon: AppWindow },
+];
+
 /**
- * One process, the way the Brain shows it: every step left to right with its
- * arrows, and a slim note when you point at a step. Nothing can be changed.
+ * One process, view only. It opens the way the Brain shows it: every step left
+ * to right with its arrows. A switch at the top shows the same live process as
+ * swim lanes, one lane per person or per app.
  */
 export function ViewerProcess() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const look: Look = params.get('lanes') === 'people' ? 'people' : params.get('lanes') === 'app' ? 'app' : 'flow';
+  const setLook = (next: Look) => setParams(next === 'flow' ? {} : { lanes: next }, { replace: true });
   const { data, failed, load } = useBrain();
   const p = data?.processes.find((x) => x.id === id && x.live) ?? null;
   const names = useMemo(() => new Map((data?.processes ?? []).map((x) => [x.id, x.name])), [data]);
@@ -126,24 +147,57 @@ export function ViewerProcess() {
     [data, p],
   );
 
+  // The swim lanes need the full map of the live version. Loaded the first time they're asked for.
+  const [lanes, setLanes] = useState<{ graph: GetProcessGraphOutputType; elements: ElementSummary[] } | null>(null);
+  const [lanesFailed, setLanesFailed] = useState(false);
+  useEffect(() => {
+    setLanes(null);
+  }, [id]);
+  useEffect(() => {
+    if (look === 'flow' || lanes || !id) return;
+    setLanesFailed(false);
+    Promise.all([getProcessGraph({ processId: id }), getTaxonomy({})])
+      .then(([graph, tax]) => setLanes({ graph, elements: tax.elements as ElementSummary[] }))
+      .catch(() => setLanesFailed(true));
+  }, [look, lanes, id]);
+
   return (
-    <div className="px-6 py-6">
-      <button
-        type="button"
-        onClick={() => navigate('/')}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> All processes
-      </button>
+    <div className="flex h-full flex-col px-6 py-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> All processes
+        </button>
+        {p && (
+          <div className="ml-auto flex rounded-xl border border-border bg-card p-1 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            {LOOKS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setLook(key)}
+                aria-pressed={look === key}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  look === key ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {p?.description && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{p.description}</p>}
-      <div className="mt-4">
+      <div className="mt-4 min-h-0 flex-1">
         {failed ? (
           <PageError onRetry={load} />
         ) : !data ? (
           <PageLoading blocks={1} height="h-64" />
         ) : !p || !layout ? (
           <PageEmpty icon={<Search className="h-6 w-6" />} title="That process isn't available" text="It may not be live yet. Go back to see the ones that are." />
-        ) : (
+        ) : look === 'flow' ? (
           <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <div className="overflow-x-auto">
               <div className="relative" style={{ width: Math.max(layout.width, 600), height: layout.height }}>
@@ -158,6 +212,23 @@ export function ViewerProcess() {
                 />
               </div>
             </div>
+          </section>
+        ) : lanesFailed ? (
+          <PageError onRetry={() => setLanesFailed(false)} />
+        ) : !lanes ? (
+          <PageLoading blocks={1} height="h-64" />
+        ) : (
+          <section className="relative h-full min-h-[480px] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+            <SwimlaneDiagram
+              steps={lanes.graph.steps as ProcessStep[]}
+              connections={lanes.graph.connections}
+              grouping={look}
+              elements={lanes.elements}
+              onClickStep={() => {}}
+              onOpenSubProcess={(next) => navigate(`/view/${next}`)}
+              laneOrder={lanes.graph.laneOrder?.[look] ?? []}
+              viewKey={`${lanes.graph.version?.id ?? id}-${look}`}
+            />
           </section>
         )}
       </div>
