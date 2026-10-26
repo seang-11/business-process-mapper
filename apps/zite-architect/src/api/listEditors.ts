@@ -5,7 +5,7 @@ import { OWNER_EMAIL, requireAdmin } from '../lib/access';
 
 export default createEndpoint({
   authenticated: true,
-  description: 'List everyone who can edit, for admins',
+  description: 'List the admins, for admins',
   inputSchema: z.object({}),
   outputSchema: z.object({
     people: z.array(
@@ -13,7 +13,7 @@ export default createEndpoint({
         id: z.string().nullable(),
         email: z.string(),
         name: z.string(),
-        access: z.enum(['Admin', 'Editor']),
+        access: z.literal('Admin'),
         /** The person who set the app up. Cannot be removed or demoted. */
         owner: z.boolean(),
       }),
@@ -27,7 +27,7 @@ export default createEndpoint({
         id: r.id as string | null,
         email: (r.email ?? '').trim().toLowerCase(),
         name: r.name ?? '',
-        access: (r.access === 'Admin' ? 'Admin' : 'Editor') as 'Admin' | 'Editor',
+        access: 'Admin' as const,
         owner: (r.email ?? '').trim().toLowerCase() === OWNER_EMAIL,
       }))
       .filter((p) => p.email);

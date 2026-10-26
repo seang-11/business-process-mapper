@@ -121,7 +121,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return {
       me,
       loading,
-      canEdit: me?.access === 'admin' || me?.access === 'editor',
+      canEdit: me?.access === 'admin',
       isAdmin: me?.access === 'admin',
       isRealAdmin,
       viewAs: preview,

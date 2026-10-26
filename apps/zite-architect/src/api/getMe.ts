@@ -11,7 +11,7 @@ export default createEndpoint({
     email: z.string(),
     name: z.string(),
     firstName: z.string(),
-    access: z.enum(['admin', 'editor', 'viewer']),
+    access: z.enum(['admin', 'viewer']),
   }),
   execute: async ({ context }) => {
     const email = context.user.email ?? '';

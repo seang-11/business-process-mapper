@@ -21,7 +21,7 @@ import { PageError } from './PageState';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
 
-const ACCESS_WORD: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+const ACCESS_WORD: Record<string, string> = { admin: 'Admin', viewer: 'Viewer' };
 
 const initialsOf = (name: string) =>
   name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';

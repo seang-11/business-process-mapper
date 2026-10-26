@@ -12,8 +12,8 @@ const initialsOf = (name: string) =>
   name.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
 
 /**
- * Who can change processes. Admins can edit everything and see this page;
- * editors can edit processes; everyone else can look around and train.
+ * Who can change processes. Everyone in the Editors table is an admin: they
+ * edit everything and see this page. Everyone else can look around and train.
  * People are added in the Editors table in Zite.
  */
 export default function TeamAccess() {
@@ -50,7 +50,7 @@ export default function TeamAccess() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Team and access</h1>
           <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-            Admins can change everything. Editors can change processes. Everyone else can look around and train.
+            Admins can change everything. Everyone else can look around and train.
           </p>
         </div>
         {workspaceUrl && (

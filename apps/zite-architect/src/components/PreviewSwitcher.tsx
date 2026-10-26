@@ -10,7 +10,7 @@ import {
 } from '@project/components/ui/dropdown-menu';
 import { useMe, type ViewAs } from '@/lib/me';
 
-const ACCESS_WORD: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+const ACCESS_WORD: Record<string, string> = { admin: 'Admin', viewer: 'Viewer' };
 
 /**
  * For admins only: see the app the way someone else does. Everything stays
