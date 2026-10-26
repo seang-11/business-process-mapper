@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getProcesses, getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
-import { Workflow, Boxes, Plus, LayoutGrid, Table2, Columns3, Grid3x3, Search } from 'lucide-react';
+import { Workflow, Boxes, Building2, Plus, LayoutGrid, Table2, Columns3, Grid3x3, Search } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { Input } from '@project/components/ui/input';
 import { Skeleton } from '@project/components/ui/skeleton';
@@ -13,6 +13,7 @@ import DeleteElementDialog from './DeleteElementDialog';
 import DeleteProcessDialog from './DeleteProcessDialog';
 import EditProcessDialog from './EditProcessDialog';
 import ElementsTable from './ElementsTable';
+import DepartmentsTable from './DepartmentsTable';
 import ProcessesTable from './ProcessesTable';
 import ProcessCards from './ProcessCards';
 import ProcessBoard from './ProcessBoard';
@@ -63,7 +64,8 @@ export default function WorkspaceList() {
   const navigate = useNavigate();
   const { canEdit, isAdmin, me, welcomeSeen, markWelcomeSeen } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') === 'elements' ? 'elements' : 'processes';
+  const tabParam = searchParams.get('tab');
+  const tab = tabParam === 'elements' || tabParam === 'departments' ? tabParam : 'processes';
 
   const [processes, setProcesses] = useState<ProcessRow[]>([]);
   const [elements, setElements] = useState<ElementSummary[]>([]);
@@ -179,13 +181,14 @@ export default function WorkspaceList() {
             {(
               [
                 ['processes', 'Processes', Workflow, processes.length],
+                ['departments', 'Departments', Building2, departments.length],
                 ['elements', 'Elements', Boxes, elementCount],
               ] as const
             ).map(([key, label, Icon, count]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setSearchParams(key === 'elements' ? { tab: 'elements' } : {})}
+                onClick={() => setSearchParams(key === 'processes' ? {} : { tab: key })}
                 className={`relative -mb-px flex items-center gap-1.5 pb-3 text-sm font-medium transition-colors ${
                   tab === key
                     ? 'text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
@@ -212,7 +215,7 @@ export default function WorkspaceList() {
                 ))}
               </div>
             )}
-            {canEdit && (
+            {canEdit && tab !== 'departments' && (
               <Button
                 size="sm"
                 className="h-8 shrink-0"
@@ -290,6 +293,8 @@ export default function WorkspaceList() {
             onEdit={canEdit ? (p) => setEditProcessTarget(p) : undefined}
             onDelete={canEdit ? (p) => setDeleteProcessTarget(p) : undefined}
           />
+        ) : tab === 'departments' ? (
+          <DepartmentsTable />
         ) : (
           <ElementsTable
             elements={elements}
