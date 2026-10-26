@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getBrain, setDepartmentColor, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, ChevronDown, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -233,21 +233,46 @@ function Icon({ w, size }: { w: Who; size: number }) {
   );
 }
 
+/** The Edit button editors see on a process, on the board and in the pop-up. Opens it by person, ready to change. */
+function EditPill({ onEdit, big }: { onEdit: () => void; big?: boolean }) {
+  return (
+    <button
+      type="button"
+      data-ui
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit();
+      }}
+      title="Edit this process"
+      className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 ${
+        big ? 'px-4 py-1.5 text-[20px]' : 'px-2.5 py-0.5 text-[11px]'
+      }`}
+    >
+      <Pencil className={big ? 'h-5 w-5' : 'h-3 w-3'} /> Edit
+    </button>
+  );
+}
+
 /** One process on the board. What it shows depends on how close you are, and who is in the spotlight. */
-function Card({ p, level, names, lens, onOpenFlow }: {
+function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
   p: Proc;
   level: 'far' | 'mid' | 'near';
   names: Map<string, string>;
   lens: Lens | null;
   /** Lay this process out step by step, right here on the board. */
   onOpenFlow: () => void;
+  /** Editors only: open the process to change it. */
+  onEdit?: () => void;
 }) {
   const matched = lens && lens.ids.has(p.id) ? p.steps.filter((s) => stepMatches(lens, s)).length : 0;
 
   if (level === 'far') {
     return (
       <div className="flex h-full flex-col justify-between p-6">
-        <p className="text-[26px] font-semibold leading-tight tracking-tight">{p.name}</p>
+        <div className="flex items-start gap-3">
+          <p className="min-w-0 flex-1 text-[26px] font-semibold leading-tight tracking-tight">{p.name}</p>
+          {onEdit && <EditPill onEdit={onEdit} big />}
+        </div>
         {matched > 0 && (
           <p className="text-[20px] font-semibold text-primary">{plural(matched, 'step')} with {lens!.who.name}</p>
         )}
@@ -266,6 +291,7 @@ function Card({ p, level, names, lens, onOpenFlow }: {
       >
         {p.live ? 'Live' : 'Draft'}
       </span>
+      {onEdit && <EditPill onEdit={onEdit} />}
       {p.steps.length > 0 && (
         <button
           type="button"
@@ -514,7 +540,7 @@ function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<st
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra, hideTitle }: {
+export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, onEdit, extra, hideTitle }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
@@ -530,6 +556,8 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
   onOpenProcess?: () => void;
   /** The page already shows the name and Live badge above, as on the viewer's page. */
   hideTitle?: boolean;
+  /** Editors only: open the process to change it. */
+  onEdit?: () => void;
   /** Extra buttons in the header, such as Train. */
   extra?: React.ReactNode;
 }) {
@@ -643,7 +671,17 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
           </span>
         )}
         <span className="ml-auto flex items-center gap-1.5">
-          {onOpenProcess && (
+          {onEdit && (
+            <button
+              type="button"
+              data-ui
+              onClick={onEdit}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
+              <Pencil className="h-3 w-3" /> Edit
+            </button>
+          )}
+          {onOpenProcess && !onEdit && (
             <button
               type="button"
               data-ui
@@ -1180,6 +1218,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                     runBy={runByOf.get(p.id) ?? []}
                     onJump={onJump}
                     onOpenProcess={() => onOpenProcess(p.id)}
+                    onEdit={canEdit ? () => onOpenProcess(p.id) : undefined}
                     extra={
                       p.live ? (
                         <button
@@ -1704,6 +1743,9 @@ export default function Brain() {
 
   // --- Department leads ---
   const [leadFor, setLeadFor] = useState<string | null>(null);
+  /** Edit always opens the process by person, the view that's built for changing it. */
+  const editProcess = (id: string) => navigate(`/process/${id}?edit=1`);
+
   // Colors are settled on the server (so none repeat), so fetch them again after a change.
   const chooseColor = async (dept: string, hue: number | null) => {
     try {
@@ -1857,7 +1899,7 @@ export default function Brain() {
               } ${dim ? 'opacity-25' : ''}`}
               style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
             >
-              <Card p={p} level={level} names={names} lens={lens} onOpenFlow={() => openFlow(p.id)} />
+              <Card p={p} level={level} names={names} lens={lens} onOpenFlow={() => openFlow(p.id)} onEdit={canEdit ? () => editProcess(p.id) : undefined} />
             </div>
           );
         })}
@@ -1888,6 +1930,7 @@ export default function Brain() {
                 onJump={jumpTo}
                 onClose={() => closeFlow(p.id)}
                 onOpenProcess={() => navigate(`/process/${p.id}`)}
+                onEdit={canEdit ? () => editProcess(p.id) : undefined}
               />
             </div>
           );
@@ -2406,9 +2449,15 @@ export default function Brain() {
                 {opened.has(sel.id) ? 'Close the steps on the board' : 'Show the steps on the board'}
               </Button>
             )}
-            <Button className="flex-1" onClick={() => navigate(`/process/${sel.id}`)}>
-              Open process
-            </Button>
+            {canEdit ? (
+              <Button className="flex-1" onClick={() => editProcess(sel.id)}>
+                <Pencil className="mr-1.5 h-4 w-4" /> Edit process
+              </Button>
+            ) : (
+              <Button className="flex-1" onClick={() => navigate(`/process/${sel.id}`)}>
+                Open process
+              </Button>
+            )}
             {sel.live && sel.stepCount > 0 && (
               <Button variant="outline" onClick={() => navigate(`/process/${sel.id}?train=all&view=process`)}>
                 <GraduationCap className="mr-1.5 h-4 w-4" /> Train
@@ -2470,7 +2519,7 @@ export default function Brain() {
             onBack={() => setDeptOpen(null)}
             onSetLead={dept ? () => setLeadFor(dept) : null}
             onPickColor={dept ? (h) => chooseColor(dept, h) : null}
-            onOpenProcess={(id) => navigate(`/process/${id}`)}
+            onOpenProcess={(id) => (canEdit ? editProcess(id) : navigate(`/process/${id}`))}
             onTrain={(id) => navigate(`/process/${id}?train=all&view=process`)}
           />
         );

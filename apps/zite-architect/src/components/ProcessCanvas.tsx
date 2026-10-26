@@ -72,6 +72,8 @@ import LaneDialog from './LaneDialog';
 import ProcessTimeline from './ProcessTimeline';
 import CompareVersions from './CompareVersions';
 import Walkthrough from './Walkthrough';
+import EditWithClaude from './EditWithClaude';
+import claudeLogo from '../assets/logos/claude.svg';
 import Train from './Train';
 import ShareDialog from './ShareDialog';
 import { useMe } from '@/lib/me';
@@ -116,6 +118,8 @@ export default function ProcessCanvas() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   /** Role training for the version on screen. */
   const [trainOpen, setTrainOpen] = useState(false);
+  /** Describing a change to hand to Claude. */
+  const [claudeOpen, setClaudeOpen] = useState(false);
   /** The "make this version live" confirmation, and the day it goes live. */
   const [makeLiveOpen, setMakeLiveOpen] = useState(false);
   const [liveDay, setLiveDay] = useState('');
@@ -205,6 +209,18 @@ export default function ProcessCanvas() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Edit (from the Brain) always opens the map by person, the view built for changing things.
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (!editParam) return;
+    setShowOverview(false);
+    setLaneGrouping('people');
+    rememberView('people');
+    const next = new URLSearchParams(searchParams);
+    next.delete('edit');
+    setSearchParams(next, { replace: true });
+  }, [editParam, searchParams, setSearchParams]);
 
   // A shared link can open the process straight to one person's view.
   const laneParam = searchParams.get('lane');
@@ -478,6 +494,12 @@ export default function ProcessCanvas() {
           )}
 
           {canEdit && (
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setClaudeOpen(true)}>
+              <img src={claudeLogo} alt="" className="mr-1.5 h-3.5 w-3.5" /> Edit with Claude
+            </Button>
+          )}
+
+          {canEdit && (
             <Button size="sm" variant="outline" className="h-8" onClick={() => setSharing(true)}>
               <Share2 className="mr-1.5 h-3.5 w-3.5" /> Share
             </Button>
@@ -728,6 +750,19 @@ export default function ProcessCanvas() {
           />
           )}
         </div>
+
+        {claudeOpen && process && graph?.version && (
+          <EditWithClaude
+            target={{
+              processId: process.id,
+              processName: process.name,
+              versionId: graph.version.id,
+              versionName: graph.version.name,
+              versionState: graph.version.state,
+            }}
+            onClose={() => setClaudeOpen(false)}
+          />
+        )}
 
         {trainOpen && process && graph?.version && (
           <Train
