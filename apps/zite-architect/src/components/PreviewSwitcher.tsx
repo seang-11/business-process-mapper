@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { listEditors, ListEditorsOutputType } from 'zitejs/api';
+import { useState } from 'react';
 import { Check, ChevronDown, Eye, X } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import {
@@ -7,12 +6,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@project/components/ui/dropdown-menu';
 import { useMe, type ViewAs } from '@/lib/me';
-
-type Person = ListEditorsOutputType['people'][number];
 
 const ACCESS_WORD: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
 
@@ -22,17 +18,8 @@ const ACCESS_WORD: Record<string, string> = { admin: 'Admin', editor: 'Editor', 
  * server still knows you're an admin. Previewing ends when the tab closes.
  */
 export default function PreviewSwitcher() {
-  const { isRealAdmin, viewAs, setViewAs, replayWelcome } = useMe();
+  const { isRealAdmin, viewAs, setViewAs } = useMe();
   const [open, setOpen] = useState(false);
-  const [people, setPeople] = useState<Person[] | null>(null);
-
-  // The list of teammates loads the first time the menu opens.
-  useEffect(() => {
-    if (!open || !isRealAdmin || people !== null) return;
-    listEditors({})
-      .then((r) => setPeople(r.people))
-      .catch(() => setPeople([]));
-  }, [open, isRealAdmin, people]);
 
   if (!isRealAdmin) return null;
 
@@ -88,16 +75,6 @@ export default function PreviewSwitcher() {
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => choose({ access: 'editor', label: 'Editor' })}
-            className="items-start gap-2"
-          >
-            <Check className={`mt-0.5 h-4 w-4 ${viewAs?.label === 'Editor' ? '' : 'opacity-0'}`} />
-            <span>
-              <span className="block text-sm font-medium">An editor</span>
-              <span className="block text-xs text-muted-foreground">Can edit processes, but not manage people.</span>
-            </span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
             onClick={() => choose({ access: 'viewer', label: 'Viewer' })}
             className="items-start gap-2"
           >
@@ -108,48 +85,6 @@ export default function PreviewSwitcher() {
             </span>
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">A specific person</DropdownMenuLabel>
-          {people === null ? (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</p>
-          ) : (
-            people
-              .filter((p) => !p.owner)
-              .map((p) => {
-                const label = p.name.trim() || p.email;
-                const active = viewAs?.label === label;
-                return (
-                  <DropdownMenuItem
-                    key={p.email}
-                    onClick={() =>
-                      choose({
-                        access: p.access === 'Admin' ? 'admin' : 'editor',
-                        label,
-                        firstName: (p.name.trim().split(/\s+/)[0] || p.email.split('@')[0]).replace(/^./, (c) => c.toUpperCase()),
-                      })
-                    }
-                    className="gap-2"
-                  >
-                    <Check className={`h-4 w-4 ${active ? '' : 'opacity-0'}`} />
-                    <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-                    <span className="text-[11px] text-muted-foreground">{p.access}</span>
-                  </DropdownMenuItem>
-                );
-              })
-          )}
-          <p className="px-2 pb-1.5 pt-1 text-[11px] leading-snug text-muted-foreground">
-            Anyone not in the Editors table is a viewer, so pick "A viewer" to see what they see.
-          </p>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              replayWelcome();
-              setOpen(false);
-            }}
-          >
-            Replay the welcome screens
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
