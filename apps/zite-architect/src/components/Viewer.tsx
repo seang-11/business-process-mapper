@@ -157,8 +157,8 @@ export function ViewerHome() {
 type Look = 'flow' | LaneGrouping | 'overview';
 const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
   { key: 'flow', label: 'Steps', Icon: Workflow },
-  { key: 'people', label: 'Swim lanes by person', Icon: Users },
-  { key: 'app', label: 'Swim lanes by app', Icon: AppWindow },
+  { key: 'people', label: 'By person', Icon: Users },
+  { key: 'app', label: 'By app', Icon: AppWindow },
   { key: 'overview', label: 'Overview', Icon: FileText },
 ];
 
