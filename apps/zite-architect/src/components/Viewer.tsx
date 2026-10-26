@@ -226,7 +226,8 @@ export function ViewerProcess() {
           </div>
         )}
       </div>
-      {p && look !== 'flow' && (
+      {/* The same name, badge and description over every view, so switching views never changes the heading. */}
+      {p && (
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           {p.name}
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
@@ -252,6 +253,7 @@ export function ViewerProcess() {
                   names={names}
                   runBy={runBy}
                   onJump={(next) => navigate(`/view/${next}`)}
+                  hideTitle
                 />
               </div>
             </div>

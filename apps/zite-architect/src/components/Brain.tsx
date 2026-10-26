@@ -514,7 +514,7 @@ function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<st
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra }: {
+export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, extra, hideTitle }: {
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
@@ -528,6 +528,8 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
   onClose?: () => void;
   /** Leave out to hide Open process, as on the viewer's read-only page. */
   onOpenProcess?: () => void;
+  /** The page already shows the name and Live badge above, as on the viewer's page. */
+  hideTitle?: boolean;
   /** Extra buttons in the header, such as Train. */
   extra?: React.ReactNode;
 }) {
@@ -618,14 +620,18 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
             <X className="h-3.5 w-3.5" /> Close
           </button>
         )}
-        <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-            p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-          }`}
-        >
-          {p.live ? 'Live' : 'Draft'}
-        </span>
+        {!hideTitle && (
+          <>
+            <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {p.live ? 'Live' : 'Draft'}
+            </span>
+          </>
+        )}
         <span className="text-xs text-muted-foreground">
           {plural(p.stepCount, 'step')}
           {p.ownerName ? ` · ${p.ownerName}` : ''}
