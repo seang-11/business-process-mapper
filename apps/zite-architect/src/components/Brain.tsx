@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setDepartmentColor, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
   ArrowRight, Brain as BrainIcon, ChevronDown, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
+import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
@@ -1016,7 +1017,7 @@ function deptInsight(title: string, procs: Proc[]) {
  * in it laid out left to right at a readable size, one under the other. Wide
  * processes scroll sideways. Back returns to the board exactly as it was.
  */
-function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, onSetLead, onPickColor, onOpenProcess, onTrain }: {
+function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, backLabel = 'Back to the board', onSetLead, onPickColor, onOpenProcess, onTrain }: {
   title: string;
   hue: number;
   procs: Proc[];
@@ -1027,6 +1028,8 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   runByOf: Map<string, string[]>;
   onJump: (processId: string) => void;
   onBack: () => void;
+  /** What Back says: the board, or the page that opened this department. */
+  backLabel?: string;
   onSetLead: (() => void) | null;
   /** Editors only: change the department's color. */
   onPickColor: ((hue: number | null) => void) | null;
@@ -1073,7 +1076,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
           onClick={onBack}
           className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-muted-foreground hover:bg-white/70 hover:text-foreground"
         >
-          <ArrowRight className="h-4 w-4 rotate-180" /> Back to the board
+          <ArrowRight className="h-4 w-4 rotate-180" /> {backLabel}
         </button>
         <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-3">
           <div className="min-w-0">
@@ -1601,6 +1604,24 @@ export default function Brain() {
   // The department opened at full size, by its frame key.
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
   setDeptOpenRef.current = setDeptOpen;
+
+  // Opened from a link, Back returns to that page rather than to a board you never saw.
+  const [deptFromLink, setDeptFromLink] = useState(false);
+  const back = useBack('/', 'Home');
+
+  // A link can open one department straight away (/brain?dept=Finance), as the viewer home does.
+  const [params, setParams] = useSearchParams();
+  const deptParam = params.get('dept');
+  useEffect(() => {
+    if (!deptParam || !procs) return;
+    if (procs.some((p) => (p.department || '') === deptParam)) {
+      setDeptOpen(deptParam);
+      setDeptFromLink(true);
+    }
+    const next = new URLSearchParams(params);
+    next.delete('dept');
+    setParams(next, { replace: true });
+  }, [deptParam, procs, params, setParams]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('[data-ui]')) return;
@@ -2533,7 +2554,12 @@ export default function Brain() {
             names={names}
             runByOf={runByOf}
             onJump={jumpTo}
-            onBack={() => setDeptOpen(null)}
+            onBack={() => {
+              if (deptFromLink && back.name !== 'Brain') back.go();
+              else setDeptOpen(null);
+              setDeptFromLink(false);
+            }}
+            backLabel={deptFromLink && back.name !== 'Brain' ? `Back to ${back.name}` : 'Back to the board'}
             onSetLead={dept ? () => setLeadFor(dept) : null}
             onPickColor={dept ? (h) => chooseColor(dept, h) : null}
             onOpenProcess={(id) => (canEdit ? editProcess(id) : navigate(`/process/${id}`))}

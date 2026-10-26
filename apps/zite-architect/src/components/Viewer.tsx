@@ -9,7 +9,7 @@ import {
   GetProcessGraphOutputType,
   getTaxonomy,
 } from 'zitejs/api';
-import { AppWindow, ArrowLeft, ArrowRight, FileText, PlayCircle, Search, Users, Workflow } from 'lucide-react';
+import { AppWindow, ArrowLeft, ArrowRight, FileText, LayoutGrid, PlayCircle, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { deptTag } from '@/lib/deptColors';
 import { processIcon } from '@/lib/processIcon';
@@ -112,6 +112,22 @@ export function ViewerHome() {
                 <span className="text-xs text-muted-foreground">
                   {procs.length} {procs.length === 1 ? 'process' : 'processes'}
                 </span>
+                {dept && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/brain?dept=${encodeURIComponent(dept)}`)}
+                    className="group/dept ml-auto inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition-shadow hover:shadow-md"
+                    style={{
+                      color: `hsl(${hues.get(dept) ?? 217} 50% 36%)`,
+                      backgroundColor: `hsl(${hues.get(dept) ?? 217} 80% 96%)`,
+                      borderColor: `hsl(${hues.get(dept) ?? 217} 60% 86%)`,
+                    }}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    <span className="group-hover/dept:underline">View department</span>
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/dept:translate-x-0.5" />
+                  </button>
+                )}
               </h2>
               <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 {procs.map((p) => (
