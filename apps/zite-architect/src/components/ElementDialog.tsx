@@ -30,6 +30,7 @@ import {
   statusToken,
 } from '@/lib/elementTokens';
 import { TYPE_KEYS } from '@/lib/typeKeys';
+import { similarNames } from '@/lib/similarNames';
 import ElementIcon from './ElementIcon';
 import ElementPicker from './ElementPicker';
 import IconPicker from './IconPicker';
@@ -63,6 +64,8 @@ interface Props {
   defaultTypeId?: string;
   /** What to call it in the title, such as "role". Defaults to "element". */
   noun?: string;
+  /** Switch to editing one that already exists, from the duplicate warning. */
+  onPickExisting?: (el: ElementSummary) => void;
 }
 
 export default function ElementDialog({
@@ -73,6 +76,7 @@ export default function ElementDialog({
   onSaved,
   defaultTypeId,
   noun = 'element',
+  onPickExisting,
 }: Props) {
   const editing = Boolean(element);
 
@@ -99,9 +103,25 @@ export default function ElementDialog({
 
   const selectedType = selectableTypes.find((t) => t.id === typeId);
 
+  // Before adding one, look for one that's already there: the same name, an
+  // abbreviation of it, or a close match. People, apps and things only check
+  // against their own kind.
+  const similar = useMemo(() => {
+    if (editing) return [];
+    const pool = elements.filter(
+      (e) => !selectedType || !selectedType.actorClass || e.actorClass === selectedType.actorClass,
+    );
+    return similarNames(name, pool);
+  }, [editing, elements, name, selectedType]);
+  const exact = similar.find((s) => s.how === 'same')?.item ?? null;
+
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error('Give the element a name.');
+      toast.error(`Give the ${noun} a name.`);
+      return;
+    }
+    if (exact) {
+      toast.error(`${exact.name} is already in the list. Use that one, or pick a different name.`);
       return;
     }
     if (!typeId) {
@@ -186,6 +206,33 @@ export default function ElementDialog({
                 className="flex-1"
               />
             </div>
+            {similar.length > 0 && (
+              <div
+                className={`rounded-lg border px-2.5 py-2 text-xs ${
+                  exact ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-border bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <p className="font-medium">
+                  {exact ? `${exact.name} is already in the list.` : `Already in the list. Is it one of these?`}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {similar.map(({ item }) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={!onPickExisting}
+                      onClick={() => onPickExisting?.(item)}
+                      title={item.description || item.name}
+                      className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground enabled:hover:border-primary/40 enabled:hover:bg-primary/5"
+                    >
+                      {item.name}
+                      {item.typeName ? <span className="text-muted-foreground"> · {item.typeName}</span> : null}
+                    </button>
+                  ))}
+                </div>
+                {onPickExisting && <p className="mt-1.5 text-[11px] opacity-80">Click one to open it instead.</p>}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

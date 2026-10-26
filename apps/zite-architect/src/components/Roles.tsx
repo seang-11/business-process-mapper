@@ -151,6 +151,7 @@ export default function Roles() {
           elements={taxonomy.elements}
           element={editing === 'new' ? null : editing}
           defaultTypeId={taxonomy.types.find((t) => t.key === 'role')?.id}
+          onPickExisting={setEditing}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -180,7 +181,13 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
   const avatarOf = useMemo(() => new Map(data.people.map((w) => [w.id, w])), [data]);
   const rows = taxonomy.elements
     .filter((e) => ROLE_TYPE_KEYS.has(e.typeKey))
-    .filter((e) => !query || e.name.toLowerCase().includes(query) || (byId.get(e.id)?.depts ?? []).some((d) => d.toLowerCase().includes(query)))
+    .filter(
+      (e) =>
+        !query ||
+        e.name.toLowerCase().includes(query) ||
+        e.description.toLowerCase().includes(query) ||
+        (byId.get(e.id)?.depts ?? []).some((d) => d.toLowerCase().includes(query)),
+    )
     .sort((a, b) => (byId.get(b.id)?.steps ?? 0) - (byId.get(a.id)?.steps ?? 0) || a.name.localeCompare(b.name));
 
   if (rows.length === 0) {
