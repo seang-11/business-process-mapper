@@ -348,6 +348,8 @@ export default function WorkspaceList() {
             backupOwnerId: editProcessTarget.backupOwnerId,
             department: editProcessTarget.department,
             runsPerMonth: editProcessTarget.runsPerMonth,
+            icon: editProcessTarget.icon,
+            image: editProcessTarget.image,
           }}
           elements={elements}
           types={types}

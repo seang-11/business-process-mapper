@@ -55,6 +55,8 @@ export default createEndpoint({
         ownerId: z.string().nullable(),
         ownerName: z.string(),
         live: z.boolean(),
+        /** The process's own icon (a lucide name), if one was picked. */
+        icon: z.string(),
         /** How often it runs, for hours. Null when nobody has estimated it. */
         runsPerMonth: z.number().nullable(),
         stepCount: z.number(),
@@ -190,6 +192,7 @@ export default createEndpoint({
           ownerId,
           ownerName: ownerId ? elementById.get(ownerId)?.name ?? '' : '',
           live: !!live,
+          icon: p.icon ?? '',
           runsPerMonth: p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null,
           stepCount: steps.length,
           automated,

@@ -35,6 +35,9 @@ export default createEndpoint({
         backupOwnerName: z.string(),
         department: z.string(),
         runsPerMonth: z.number().nullable(),
+        /** The process's own icon (a lucide name or logo:brand) and uploaded picture, if set. */
+        icon: z.string(),
+        image: z.string(),
         currentVersionId: z.string().nullable(),
         versions: z.array(
           z.object({
@@ -166,6 +169,8 @@ export default createEndpoint({
           backupOwnerName: backupOwnerId ? elementById.get(backupOwnerId)?.name ?? '' : '',
           department: (e.department ?? '').trim(),
           runsPerMonth: e.runsPerMonth ?? null,
+          icon: e.icon ?? '',
+          image: e.image ?? '',
           currentVersionId: current?.id ?? null,
           versions: versions.map((v) => ({
             id: v.id,

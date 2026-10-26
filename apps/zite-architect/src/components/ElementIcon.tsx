@@ -10,6 +10,7 @@ import {
   Server, Settings, Shield, ShoppingCart, Smartphone, Star, Store, Table, Tag,
   Terminal, Timer, TrendingUp, Truck, User, UserCheck, UserCog, UserPlus, Users,
   Video, Wallet, Warehouse, Workflow, Wrench, Zap,
+  Handshake, MessageSquareHeart, Clapperboard, ReceiptText, BadgeDollarSign, NotebookPen, CalendarCheck, Inbox, Magnet, Scissors, Repeat2, HandCoins, Headset, Film, Rocket, LifeBuoy, ShieldCheck, PenTool, GraduationCap, Mic, Newspaper, HeartHandshake, ClipboardPen, Calculator, Banknote, Gift, UserRoundPlus,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -165,6 +166,13 @@ export const brandMatches = (stem: string, q: string): boolean =>
  */
 export const ICON_GROUPS: { label: string; icons: string[] }[] = [
   {
+    label: 'Processes',
+    icons: ['Handshake', 'HeartHandshake', 'UserRoundPlus', 'GraduationCap', 'Magnet', 'Inbox', 'Megaphone',
+      'MessageSquareHeart', 'CalendarCheck', 'NotebookPen', 'ClipboardPen', 'ReceiptText', 'BadgeDollarSign',
+      'HandCoins', 'Banknote', 'Calculator', 'Clapperboard', 'Film', 'Scissors', 'Mic', 'Newspaper', 'PenTool',
+      'Repeat2', 'Rocket', 'Headset', 'LifeBuoy', 'ShieldCheck', 'Gift'],
+  },
+  {
     label: 'People & org',
     icons: ['User', 'Users', 'UserCog', 'UserCheck', 'UserPlus', 'Contact',
       'Briefcase', 'Building', 'Building2', 'Landmark', 'Factory', 'Store'],
@@ -210,6 +218,7 @@ export const ICON_LIBRARY: Record<string, LucideIcon> = {
   Server, Settings, Shield, ShoppingCart, Smartphone, Star, Store, Table, Tag,
   Terminal, Timer, TrendingUp, Truck, User, UserCheck, UserCog, UserPlus, Users,
   Video, Wallet, Warehouse, Workflow, Wrench, Zap,
+  Handshake, MessageSquareHeart, Clapperboard, ReceiptText, BadgeDollarSign, NotebookPen, CalendarCheck, Inbox, Magnet, Scissors, Repeat2, HandCoins, Headset, Film, Rocket, LifeBuoy, ShieldCheck, PenTool, GraduationCap, Mic, Newspaper, HeartHandshake, ClipboardPen, Calculator, Banknote, Gift, UserRoundPlus,
 };
 
 export const logoSrc = (logoName: string): string | undefined =>

@@ -12,6 +12,7 @@ import {
 import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { deptTag } from '@/lib/deptColors';
+import { processIcon } from '@/lib/processIcon';
 import { useBack } from '@/lib/backTrail';
 import { useMe } from '@/lib/me';
 import { FlowView } from './Brain';
@@ -124,7 +125,10 @@ export function ViewerHome() {
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                         style={deptTag(dept ? hues.get(dept) : undefined)}
                       >
-                        <Workflow className="h-[18px] w-[18px]" />
+                        {(() => {
+                          const Icon = processIcon(p);
+                          return <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />;
+                        })()}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-medium">{p.name}</span>

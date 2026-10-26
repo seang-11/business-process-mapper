@@ -1,5 +1,6 @@
 import { GetProcessesOutputType } from 'zitejs/api';
-import { GraduationCap, Layers, Rocket, Sparkles, Target, Workflow, Compass, ArrowRight } from 'lucide-react';
+import { GraduationCap, ArrowRight } from 'lucide-react';
+import { processIcon } from '@/lib/processIcon';
 import { Button } from '@project/components/ui/button';
 import ElementIcon from './ElementIcon';
 
@@ -13,7 +14,7 @@ interface Props {
   onTrain: (id: string) => void;
 }
 
-// Each process gets its own colour and icon, picked from its name so they stay put.
+// Each process gets its own colour, picked from its name so it stays put. Its icon is its own (see processIcon).
 const TINTS = [
   { fg: 'hsl(217 65% 42%)', bg: 'hsl(217 90% 95%)' },
   { fg: 'hsl(262 55% 48%)', bg: 'hsl(262 80% 96%)' },
@@ -22,7 +23,6 @@ const TINTS = [
   { fg: 'hsl(336 65% 46%)', bg: 'hsl(336 85% 96%)' },
   { fg: 'hsl(188 70% 30%)', bg: 'hsl(188 65% 93%)' },
 ];
-const ICONS = [Workflow, Rocket, Sparkles, Layers, Target, Compass];
 
 const hashOf = (name: string) => {
   let h = 0;
@@ -58,7 +58,7 @@ export default function ProcessCards({ processes, onOpen, onTrain }: Props) {
       {processes.map((p) => {
         const h = hashOf(p.name);
         const tint = TINTS[h % TINTS.length];
-        const Icon = ICONS[h % ICONS.length];
+        const Icon = processIcon(p);
         const status = statusOf(p);
         const people = p.people;
         const shownApps = p.apps.slice(0, 6);
@@ -78,7 +78,11 @@ export default function ProcessCards({ processes, onOpen, onTrain }: Props) {
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                 style={{ backgroundColor: tint.bg, color: tint.fg }}
               >
-                <Icon className="h-6 w-6" />
+                {p.image ? (
+                  <img src={p.image} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                ) : (
+                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                )}
               </span>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}
