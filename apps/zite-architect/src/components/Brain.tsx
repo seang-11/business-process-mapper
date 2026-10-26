@@ -1831,10 +1831,13 @@ export default function Brain() {
                       Open <ArrowRight className={big ? 'h-6 w-6' : 'h-3.5 w-3.5'} />
                     </span>
                   </span>
-                  <span className={`mt-0.5 block opacity-75 ${big ? 'text-[24px]' : 'text-[13px]'}`}>
-                    {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
-                    {work > 0 ? ` · ${Math.round((a / work) * 100)}% automated` : ''}
-                  </span>
+                  {/* Zoomed far out there is no room for it under the big name: it would spill onto the cards. */}
+                  {!big && (
+                    <span className="mt-0.5 block truncate whitespace-nowrap text-[13px] opacity-75">
+                      {plural(f.ids.length, 'process')} · {plural(people, 'person')} · {plural(apps, 'app')}
+                      {work > 0 ? ` · ${Math.round((a / work) * 100)}% automated` : ''}
+                    </span>
+                  )}
                 </button>
                 {f.dept && (lead || canEdit) && (
                   <button
