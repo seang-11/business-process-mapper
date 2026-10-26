@@ -132,9 +132,13 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
   const { yaw, pitch, zoom } = cam;
   const k = (Math.min(size.w, size.h) / (span * 2.6)) * zoom;
   const cx = size.w / 2;
-  const cy = size.h / 2 + 70 * zoom;
   const sy = Math.sin(pitch);
   const cyw = Math.cos(pitch);
+  // Centre the whole city, towers and all, in the room between the switches up top and the slider below.
+  const roomTop = 110;
+  const roomBottom = size.h - 150;
+  const rise = MAX_H * k * cyw;
+  const cy = (roomTop + roomBottom) / 2 + rise / 2;
   const proj = (x: number, y: number, z: number) => {
     const x1 = x * Math.cos(yaw) - z * Math.sin(yaw);
     const z1 = x * Math.sin(yaw) + z * Math.cos(yaw);
