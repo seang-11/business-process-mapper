@@ -14,6 +14,7 @@ import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
 import BrainHeat from './BrainHeat';
 import BrainSolar from './BrainSolar';
 import BrainCity from './BrainCity';
+import ProcessPopup from './ProcessPopup';
 import { CityIcon, GlobeIcon, SolarIcon } from './PlanetArt';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
@@ -2738,157 +2739,34 @@ export default function Brain() {
           className="absolute inset-0 z-40 flex cursor-default items-center justify-center bg-foreground/20 p-6 backdrop-blur-[2px]"
           onClick={(e) => e.target === e.currentTarget && setSelected(null)}
         >
-        <aside
-          role="dialog"
-          aria-label={sel.name}
-          className="flex max-h-full w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
-        >
-          <div className="flex items-start gap-2 border-b border-border p-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                {sel.department || 'No department'}
-              </p>
-              <h2 className="mt-0.5 text-lg font-semibold leading-snug tracking-tight">{sel.name}</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                <span className={sel.live ? 'font-medium text-emerald-700' : 'font-medium text-amber-700'}>
-                  {sel.live ? 'Live' : 'Draft'}
-                </span>
-                {' · '}
-                {plural(sel.stepCount, 'step')}
-                {sel.ownerName ? ` · Owned by ${sel.ownerName}` : ''}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => setSelected(null)}
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-            {sel.description && <p className="text-sm leading-relaxed text-muted-foreground">{sel.description}</p>}
-
-            <section>
-              <MixBar a={sel.automated} r={sel.review} m={sel.manual} />
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                {[
-                  [sel.automated, 'on its own', AUTOMATED],
-                  [sel.review, 'a person decides', REVIEW],
-                  [sel.manual, 'by hand', MANUAL],
-                ].map(([n, label, color]) => (
-                  <div key={label as string} className="rounded-xl bg-muted/50 px-2 py-2">
-                    <p className="text-lg font-semibold tabular-nums" style={{ color: color as string }}>{n as number}</p>
-                    <p className="text-[10px] text-muted-foreground">{label as string}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {sel.people.length > 0 && (
-              <section>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">People</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {sel.people.map((w) => (
-                    <button
-                      key={w.id}
-                      type="button"
-                      onClick={() => {
-                        setSelected(null);
-                        setTab('people');
-                        pinLens('person', w, lenses.people.find((l) => l.who.id === w.id)?.ids ?? [sel.id]);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs hover:border-primary/40 hover:bg-primary/5"
-                    >
-                      <Icon w={w} size={13} /> {w.name}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-            {sel.apps.length > 0 && (
-              <section>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Runs on</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {sel.apps.map((a) => (
-                    <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
-                      <Icon w={a} size={13} /> {a.name}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {(sel.runs.length > 0 || runBy.length > 0) && (
-              <section className="space-y-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Connected processes</p>
-                {[...new Set(sel.runs.map((r) => r.processId))].map((id) => (
-                  <button key={id} type="button" onClick={() => { setSelected(id); flyTo(id); }} className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs hover:bg-muted">
-                    <Workflow className="h-3.5 w-3.5 text-primary" />
-                    <span className="flex-1">Runs <b>{names.get(id)}</b></span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                ))}
-                {runBy.map((p) => (
-                  <button key={p.id} type="button" onClick={() => { setSelected(p.id); flyTo(p.id); }} className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left text-xs hover:bg-muted">
-                    <Workflow className="h-3.5 w-3.5 text-primary" />
-                    <span className="flex-1">Run by <b>{p.name}</b></span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                ))}
-              </section>
-            )}
-
-            <section>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Steps</p>
-              <ol className="space-y-1">
-                {sel.steps.map((s, i) => (
-                  <li key={s.id} className="flex items-center gap-2 text-xs">
-                    <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
-                    {s.who ? <Icon w={s.who} size={13} /> : <span className="h-[13px] w-[13px]" />}
-                    <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                    {s.automated && <Zap className="h-3 w-3 shrink-0" style={{ color: AUTOMATED }} />}
-                  </li>
-                ))}
-              </ol>
-            </section>
-          </div>
-
-          <div className="flex flex-wrap gap-2 border-t border-border p-3">
-            {sel.steps.length > 0 && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
+        <ProcessPopup
+          p={sel}
+          hue={sel.department ? deptHues.get(sel.department) : undefined}
+          hours={hoursOf(sel)}
+          names={names}
+          runBy={runBy}
+          canEdit={canEdit}
+          flowOpen={opened.has(sel.id)}
+          onClose={() => setSelected(null)}
+          onJump={(id) => {
+            setSelected(id);
+            flyTo(id);
+          }}
+          onToggleFlow={
+            sel.steps.length > 0
+              ? () => {
                   setSelected(null);
                   if (opened.has(sel.id)) {
                     closeFlow(sel.id);
                     setAfter({ fly: sel.id });
                   } else openFlow(sel.id);
-                }}
-              >
-                {opened.has(sel.id) ? <Minimize2 className="mr-1.5 h-4 w-4" /> : <Maximize2 className="mr-1.5 h-4 w-4" />}
-                {opened.has(sel.id) ? 'Close the steps on the board' : 'Show the steps on the board'}
-              </Button>
-            )}
-            {canEdit ? (
-              <Button className="flex-1" onClick={() => editProcess(sel.id)}>
-                <Pencil className="mr-1.5 h-4 w-4" /> Edit process
-              </Button>
-            ) : (
-              <Button className="flex-1" onClick={() => navigate(`/process/${sel.id}`)}>
-                Open process
-              </Button>
-            )}
-            {sel.live && sel.stepCount > 0 && (
-              <Button variant="outline" onClick={() => navigate(`/process/${sel.id}?train=all&view=process`)}>
-                <GraduationCap className="mr-1.5 h-4 w-4" /> Train
-              </Button>
-            )}
-          </div>
-        </aside>
+                }
+              : undefined
+          }
+          onEdit={() => editProcess(sel.id)}
+          onOpen={() => navigate(`/process/${sel.id}`)}
+          onTrain={sel.live && sel.stepCount > 0 ? () => navigate(`/process/${sel.id}?train=all&view=process`) : undefined}
+        />
         </div>
       )}
 
