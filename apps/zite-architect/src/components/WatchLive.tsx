@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Check, Pause, Play, RotateCcw } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MousePointerClick, Pause, Play, RotateCcw, Split } from 'lucide-react';
 import type { ElementRef, ProcessConnection, ProcessStep } from '@/types';
 import { appsOf, buildOutline } from '@/lib/walkthrough';
 import { flowLayout, STEP_H, STEP_W } from '@/lib/brainFlow';
@@ -59,6 +59,26 @@ export default function WatchLive({ steps, connections, processName }: {
     setEnded(false);
     setVisited((v) => (v.includes(id) ? v : [...v, id]));
   }, []);
+
+  /** Step back to the step before, the way you came. */
+  const prev = useCallback(() => {
+    setPlaying(false);
+    const i = cur ? visited.indexOf(cur) : -1;
+    if (i > 0) setCur(visited[i - 1]);
+    setEnded(false);
+  }, [cur, visited]);
+  /** Move on by hand. At a decision the choice pop-up does that instead. */
+  const nextStep = useCallback(() => {
+    setPlaying(false);
+    if (!cur) {
+      if (items[0]) go(items[0].step.id);
+      return;
+    }
+    const it = outline.byId.get(cur);
+    if (!it || it.outcomes.length > 1) return;
+    if (it.nextId) go(it.nextId);
+    else setEnded(true);
+  }, [cur, items, outline, go]);
 
   const start = useCallback(() => {
     if (!items[0]) return;
@@ -268,7 +288,41 @@ export default function WatchLive({ steps, connections, processName }: {
               <Play className="ml-1 h-7 w-7" />
             </span>
             <span className="text-sm font-medium">Watch {processName} live</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MousePointerClick className="h-3.5 w-3.5" /> It plays by itself. You can also click any step, or use Back and Next, to go at your own pace.
+            </span>
           </button>
+        )}
+
+        {/* A decision: the choices pop up in the middle, where they're easy to see and pick. */}
+        {choosing && item && step && !ended && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-foreground/15 p-6 backdrop-blur-[1px]">
+            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-[0_16px_40px_rgba(16,24,40,0.2)] animate-in fade-in zoom-in-95 duration-300">
+              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <Split className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {step.performedBy?.name ?? 'Someone'} decides
+              </p>
+              <p className="mt-1 text-lg font-semibold leading-snug">{step.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">Pick which way it goes to keep watching.</p>
+              <div className="mt-5 flex flex-col gap-2">
+                {item.outcomes.map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    onClick={() => {
+                      go(o.targetId);
+                      setPlaying(true);
+                    }}
+                    className="w-full rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                  >
+                    {o.label || outline.byId.get(o.targetId)?.step.title || 'Next'} →
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -283,27 +337,20 @@ export default function WatchLive({ steps, connections, processName }: {
               : captionOf(step)
             : 'Press play to watch the process step by step.'}
         </p>
-        {choosing && item && !ended && (
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {item.outcomes.map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                onClick={() => {
-                  go(o.targetId);
-                  setPlaying(true);
-                }}
-                className="rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-              >
-                {o.label || outline.byId.get(o.targetId)?.step.title || 'Next'} →
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Controls. */}
       <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={prev}
+          disabled={!cur || visited.indexOf(cur) <= 0}
+          aria-label="Back a step"
+          title="Back a step"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
         <button
           type="button"
           aria-label={playing ? 'Pause' : 'Play'}
@@ -311,6 +358,16 @@ export default function WatchLive({ steps, connections, processName }: {
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           {ended ? <RotateCcw className="h-4 w-4" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          onClick={nextStep}
+          disabled={ended || choosing}
+          aria-label="Next step"
+          title="Next step"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+        >
+          <ChevronRight className="h-4 w-4" />
         </button>
         <div
           role="slider"
@@ -347,6 +404,9 @@ export default function WatchLive({ steps, connections, processName }: {
           {speed}×
         </button>
       </div>
+      <p className="mt-2 text-center text-[11px] text-muted-foreground">
+        Tip: pause and use Back and Next to go step by step, or click any step on the map to jump straight to it.
+      </p>
     </div>
   );
 }
