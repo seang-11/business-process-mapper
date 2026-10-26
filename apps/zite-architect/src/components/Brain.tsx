@@ -1824,9 +1824,9 @@ export default function Brain() {
     if (!m) {
       try {
         const saved = localStorage.getItem('bpm_space_mode');
-        m = saved === 'solar' || saved === 'city' ? saved : 'globe';
+        m = saved === 'solar' || saved === 'globe' ? saved : 'city';
       } catch {
-        m = 'globe';
+        m = 'city';
       }
     } else {
       try {
@@ -2528,9 +2528,9 @@ export default function Brain() {
           className="absolute left-1/2 top-[64px] z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-white/15 bg-slate-950/70 p-1 shadow-lg backdrop-blur"
         >
           {[
+            { on: city, mode: 'city' as const, label: 'City', Icon: CityIcon },
             { on: globe, mode: 'globe' as const, label: 'Globe', Icon: GlobeIcon },
             { on: solar, mode: 'solar' as const, label: 'Solar system', Icon: SolarIcon },
-            { on: city, mode: 'city' as const, label: 'City', Icon: CityIcon },
           ].map((b) => (
             <button
               key={b.mode}

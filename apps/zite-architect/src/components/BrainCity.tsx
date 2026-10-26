@@ -61,6 +61,8 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
   const [cam, setCam] = useState({ yaw: 0.65, pitch: 0.62, zoom: 1 });
   const drag = useRef<{ x: number; y: number; yaw: number; pitch: number; moved: boolean } | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+  /** A department pointed at in the legend or on the ground: its neighborhood lights up, the rest step back. */
+  const [hoverDept, setHoverDept] = useState<string | null>(null);
 
   // 0 is today, 1 is once every future version is live. Clicking a side glides there.
   const [mix, setMix] = useState(0);
@@ -193,13 +195,20 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
             proj(h.x1 - pad, 0, h.z1 - pad),
             proj(h.x0 + pad, 0, h.z1 - pad),
           ];
+          const lit = hoverDept === h.name;
+          const faded = hoverDept !== null && !lit;
           return (
             <polygon
               key={h.name || '~'}
               points={pts(c)}
-              fill={`hsl(${h.hue} 45% 22% / 0.55)`}
-              stroke={`hsl(${h.hue} 80% 60% / 0.45)`}
-              strokeWidth={1}
+              fill={`hsl(${h.hue} ${lit ? 60 : 45}% ${lit ? 32 : 22}% / ${faded ? 0.25 : lit ? 0.85 : 0.55})`}
+              stroke={`hsl(${h.hue} 80% ${lit ? 70 : 60}% / ${faded ? 0.2 : lit ? 0.95 : 0.45})`}
+              strokeWidth={lit ? 2 : 1}
+              className="cursor-pointer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onOpenDept(h.name)}
+              onMouseEnter={() => setHoverDept(h.name)}
+              onMouseLeave={() => setHoverDept((v) => (v === h.name ? null : v))}
             />
           );
         })}
@@ -229,6 +238,8 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
           return (
             <g
               key={p.id}
+              opacity={hoverDept !== null && p.department !== hoverDept ? 0.22 : 1}
+              style={{ transition: 'opacity 200ms' }}
               className="cursor-pointer"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onOpenProcess(p.id)}
@@ -358,6 +369,72 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
         );
       })()}
 
+      {/* The legend: what the city means, and every department to find or open. */}
+      <div
+        className="absolute left-4 top-4 z-[210] max-h-[calc(100%-2rem)] w-60 cursor-default overflow-y-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-white shadow-xl backdrop-blur"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/45">How to read it</p>
+        <ul className="space-y-2 text-xs text-white/80">
+          <li className="flex items-center gap-2.5">
+            <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0" aria-hidden="true">
+              <rect x="2" y="11" width="5" height="8" fill="hsl(225 35% 40%)" />
+              <rect x="8" y="3" width="5" height="16" fill="hsl(225 35% 50%)" />
+              <rect x="14" y="8" width="4" height="11" fill="hsl(225 35% 40%)" />
+            </svg>
+            Taller tower = more people hours a month
+          </li>
+          <li className="flex items-center gap-2.5">
+            <svg viewBox="0 0 20 20" className="h-5 w-5 shrink-0" aria-hidden="true">
+              <rect x="4" y="2" width="12" height="17" fill="hsl(225 35% 32%)" />
+              <rect x="6" y="5" width="3" height="3" fill="hsl(45 100% 70%)" />
+              <rect x="11" y="5" width="3" height="3" fill="hsl(225 40% 16%)" />
+              <rect x="6" y="10" width="3" height="3" fill="hsl(225 40% 16%)" />
+              <rect x="11" y="10" width="3" height="3" fill="hsl(45 100% 70%)" />
+              <rect x="6" y="15" width="3" height="3" fill="hsl(45 100% 70%)" />
+              <rect x="11" y="15" width="3" height="3" fill="hsl(225 40% 16%)" />
+            </svg>
+            Lit windows = share done by apps
+          </li>
+          <li className="flex items-center gap-2.5">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 shadow-[0_0_8px_2px_rgba(239,68,68,0.6)]" />
+            </span>
+            Red beacon = 3 biggest time drains
+          </li>
+          <li className="flex items-center gap-2.5">
+            <span className="flex h-5 w-5 shrink-0 items-end justify-center pb-0.5">
+              <span className="h-2 w-3.5 bg-slate-500" />
+            </span>
+            Short gray block = no time estimate yet
+          </li>
+        </ul>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-medium uppercase tracking-wider text-white/45">Departments</p>
+        <div className="space-y-0.5">
+          {hoods.map((h) => {
+            const list = procs.filter((p) => p.department === h.name);
+            const hrs = list.reduce((n, p) => n + (hoursAt(p) ?? 0), 0);
+            const lit = hoverDept === h.name;
+            return (
+              <button
+                key={h.name || '~'}
+                type="button"
+                onClick={() => onOpenDept(h.name)}
+                onMouseEnter={() => setHoverDept(h.name)}
+                onMouseLeave={() => setHoverDept((v) => (v === h.name ? null : v))}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${lit ? 'bg-white/10' : 'hover:bg-white/10'}`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: `hsl(${h.hue} 70% 55%)`, boxShadow: `0 0 6px hsl(${h.hue} 90% 60% / 0.6)` }} />
+                <span className="min-w-0 flex-1 truncate">{h.name || 'Other'}</span>
+                <span className="tabular-nums text-white/45">{hrs > 0 ? `${fmt(hrs)} hrs` : `${list.length}`}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 px-2 text-[11px] text-white/40">Point to find it · Click to open it</p>
+      </div>
+
       {/* Today to Future. */}
       <div
         className="absolute bottom-5 left-1/2 z-[210] flex w-[min(560px,calc(100%-2rem))] -translate-x-1/2 cursor-default flex-col gap-2 rounded-2xl border border-white/15 bg-slate-950/70 px-5 py-3 text-white shadow-xl backdrop-blur"
@@ -399,9 +476,7 @@ export default function BrainCity({ procs, onOpenProcess, onOpenDept }: {
         ) : (
           <p className="text-xs text-white/50">Add a future version to a process to see the city shrink.</p>
         )}
-        <p className="text-[11px] text-white/45">
-          Taller = more people hours · Lit windows = done by apps · Red beacon = biggest drains · Drag to turn · Scroll to zoom
-        </p>
+        <p className="text-[11px] text-white/45">Drag to turn and tilt · Scroll to zoom · Click a tower to open it</p>
       </div>
     </div>
   );
