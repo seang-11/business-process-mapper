@@ -33,7 +33,7 @@ const ROW_MAX = 2300;
 
 const Z_MIN = 0.12;
 const Z_MAX = 2.5;
-/** Below this the cards show just their name, big; above NEAR they list every step. */
+/** Below this the cards show just their name, big. NEAR still sets how close a jump to a process zooms. */
 const FAR = 0.45;
 const NEAR = 1.1;
 
@@ -254,8 +254,28 @@ function EditPill({ onEdit, big }: { onEdit: () => void; big?: boolean }) {
   );
 }
 
-/** One process on the board. What it shows depends on how close you are, and who is in the spotlight. */
-function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
+/** The plain way into a process on the board: blue text that opens its pop-up. */
+function ViewLink({ onView, big }: { onView: () => void; big?: boolean }) {
+  return (
+    <button
+      type="button"
+      data-ui
+      onClick={(e) => {
+        e.stopPropagation();
+        onView();
+      }}
+      className={`inline-flex cursor-pointer items-center gap-1 font-medium text-primary hover:underline ${big ? 'text-[20px]' : 'text-[12px]'}`}
+    >
+      View <ArrowRight className={big ? 'h-5 w-5' : 'h-3.5 w-3.5'} />
+    </button>
+  );
+}
+
+/**
+ * One process on the board: its name and a summary, never the step list, however
+ * close you zoom. Far out it shrinks to the name. View opens its pop-up.
+ */
+function Card({ p, level, names, lens, onOpenFlow, onEdit, onView }: {
   p: Proc;
   level: 'far' | 'mid' | 'near';
   names: Map<string, string>;
@@ -264,6 +284,8 @@ function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
   onOpenFlow: () => void;
   /** Editors only: open the process to change it. */
   onEdit?: () => void;
+  /** Open the process pop-up. */
+  onView: () => void;
 }) {
   const matched = lens && lens.ids.has(p.id) ? p.steps.filter((s) => stepMatches(lens, s)).length : 0;
 
@@ -277,7 +299,12 @@ function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
         {matched > 0 && (
           <p className="text-[20px] font-semibold text-primary">{plural(matched, 'step')} with {lens!.who.name}</p>
         )}
-        <MixBar a={p.automated} r={p.review} m={p.manual} thick />
+        <div>
+          <MixBar a={p.automated} r={p.review} m={p.manual} thick />
+          <div className="mt-3 flex justify-end">
+            <ViewLink onView={onView} big />
+          </div>
+        </div>
       </div>
     );
   }
@@ -307,41 +334,6 @@ function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
       )}
     </div>
   );
-
-  if (level === 'near') {
-    const shown = p.steps.slice(0, 9);
-    return (
-      <div className="flex h-full flex-col p-4">
-        {header}
-        <ol className="mt-2.5 min-h-0 flex-1 space-y-[3px]">
-          {shown.map((s, i) => {
-            const on = lens ? stepMatches(lens, s) : true;
-            return (
-              <li
-                key={s.id}
-                className={`flex items-center gap-1.5 rounded px-1 text-[10.5px] leading-[15px] transition-opacity ${
-                  lens && on ? 'bg-primary/10 font-medium text-primary' : ''
-                } ${lens && !on ? 'opacity-35' : ''}`}
-              >
-                <span className="w-3.5 shrink-0 text-right tabular-nums text-muted-foreground">{i + 1}</span>
-                {s.who ? <Icon w={s.who} size={11} /> : <span className="h-[11px] w-[11px]" />}
-                <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                {s.subProcessId && <Workflow className="h-2.5 w-2.5 shrink-0 text-indigo-600" />}
-                {s.automated && <Zap className="h-2.5 w-2.5 shrink-0" style={{ color: AUTOMATED }} />}
-                {s.stepType === 'Decision' && <span className="h-1.5 w-1.5 shrink-0 rotate-45 border border-amber-500" />}
-              </li>
-            );
-          })}
-        </ol>
-        {p.steps.length > shown.length && (
-          <p className="text-[10px] text-muted-foreground">and {p.steps.length - shown.length} more steps</p>
-        )}
-        <div className="mt-2">
-          <MixBar a={p.automated} r={p.review} m={p.manual} />
-        </div>
-      </div>
-    );
-  }
 
   const runs = [...new Set(p.runs.map((r) => names.get(r.processId)).filter(Boolean))] as string[];
   return (
@@ -388,6 +380,9 @@ function Card({ p, level, names, lens, onOpenFlow, onEdit }: {
             Runs <span className="font-medium text-foreground">{runs.join(', ')}</span>
           </p>
         )}
+        <div className="flex justify-end">
+          <ViewLink onView={onView} />
+        </div>
       </div>
     </div>
   );
@@ -1908,7 +1903,7 @@ export default function Brain() {
               } ${dim ? 'opacity-25' : ''}`}
               style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
             >
-              <Card p={p} level={level} names={names} lens={lens} onOpenFlow={() => openFlow(p.id)} onEdit={canEdit ? () => editProcess(p.id) : undefined} />
+              <Card p={p} level={level} names={names} lens={lens} onOpenFlow={() => openFlow(p.id)} onEdit={canEdit ? () => editProcess(p.id) : undefined} onView={() => setSelected(p.id)} />
             </div>
           );
         })}
