@@ -59,6 +59,10 @@ interface Props {
   element?: EditableElement | null;
   onClose: () => void;
   onSaved: (id: string) => void;
+  /** When creating: the type to start on, such as Role from the Roles page. */
+  defaultTypeId?: string;
+  /** What to call it in the title, such as "role". Defaults to "element". */
+  noun?: string;
 }
 
 export default function ElementDialog({
@@ -67,6 +71,8 @@ export default function ElementDialog({
   element = null,
   onClose,
   onSaved,
+  defaultTypeId,
+  noun = 'element',
 }: Props) {
   const editing = Boolean(element);
 
@@ -84,7 +90,7 @@ export default function ElementDialog({
   const [description, setDescription] = useState(element?.description ?? '');
   const [icon, setIcon] = useState(element?.icon ?? '');
   const [image, setImage] = useState(element?.image ?? '');
-  const [typeId, setTypeId] = useState<string>(element?.typeId ?? '');
+  const [typeId, setTypeId] = useState<string>(element?.typeId ?? defaultTypeId ?? '');
   const [party, setParty] = useState<string>(element?.party || NONE);
   const [status, setStatus] = useState(element?.status || 'Active');
   const [category, setCategory] = useState<string>(element?.category || NONE);
@@ -155,7 +161,7 @@ export default function ElementDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base">
-            {editing ? 'Edit element' : 'New element'}
+            {editing ? `Edit ${noun}` : `New ${noun}`}
           </DialogTitle>
         </DialogHeader>
 
