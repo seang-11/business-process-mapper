@@ -21,6 +21,8 @@ export interface HeatDept {
   procs: HeatProc[];
 }
 
+const HEAT_KEY = 'bpm_heat_color';
+
 const fmt = (h: number) => (h >= 10 ? Math.round(h) : Math.round(h * 10) / 10);
 
 /**
@@ -32,7 +34,7 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
   depts: HeatDept[];
   /** The color scale's id. */
   palette: string;
-  /** Admins only: pick the color scale for everyone. */
+  /** Admins only: also save the pick as everyone's default. */
   onPickPalette?: (id: string) => void;
   onOpenProcess: (id: string) => void;
   onOpenDept: (name: string) => void;
@@ -45,7 +47,25 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
   const sorted = [...depts].sort((x, y) => deptHours(y) - deptHours(x));
   const hottestDept = sorted[0];
   const hottest = [...all].sort((x, y) => (y.hours ?? 0) - (x.hours ?? 0))[0];
-  const SCALE = heatPalette(palette).steps;
+  // Anyone can pick a color for themselves; an admin's pick is also the default for everyone.
+  const [mine, setMine] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(HEAT_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const current = heatPalette(mine ?? palette);
+  const pick = (id: string) => {
+    setMine(id);
+    try {
+      localStorage.setItem(HEAT_KEY, id);
+    } catch {
+      /* private mode: the pick lasts until the page closes */
+    }
+    onPickPalette?.(id);
+  };
+  const SCALE = current.steps;
   const [focus, setFocus] = useState<HeatProc | null>(null);
 
   return (
@@ -87,7 +107,6 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
                 </span>
                 Bar = share done by apps
               </span>
-              {onPickPalette && (
                 <Popover>
                   <PopoverTrigger asChild>
                     <button
@@ -97,13 +116,15 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
                       <Palette className="h-3.5 w-3.5" /> Color
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-60 p-2">
-                    <p className="px-2 pb-1.5 text-xs text-muted-foreground">Heat map color, for everyone</p>
+                  <PopoverContent data-ui align="end" className="w-60 p-2">
+                    <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+                      {onPickPalette ? 'Heat map color (also the default for everyone)' : 'Your heat map color'}
+                    </p>
                     {HEAT_PALETTES.map((pal) => (
                       <button
                         key={pal.id}
                         type="button"
-                        onClick={() => onPickPalette(pal.id)}
+                        onClick={() => pick(pal.id)}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                       >
                         <span className="flex overflow-hidden rounded">
@@ -112,12 +133,11 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
                           ))}
                         </span>
                         <span className="flex-1">{pal.label}</span>
-                        {heatPalette(palette).id === pal.id && <Check className="h-3.5 w-3.5" />}
+                        {current.id === pal.id && <Check className="h-3.5 w-3.5" />}
                       </button>
                     ))}
                   </PopoverContent>
                 </Popover>
-              )}
             </div>
 
             <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
