@@ -2393,12 +2393,22 @@ export default function Brain() {
                     .sort((x, y) => (y.minutes ?? 0) - (x.minutes ?? 0))
                     .slice(0, 2)
                     .map((s) => s.title),
+                  runsPerMonth: p.runsPerMonth,
+                  steps: p.steps.map((s) => ({
+                    id: s.id,
+                    title: s.title,
+                    minutes: s.minutes,
+                    team: isTeamStep(s),
+                    automated: s.automated,
+                    who: s.who?.name ?? '',
+                    whoId: s.who?.id ?? '',
+                    apps: s.uses.filter((u) => u.kind === 'app').map((u) => u.name),
+                  })),
                 };
               }),
           }))}
           palette={data?.heatColor ?? ''}
           onPickPalette={canEdit ? chooseHeatColor : undefined}
-          onOpenProcess={(id) => setSelected(id)}
           onOpenDept={(name) => setDeptOpen(name || '~none')}
         />
       )}

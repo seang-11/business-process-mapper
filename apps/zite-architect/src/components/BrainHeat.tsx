@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Palette } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { HEAT_PALETTES, heatPalette } from '@/lib/heatPalettes';
+import HeatProcess, { type HeatStep } from './HeatProcess';
 
 export interface HeatProc {
   id: string;
@@ -12,6 +13,9 @@ export interface HeatProc {
   autoPct: number;
   /** The team steps that take the longest, longest first. */
   topSteps: string[];
+  runsPerMonth: number | null;
+  /** Every step in order, for the close-up. */
+  steps: HeatStep[];
 }
 
 export interface HeatDept {
@@ -31,15 +35,15 @@ const sumHours = (procs: HeatProc[]) => procs.reduce((n, p) => n + (p.hours ?? 0
  * department, busiest department first. A bar's length and color both show
  * its people hours a month, measured against the biggest process anywhere,
  * so bars compare across departments. Processes with no estimate sit gray at
- * the bottom of their department, so you know what to fill in.
+ * the bottom of their department, so you know what to fill in. Click a
+ * process for its close-up: where its hours go and what to automate first.
  */
-export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess, onOpenDept }: {
+export default function BrainHeat({ depts, palette, onPickPalette, onOpenDept }: {
   depts: HeatDept[];
   /** The color scale's id. */
   palette: string;
   /** Admins only: also save the pick as everyone's default. */
   onPickPalette?: (id: string) => void;
-  onOpenProcess: (id: string) => void;
   onOpenDept: (name: string) => void;
 }) {
   const all = depts.flatMap((d) => d.procs);
@@ -66,6 +70,7 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
     onPickPalette?.(id);
   };
   const SCALE = current.steps;
+  const [open, setOpen] = useState<{ p: HeatProc; d: HeatDept } | null>(null);
 
   const range = (i: number) =>
     i === 0 ? `Up to ${fmt(max / 5)}` : i === 4 ? `${fmt((max * 4) / 5)}+` : `${fmt((max * i) / 5)} to ${fmt((max * (i + 1)) / 5)}`;
@@ -160,7 +165,7 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
                     <li key={p.id}>
                       <button
                         type="button"
-                        onClick={() => onOpenProcess(p.id)}
+                        onClick={() => setOpen({ p, d })}
                         className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 rounded-lg px-2 py-2.5 text-left hover:bg-muted sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_4.5rem_6rem]"
                       >
                         <span className="min-w-0">
@@ -193,6 +198,14 @@ export default function BrainHeat({ depts, palette, onPickPalette, onOpenProcess
           ))}
         </div>
       </div>
+
+      {open && (
+        <HeatProcess
+          p={{ ...open.p, dept: open.d.name, hue: open.d.hue }}
+          color={SCALE[3].bg}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </div>
   );
 }
