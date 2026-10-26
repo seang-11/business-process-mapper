@@ -69,7 +69,8 @@ const segBtn = (active: boolean) =>
   }`;
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import LaneDialog from './LaneDialog';
-import ProcessTimeline from './ProcessTimeline';
+import ProcessPopup from './ProcessPopup';
+import { hoursFromSteps, overviewFromSteps } from '@/lib/overview';
 import CompareVersions from './CompareVersions';
 import WatchLive from './WatchLive';
 import EditWithClaude from './EditWithClaude';
@@ -741,7 +742,32 @@ export default function ProcessCanvas() {
                 {overviewMode === 'side' && process && process.versions.length > 1 ? (
                   <CompareVersions embedded readOnly={!canEdit} processName={process.name} versions={process.versions} runsPerMonth={process.runsPerMonth} />
                 ) : (
-                  <ProcessTimeline steps={steps} connections={connections} onOpenStep={openStep} />
+                  <div className="h-full overflow-y-auto bg-[hsl(220_20%_98.5%)] px-6 py-6">
+                    {process && (
+                      <ProcessPopup
+                        variant="page"
+                        p={overviewFromSteps(steps, {
+                          name: process.name,
+                          icon: process.icon,
+                          department: process.department,
+                          description: process.description,
+                          live: graph?.version?.state === 'Current',
+                          runsPerMonth: process.runsPerMonth,
+                          ownerName: process.ownerName,
+                        })}
+                        hue={undefined}
+                        hours={hoursFromSteps(steps, process.runsPerMonth)}
+                        names={new Map(steps.filter((s) => s.subProcessId).map((s) => [s.subProcessId!, s.subProcessName]))}
+                        runBy={[]}
+                        canEdit={canEdit}
+                        onJump={(next) => navigate(`/process/${next}`)}
+                        onOpenStep={(sid) => {
+                          const st = steps.find((x) => x.id === sid);
+                          if (st) openStep(st);
+                        }}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             </div>

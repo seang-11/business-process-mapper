@@ -20,9 +20,39 @@ import { processIcon } from '@/lib/processIcon';
 import RoleAvatar, { hueFor } from './RoleAvatar';
 import ElementIcon from './ElementIcon';
 
-type Proc = GetBrainOutputType['processes'][number];
-type Step = Proc['steps'][number];
-type Who = Proc['people'][number];
+type BrainProc = GetBrainOutputType['processes'][number];
+type Who = BrainProc['people'][number];
+
+/** One step, as the overview needs it. A Brain process's steps fit as they are. */
+export interface OverviewStep {
+  id: string;
+  title: string;
+  stepType: string;
+  /** An app does it on its own. */
+  automated: boolean;
+  who: Who | null;
+  uses: Who[];
+  minutes: number | null;
+  subProcessId: string | null;
+}
+
+/** A process, as the overview needs it. A Brain process fits as it is. */
+export interface OverviewProc {
+  name: string;
+  icon?: string;
+  department: string;
+  description: string;
+  live: boolean;
+  stepCount: number;
+  runsPerMonth: number | null;
+  ownerName: string;
+  automated: number;
+  review: number;
+  manual: number;
+  runs: { processId: string }[];
+  steps: OverviewStep[];
+}
+type Step = OverviewStep;
 
 const AUTOMATED = 'hsl(152 55% 42%)';
 const REVIEW = 'hsl(262 60% 62%)';
@@ -64,15 +94,21 @@ export default function ProcessPopup({
   names,
   runBy,
   canEdit,
-  flowOpen,
+  flowOpen = false,
+  variant = 'popup',
   onClose,
   onJump,
   onToggleFlow,
   onEdit,
   onOpen,
   onTrain,
+  onOpenStep,
 }: {
-  p: Proc;
+  p: OverviewProc;
+  /** A pop-up over the Brain, or the Overview on a process page (no header or buttons; the page has its own). */
+  variant?: 'popup' | 'page';
+  /** Click a step to open it, for admins on the process page. */
+  onOpenStep?: (id: string) => void;
   /** The department's color. */
   hue: number | undefined;
   hours: number | null;
@@ -81,14 +117,15 @@ export default function ProcessPopup({
   runBy: { id: string; name: string }[];
   canEdit: boolean;
   /** Its steps are laid out on the board right now. */
-  flowOpen: boolean;
-  onClose: () => void;
-  onJump: (id: string) => void;
+  flowOpen?: boolean;
+  onClose?: () => void;
+  onJump?: (id: string) => void;
   onToggleFlow?: () => void;
-  onEdit: () => void;
-  onOpen: () => void;
+  onEdit?: () => void;
+  onOpen?: () => void;
   onTrain?: () => void;
 }) {
+  const page = variant === 'page';
   const [only, setOnly] = useState<string | null>(null);
   const PIcon = processIcon(p);
 
@@ -121,9 +158,14 @@ export default function ProcessPopup({
     <aside
       role="dialog"
       aria-label={p.name}
-      className="flex max-h-full w-full max-w-[620px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl duration-200 animate-in fade-in-0 zoom-in-95"
+      className={
+        page
+          ? 'mx-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[0_1px_3px_rgba(16,24,40,0.06)]'
+          : 'flex max-h-full w-full max-w-[620px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl duration-200 animate-in fade-in-0 zoom-in-95'
+      }
     >
       {/* Header: what it is and where it lives. */}
+      {!page && (
       <div className="flex items-start gap-3.5 p-5 pb-4">
         <span
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
@@ -152,9 +194,10 @@ export default function ProcessPopup({
           <X className="h-4 w-4" />
         </button>
       </div>
+      )}
 
       {/* The numbers, in one strip. */}
-      <div className="grid grid-cols-4 border-y border-border">
+      <div className={`grid grid-cols-4 ${page ? 'border-b' : 'border-y'} border-border`}>
         {[
           ['Steps', `${p.stepCount}`],
           ['People time', hours !== null ? fmtHrs(hours) : '—'],
@@ -168,7 +211,7 @@ export default function ProcessPopup({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className={page ? '' : 'min-h-0 flex-1 overflow-y-auto'}>
         {/* Who does the work, as one bar. */}
         {work > 0 && (
           <div className="px-5 pt-4">
@@ -253,7 +296,11 @@ export default function ProcessPopup({
                     {g.steps.map(({ s, n }) => {
                       const apps = s.uses.filter((u) => u.kind === 'app' && u.id !== s.who?.id);
                       return (
-                        <li key={s.id} className="flex items-center gap-2.5 py-1.5 text-sm">
+                        <li
+                          key={s.id}
+                          onClick={onOpenStep ? () => onOpenStep(s.id) : undefined}
+                          className={`flex items-center gap-2.5 py-1.5 text-sm ${onOpenStep ? '-mx-1.5 cursor-pointer rounded-md px-1.5 hover:bg-background' : ''}`}
+                        >
                           <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{n}</span>
                           <StepIcon s={s} />
                           <span className="min-w-0 flex-1">
@@ -295,6 +342,7 @@ export default function ProcessPopup({
       </div>
 
       {/* Connected processes, then what you can do. */}
+      {(!page || runs.length > 0 || runBy.length > 0) && (
       <div className="space-y-2.5 border-t border-border p-3.5">
         {(runs.length > 0 || runBy.length > 0) && (
           <div className="flex flex-wrap gap-1.5">
@@ -302,7 +350,7 @@ export default function ProcessPopup({
               <button
                 key={id}
                 type="button"
-                onClick={() => onJump(id)}
+                onClick={() => onJump?.(id)}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted"
               >
                 <ArrowRight className="h-3 w-3 text-primary" /> Hands off to <b className="font-semibold">{names.get(id)}</b>
@@ -312,7 +360,7 @@ export default function ProcessPopup({
               <button
                 key={r.id}
                 type="button"
-                onClick={() => onJump(r.id)}
+                onClick={() => onJump?.(r.id)}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:bg-muted"
               >
                 <Workflow className="h-3 w-3 text-primary" /> Started by <b className="font-semibold">{r.name}</b>
@@ -320,6 +368,7 @@ export default function ProcessPopup({
             ))}
           </div>
         )}
+        {!page && (
         <div className="flex flex-wrap gap-2">
           {onTrain && (
             <Button variant="outline" onClick={onTrain}>
@@ -342,7 +391,9 @@ export default function ProcessPopup({
             </Button>
           )}
         </div>
+        )}
       </div>
+      )}
     </aside>
   );
 }

@@ -19,7 +19,7 @@ import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import Train from './Train';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
-import ProcessTimeline from './ProcessTimeline';
+import ProcessPopup from './ProcessPopup';
 import WatchLive from './WatchLive';
 import type { ElementSummary, ProcessStep } from '@/types';
 
@@ -214,7 +214,7 @@ export function ViewerProcess() {
     setLanes(null);
   }, [id]);
   useEffect(() => {
-    if (look === 'flow' || lanes || !id) return;
+    if (look === 'flow' || look === 'overview' || lanes || !id) return;
     setLanesFailed(false);
     Promise.all([getProcessGraph({ processId: id }), getTaxonomy({})])
       .then(([graph, tax]) => setLanes({ graph, elements: tax.elements as ElementSummary[] }))
@@ -282,16 +282,31 @@ export function ViewerProcess() {
               </div>
             </div>
           </section>
+        ) : look === 'overview' ? (
+          <div className="h-full overflow-y-auto pb-8">
+            <ProcessPopup
+              variant="page"
+              p={p}
+              hue={p.department ? data.departments.find((d) => d.name === p.department)?.hue : undefined}
+              hours={(() => {
+                const mins = p.steps.reduce(
+                  (n, s) => n + (s.who?.kind === 'person' && s.who.party !== 'External' && s.stepType !== 'Wait' && !s.subProcessId ? s.minutes ?? 0 : 0),
+                  0,
+                );
+                return p.runsPerMonth && mins ? (mins * p.runsPerMonth) / 60 : null;
+              })()}
+              names={names}
+              runBy={data.processes.filter((x) => x.live && x.runs.some((r) => r.processId === p.id)).map((x) => ({ id: x.id, name: x.name }))}
+              canEdit={false}
+              onJump={(next) => navigate(`/view/${next}`)}
+            />
+          </div>
         ) : lanesFailed ? (
           <PageError onRetry={() => setLanesFailed(false)} />
         ) : !lanes ? (
           <PageLoading blocks={1} height="h-64" />
         ) : look === 'watch' ? (
           <WatchLive steps={lanes.graph.steps as ProcessStep[]} connections={lanes.graph.connections} processName={p.name} />
-        ) : look === 'overview' ? (
-          <section className="h-full min-h-[480px] overflow-hidden rounded-2xl border border-border shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-            <ProcessTimeline steps={lanes.graph.steps as ProcessStep[]} connections={lanes.graph.connections} />
-          </section>
         ) : (
           <section className="relative h-full min-h-[480px] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <SwimlaneDiagram
