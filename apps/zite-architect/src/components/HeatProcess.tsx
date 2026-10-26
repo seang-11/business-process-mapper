@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Zap } from 'lucide-react';
 
 export interface HeatStep {
@@ -78,10 +79,11 @@ export default function HeatProcess({ p, color, onClose }: { p: HeatDetail; colo
   const glow = { color, textShadow: `0 0 24px ${tint(color, 0.7)}` };
   const label = 'text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400';
 
-  return (
+  // Drawn on the page itself, so nothing on the Brain (like the view switcher) can sit on top of it.
+  return createPortal(
     <div
       data-ui
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`}
       onClick={onClose}
     >
       <div
@@ -280,6 +282,7 @@ export default function HeatProcess({ p, color, onClose }: { p: HeatDetail; colo
           </section>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
