@@ -43,7 +43,7 @@ export default createEndpoint({
   outputSchema: z.object({
     /** Every department that has a lead set. */
     /** Every department in use, with its lead and its own color (a hue, never shared). */
-    departments: z.array(z.object({ name: z.string(), lead: participant.nullable(), hue: z.number() })),
+    departments: z.array(z.object({ name: z.string(), lead: participant.nullable(), hue: z.number(), description: z.string() })),
     /** Everyone who could lead a department. */
     people: z.array(participant),
     processes: z.array(
@@ -243,7 +243,7 @@ export default createEndpoint({
     const hues = assignDeptHues([...deptRows.keys(), ...processes.map((p) => p.department)], picked);
     const departments = [...hues].map(([name, hue]) => {
       const leadId = one(deptRows.get(name)?.lead);
-      return { name, lead: leadId ? describe(leadId) : null, hue };
+      return { name, lead: leadId ? describe(leadId) : null, hue, description: (deptRows.get(name)?.description ?? '').trim() };
     });
     const people = elementRes.records
       .filter((e) => classOf(e.id) === 'Human')

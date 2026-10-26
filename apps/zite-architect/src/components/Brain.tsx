@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getBrain, setDepartmentColor, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
+import { getBrain, setDepartmentColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
   ArrowRight, Brain as BrainIcon, ChevronDown, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
@@ -693,12 +693,13 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
               <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
-          {onOpenProcess && !onEdit && (
+          {onOpenProcess && (
             <button
               type="button"
               data-ui
               onClick={onOpenProcess}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
+              title="See it by person, by app, as an overview, or Watch it Live"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
             >
               Open process <ArrowRight className="h-3 w-3" />
             </button>
@@ -1017,7 +1018,7 @@ function deptInsight(title: string, procs: Proc[]) {
  * in it laid out left to right at a readable size, one under the other. Wide
  * processes scroll sideways. Back returns to the board exactly as it was.
  */
-function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, backLabel = 'Back to the board', onSetLead, onPickColor, onOpenProcess, onTrain }: {
+function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, backLabel = 'Back to the board', onSetLead, onPickColor, description = '', onSaveDescription, onOpenProcess, onEditProcess, onTrain }: {
   title: string;
   hue: number;
   procs: Proc[];
@@ -1033,9 +1034,18 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   onSetLead: (() => void) | null;
   /** Editors only: change the department's color. */
   onPickColor: ((hue: number | null) => void) | null;
+  /** Written by an admin. Empty means the one worked out from the map. */
+  description?: string;
+  /** Admins only: save the description (empty goes back to the automatic one). */
+  onSaveDescription?: (text: string) => Promise<void>;
+  /** See the process: its views by person, by app, Overview and Watch it Live. */
   onOpenProcess: (id: string) => void;
+  /** Admins only: open it ready to change. */
+  onEditProcess?: (id: string) => void;
   onTrain: (id: string) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [savingText, setSavingText] = useState(false);
   const flows = useMemo(() => procs.map((p) => ({ p, layout: flowLayout(p.steps.map((s) => s.id), p.links) })), [procs]);
   const people = [...new Map(procs.flatMap((p) => p.people).map((w) => [w.id, w])).values()];
   const apps = [...new Map(procs.flatMap((p) => p.apps).map((a) => [a.id, a])).values()];
@@ -1085,6 +1095,63 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
               {plural(procs.length, 'process')} · {plural(people.length, 'person')} · {plural(apps.length, 'app')}
               {a + r + m > 0 ? ` · ${Math.round((a / (a + r + m)) * 100)}% automated` : ''}
             </p>
+            {/* What the department does, up top: an admin's own words, or one written from the map. */}
+            {draft !== null ? (
+              <div className="mt-3 max-w-3xl space-y-2">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={4}
+                  autoFocus
+                  placeholder={insight.story}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-[15px] leading-relaxed outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={savingText}
+                    onClick={async () => {
+                      setSavingText(true);
+                      try {
+                        await onSaveDescription?.(draft);
+                        setDraft(null);
+                      } finally {
+                        setSavingText(false);
+                      }
+                    }}
+                  >
+                    {savingText ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+                    Cancel
+                  </Button>
+                  {description && (
+                    <button
+                      type="button"
+                      onClick={() => setDraft('')}
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      Clear it to use the one written from the map
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="group/desc mt-3 flex max-w-3xl items-start gap-2">
+                <p className="text-[15px] leading-relaxed text-foreground/80">{description || insight.story}</p>
+                {onSaveDescription && (
+                  <button
+                    type="button"
+                    onClick={() => setDraft(description || insight.story)}
+                    title="Edit the description"
+                    aria-label="Edit the description"
+                    className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {canEdit && onPickColor && <DeptColorPicker hue={hue} onPick={onPickColor} />}
           {(lead || (canEdit && onSetLead)) && (
@@ -1168,9 +1235,8 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-8 py-6">
         <section className="rounded-2xl border border-border bg-card px-7 py-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-          <p className="text-sm font-semibold">How {title} works</p>
-          <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-muted-foreground">{insight.story}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <p className="text-sm font-semibold">{title} at a glance</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-muted/50 px-4 py-3">
               <p className="text-[11px] text-muted-foreground">People hours a month</p>
               <p className="mt-0.5 text-xl font-semibold tracking-tight">{insight.hours > 0 ? fmtHrs(insight.hours) : '—'}</p>
@@ -1231,7 +1297,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
                     runBy={runByOf.get(p.id) ?? []}
                     onJump={onJump}
                     onOpenProcess={() => onOpenProcess(p.id)}
-                    onEdit={canEdit ? () => onOpenProcess(p.id) : undefined}
+                    onEdit={onEditProcess ? () => onEditProcess(p.id) : undefined}
                     extra={
                       p.live ? (
                         <button
@@ -1804,7 +1870,12 @@ export default function Brain() {
               ...d,
               departments: [
                 ...d.departments.filter((x) => x.name !== dept),
-                { name: dept, lead, hue: d.departments.find((x) => x.name === dept)?.hue ?? 220 },
+                {
+                  name: dept,
+                  lead,
+                  hue: d.departments.find((x) => x.name === dept)?.hue ?? 220,
+                  description: d.departments.find((x) => x.name === dept)?.description ?? '',
+                },
               ],
             }
           : d,
@@ -2562,7 +2633,21 @@ export default function Brain() {
             backLabel={deptFromLink && back.name !== 'Brain' ? `Back to ${back.name}` : 'Back to the board'}
             onSetLead={dept ? () => setLeadFor(dept) : null}
             onPickColor={dept ? (h) => chooseColor(dept, h) : null}
-            onOpenProcess={(id) => (canEdit ? editProcess(id) : navigate(`/process/${id}`))}
+            description={dept ? data?.departments.find((x) => x.name === dept)?.description ?? '' : ''}
+            onSaveDescription={
+              canEdit && dept
+                ? async (text) => {
+                    try {
+                      await setDepartmentDescription({ department: dept, description: text });
+                      setData(await getBrain({}));
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Could not save the description.');
+                    }
+                  }
+                : undefined
+            }
+            onOpenProcess={(id) => navigate(`/process/${id}`)}
+            onEditProcess={canEdit ? editProcess : undefined}
             onTrain={(id) => navigate(`/process/${id}?train=all&view=process`)}
           />
         );

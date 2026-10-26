@@ -1188,6 +1188,15 @@
               "decimalPlaces": 0
             }
           }
+        },
+        {
+          "id": "ftQo4eEWmHW",
+          "sdkName": "description",
+          "definition": {
+            "name": "Description",
+            "type": "long_text",
+            "template": {}
+          }
         }
       ]
     }

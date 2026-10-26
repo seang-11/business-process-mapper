@@ -356,6 +356,7 @@ export type DepartmentsRecordType = {
   lead?: string | string[];
   /** "Color". 0 decimal places, format: local (e.g. 1,000,000.50) */
   color?: number;
+  description?: string;
 };
 
 /** What you may write when creating or updating a record in the "Departments" table. */
@@ -363,6 +364,7 @@ export type DepartmentsRecordInput = {
   name: string | null;
   lead: string | string[] | null;
   color: string | number | null;
+  description: string | null;
 };
 
 export interface ZiteAuthUser {

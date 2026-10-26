@@ -30,6 +30,7 @@ import type { default as _SaveLaneOrderEp } from '../src/api/saveLaneOrder';
 import type { default as _SaveStepEp } from '../src/api/saveStep';
 import type { default as _SaveVersionEp } from '../src/api/saveVersion';
 import type { default as _SetDepartmentColorEp } from '../src/api/setDepartmentColor';
+import type { default as _SetDepartmentDescriptionEp } from '../src/api/setDepartmentDescription';
 import type { default as _SetDepartmentLeadEp } from '../src/api/setDepartmentLead';
 import type { default as _SetShareLinkEp } from '../src/api/setShareLink';
 import type { default as _SetStepMatchEp } from '../src/api/setStepMatch';
@@ -174,6 +175,11 @@ export type SetDepartmentColorInputType = NonNullable<_SetDepartmentColorCfg['in
 export type SetDepartmentColorOutputType = Awaited<ReturnType<_SetDepartmentColorCfg['execute']>>;
 export const setDepartmentColor = createCaller<SetDepartmentColorInputType, SetDepartmentColorOutputType>('setDepartmentColor');
 
+type _SetDepartmentDescriptionCfg = typeof _SetDepartmentDescriptionEp;
+export type SetDepartmentDescriptionInputType = NonNullable<_SetDepartmentDescriptionCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetDepartmentDescriptionCfg['execute']>[0]['input'];
+export type SetDepartmentDescriptionOutputType = Awaited<ReturnType<_SetDepartmentDescriptionCfg['execute']>>;
+export const setDepartmentDescription = createCaller<SetDepartmentDescriptionInputType, SetDepartmentDescriptionOutputType>('setDepartmentDescription');
+
 type _SetDepartmentLeadCfg = typeof _SetDepartmentLeadEp;
 export type SetDepartmentLeadInputType = NonNullable<_SetDepartmentLeadCfg['inputSchema']> extends { _input: infer I } ? I : Parameters<_SetDepartmentLeadCfg['execute']>[0]['input'];
 export type SetDepartmentLeadOutputType = Awaited<ReturnType<_SetDepartmentLeadCfg['execute']>>;
@@ -219,6 +225,7 @@ export const api = {
   saveStep,
   saveVersion,
   setDepartmentColor,
+  setDepartmentDescription,
   setDepartmentLead,
   setShareLink,
   setStepMatch,
