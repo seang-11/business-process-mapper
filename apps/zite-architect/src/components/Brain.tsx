@@ -1106,104 +1106,110 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
         >
           <ArrowRight className="h-4 w-4 rotate-180" /> {backLabel}
         </button>
-        <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-3">
-          {/* Takes the room it needs so the description reads as a paragraph, not a narrow column. */}
-          <div className="min-w-0 flex-1 basis-[28rem]">
-            <h2 className="text-3xl font-semibold tracking-tight" style={{ color }}>{title}</h2>
+        {/* Name, color and lead on the left; the work mix at the top right. */}
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            {/* Name, then its color and lead, all on the left. */}
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-3xl font-semibold tracking-tight" style={{ color }}>{title}</h2>
+              {canEdit && onPickColor && <DeptColorPicker hue={hue} onPick={onPickColor} />}
+              {(lead || (canEdit && onSetLead)) && (
+                <button
+                  type="button"
+                  disabled={!canEdit || !onSetLead}
+                  onClick={() => onSetLead?.()}
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium enabled:hover:bg-muted"
+                >
+                  <Crown className="h-4 w-4" style={{ color }} />
+                  {lead ? (
+                    <>
+                      <Icon w={lead} size={16} /> {lead.name}
+                      <span className="text-xs font-normal text-muted-foreground">leads it</span>
+                    </>
+                  ) : (
+                    'Set a lead'
+                  )}
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {plural(procs.length, 'process')} · {plural(people.length, 'person')} · {plural(apps.length, 'app')}
               {a + r + m > 0 ? ` · ${Math.round((a / (a + r + m)) * 100)}% automated` : ''}
             </p>
-            {/* What the department does, up top: an admin's own words, or one written from the map. */}
-            <div className="mt-3 flex max-w-3xl items-start gap-2">
-              <p className="text-[15px] leading-relaxed text-foreground/80">{description || insight.story}</p>
-              {onSaveDescription && (
-                <button
-                  type="button"
-                  onClick={() => setDraft(description || insight.story)}
-                  title="Edit the description"
-                  aria-label="Edit the description"
-                  className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-white/70 hover:text-foreground"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {draft !== null && (
-              <Dialog open onOpenChange={(o) => !o && setDraft(null)}>
-                <DialogContent className="max-w-2xl" data-ui>
-                  <DialogHeader>
-                    <DialogTitle>Describe {title}</DialogTitle>
-                    <DialogDescription>
-                      What the department does, in your own words. Everyone sees this at the top of {title}.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={9}
-                    autoFocus
-                    placeholder={insight.story}
-                    className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      disabled={savingText}
-                      onClick={async () => {
-                        setSavingText(true);
-                        try {
-                          await onSaveDescription?.(draft);
-                          setDraft(null);
-                        } finally {
-                          setSavingText(false);
-                        }
-                      }}
-                    >
-                      {savingText ? 'Saving…' : 'Save'}
-                    </Button>
-                    <Button variant="ghost" onClick={() => setDraft(null)}>
-                      Cancel
-                    </Button>
-                    {description && (
-                      <button
-                        type="button"
-                        onClick={() => setDraft('')}
-                        className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        Clear it to use the one written from the map
-                      </button>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
           </div>
-          {canEdit && onPickColor && <DeptColorPicker hue={hue} onPick={onPickColor} />}
-          {(lead || (canEdit && onSetLead)) && (
-            <button
-              type="button"
-              disabled={!canEdit || !onSetLead}
-              onClick={() => onSetLead?.()}
-              className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium enabled:hover:bg-muted"
-            >
-              <Crown className="h-4 w-4" style={{ color }} />
-              {lead ? (
-                <>
-                  <Icon w={lead} size={16} /> {lead.name}
-                  <span className="text-xs font-normal text-muted-foreground">leads it</span>
-                </>
-              ) : (
-                'Set a lead'
-              )}
-            </button>
-          )}
-          <div className="ml-auto w-64">
-            <MixBar a={a} r={r} m={m} />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              {a} on their own · {r} decided by a person · {m} by hand
-            </p>
+          <div className="pt-2">
+            <div className="w-56">
+              <MixBar a={a} r={r} m={m} />
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {a} on their own · {r} decided by a person · {m} by hand
+              </p>
+            </div>
           </div>
         </div>
+          {/* What the department does, up top: an admin's own words, or one written from the map. */}
+          <div className="mt-3 flex max-w-5xl items-start gap-2">
+            <p className="text-[15px] leading-relaxed text-foreground/80">{description || insight.story}</p>
+            {onSaveDescription && (
+              <button
+                type="button"
+                onClick={() => setDraft(description || insight.story)}
+                title="Edit the description"
+                aria-label="Edit the description"
+                className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {draft !== null && (
+            <Dialog open onOpenChange={(o) => !o && setDraft(null)}>
+              <DialogContent className="max-w-2xl" data-ui>
+                <DialogHeader>
+                  <DialogTitle>Describe {title}</DialogTitle>
+                  <DialogDescription>
+                    What the department does, in your own words. Everyone sees this at the top of {title}.
+                  </DialogDescription>
+                </DialogHeader>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={9}
+                  autoFocus
+                  placeholder={insight.story}
+                  className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-[15px] leading-relaxed outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    disabled={savingText}
+                    onClick={async () => {
+                      setSavingText(true);
+                      try {
+                        await onSaveDescription?.(draft);
+                        setDraft(null);
+                      } finally {
+                        setSavingText(false);
+                      }
+                    }}
+                  >
+                    {savingText ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setDraft(null)}>
+                    Cancel
+                  </Button>
+                  {description && (
+                    <button
+                      type="button"
+                      onClick={() => setDraft('')}
+                      className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      Clear it to use the one written from the map
+                    </button>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+
         {(people.length > 0 || apps.length > 0) && (
           <>
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
