@@ -14,7 +14,7 @@ import Roles from '@/components/Roles';
 import RoleBrief from '@/components/RoleBrief';
 import SharedProcess from '@/components/SharedProcess';
 import { MeProvider, useMe } from '@/lib/me';
-import { ViewerHome, ViewerProcess } from '@/components/Viewer';
+import { ViewerHome, ViewerProcess, ViewerProcessGate } from '@/components/Viewer';
 
 /**
  * A share link opens without signing in, so it is decided before anything that
@@ -60,9 +60,10 @@ function MemberApp() {
 }
 
 /**
- * Viewers get two pages and nothing else: the list of live processes, and one
- * process at a time, view only. Anything else sends them back to the list.
- * Editors and admins get the whole app.
+ * Viewers see everything, change nothing: the list of live processes, one
+ * process at a time (view only), the Brain, Roles and Training. A link to a
+ * process page shows the view-only version, or opens training. Editors and
+ * admins get the whole app.
  */
 function MemberRoutes() {
   const { canEdit, loading } = useMe();
@@ -79,6 +80,11 @@ function MemberRoutes() {
         <Route element={<AppShell />}>
           <Route path="/" element={<ViewerHome />} />
           <Route path="/view/:id" element={<ViewerProcess />} />
+          <Route path="/process/:id" element={<ViewerProcessGate />} />
+          <Route path="/brain" element={<Brain />} />
+          <Route path="/roles" element={<Roles />} />
+          <Route path="/roles/:id" element={<RoleBrief />} />
+          <Route path="/training" element={<TrainingHome />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { getBrain, GetBrainOutputType } from 'zitejs/api';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { getBrain, GetBrainOutputType, getProcesses, GetProcessesOutputType } from 'zitejs/api';
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { useMe } from '@/lib/me';
 import { FlowView, MixBar } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import { hueFor } from './RoleAvatar';
+import Train from './Train';
 
 type Data = GetBrainOutputType;
 
@@ -161,5 +162,45 @@ export function ViewerProcess() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * For a viewer, every link to a process page lands here. A training link
+ * (?train=…) opens training on its own; anything else shows the process
+ * view only. So the Brain, Roles and Training pages work for viewers without
+ * ever opening the editable map.
+ */
+export function ViewerProcessGate() {
+  const { id } = useParams();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const train = params.get('train');
+  const view = params.get('view');
+  const [procs, setProcs] = useState<GetProcessesOutputType['processes'] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!train) return;
+    getProcesses({}).then((r) => setProcs(r.processes)).catch(() => setFailed(true));
+  }, [train]);
+
+  if (!train) return <Navigate to={`/view/${id}`} replace />;
+  if (failed) return <div className="mx-auto max-w-xl px-8 py-16"><PageError /></div>;
+  if (!procs) return <div className="px-8 py-8"><PageLoading blocks={1} height="h-64" /></div>;
+  const p = procs.find((x) => x.id === id);
+  const live = p?.versions.find((v) => v.state === 'Current');
+  if (!p || !live) return <Navigate to="/" replace />;
+  const back = () => (window.history.length > 1 ? navigate(-1) : navigate('/'));
+  return (
+    <Train
+      processName={p.name}
+      processDescription={p.description}
+      versions={p.versions.filter((v) => v.state === 'Current')}
+      initialVersionId={live.id}
+      initialRole={train === 'all' ? null : train}
+      initialView={view === 'brief' ? 'brief' : view === 'lesson' ? 'lesson' : 'process'}
+      onClose={back}
+      onOpenStep={() => navigate(`/view/${p.id}`)}
+    />
   );
 }

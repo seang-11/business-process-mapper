@@ -58,7 +58,7 @@ export default function AppShell() {
   // Cmd/Ctrl+K opens the menu from anywhere. ? opens the shortcuts list unless you are typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Viewers have one list with its own search, so the jump-to menu is for editors.
+      // The jump-to menu is full of editing shortcuts, so it's for editors; viewers search their list.
       if (canEdit && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setMenuOpen((o) => !o);
@@ -78,7 +78,10 @@ export default function AppShell() {
 
   // Home covers the list of processes, the elements tab, and any process or element opened from them.
   const onHome =
-    location.pathname === '/' || location.pathname.startsWith('/process/') || location.pathname.startsWith('/element/');
+    location.pathname === '/' ||
+    location.pathname.startsWith('/process/') ||
+    location.pathname.startsWith('/element/') ||
+    location.pathname.startsWith('/view/');
 
   const links: { to: string; label: string; active: boolean }[] = [
     { to: '/', label: 'Home', active: onHome },
@@ -106,8 +109,6 @@ export default function AppShell() {
           <span className="hidden text-[15px] font-semibold tracking-tight lg:block">Process Mapper</span>
         </button>
 
-        {/* Viewers only ever see the process list, so they get no tabs and no search box up here. */}
-        {canEdit && (
         <nav className="ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto md:ml-3" aria-label="Main">
           {links.map((l) => (
             <NavLink
@@ -124,7 +125,6 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
-        )}
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {canEdit && (
