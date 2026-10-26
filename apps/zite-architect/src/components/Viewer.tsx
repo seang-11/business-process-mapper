@@ -12,9 +12,8 @@ import {
 import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { useMe } from '@/lib/me';
-import { FlowView, MixBar } from './Brain';
+import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
-import { hueFor } from './RoleAvatar';
 import Train from './Train';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessTimeline from './ProcessTimeline';
@@ -59,56 +58,71 @@ export function ViewerHome() {
   }, [data, query]);
 
   const first = me?.firstName?.trim();
+  const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
-    <div className="mx-auto max-w-[760px] px-6 py-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{first ? `How we work, ${first}` : 'How we work'}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pick a process to see every step.</p>
-        </div>
-        <div className="relative w-56">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find a process"
-            className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-2 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
-          />
-        </div>
+    <div className="mx-auto max-w-[880px] px-6 py-10">
+      <header>
+        <h1 className="text-[28px] font-semibold tracking-tight">{first ? `Welcome, ${first}` : 'Welcome'}</h1>
+        <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+          Every process the team runs, step by step. Open one to see who does each step and which tools they use.
+        </p>
+      </header>
+
+      <div className="relative mt-7">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search processes"
+          className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+        />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-8 space-y-8">
         {failed ? (
           <PageError onRetry={load} />
         ) : !data ? (
-          <PageLoading blocks={3} height="h-16" />
-        ) : groups.length === 0 ? (
+          <PageLoading blocks={3} height="h-32" />
+        ) : total === 0 ? (
           query ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">No process matches that.</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">No process matches "{query}".</p>
           ) : (
             <PageEmpty icon={<Search className="h-6 w-6" />} title="Nothing to see yet" text="Processes show up here once they go live." />
           )
         ) : (
           groups.map(([dept, procs]) => (
-            <section key={dept || '~'} className="mb-5">
-              <p className="mb-1 flex items-center gap-1.5 px-3 text-xs font-medium text-muted-foreground">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: dept ? `hsl(${hueFor(dept)} 60% 55%)` : 'hsl(var(--muted-foreground))' }} />
-                {dept || 'Other'}
-              </p>
-              <ul>
+            <section key={dept || '~'}>
+              <h2 className="mb-2.5 flex items-baseline gap-2 px-1">
+                <span className="text-sm font-semibold">{dept || 'Other'}</span>
+                <span className="text-xs text-muted-foreground">
+                  {procs.length} {procs.length === 1 ? 'process' : 'processes'}
+                </span>
+              </h2>
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 {procs.map((p) => (
                   <li key={p.id}>
                     <button
                       type="button"
                       onClick={() => navigate(`/view/${p.id}`)}
-                      className="group grid w-full grid-cols-[minmax(0,1fr)_auto_96px_16px] items-center gap-4 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-card hover:shadow-[0_1px_3px_rgba(16,24,40,0.06)]"
+                      className="group flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-muted/40"
                     >
-                      <span className="truncate text-sm font-medium">{p.name}</span>
-                      <span className="hidden text-xs text-muted-foreground sm:block">
-                        {p.stepCount} steps{p.ownerName ? ` · ${p.ownerName}` : ''}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-medium">{p.name}</span>
+                        {p.description && (
+                          <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{p.description}</span>
+                        )}
                       </span>
-                      <MixBar a={p.automated} r={p.review} m={p.manual} />
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                      <span className="hidden w-44 shrink-0 text-[13px] text-muted-foreground md:block">
+                        {p.ownerName && (
+                          <span className="block truncate">
+                            <span className="text-muted-foreground/70">Owner</span> {p.ownerName}
+                          </span>
+                        )}
+                        <span className="block">{p.stepCount} steps</span>
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-[13px] font-medium transition-colors group-hover:border-primary/40 group-hover:bg-primary group-hover:text-primary-foreground">
+                        View <ArrowRight className="h-3.5 w-3.5" />
+                      </span>
                     </button>
                   </li>
                 ))}
