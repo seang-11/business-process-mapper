@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setDepartmentColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
-  ArrowRight, Brain as BrainIcon, ChevronDown, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
+  ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
 import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import BrainGlobe from './BrainGlobe';
+import BrainHeat from './BrainHeat';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -1777,6 +1778,8 @@ export default function Brain() {
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
   /** The 3D globe of departments, in place of the board. */
   const [globe, setGlobe] = useState(false);
+  /** The heat map of people hours, in place of the board. */
+  const [heat, setHeat] = useState(false);
   setDeptOpenRef.current = setDeptOpen;
 
   // Opened from a link, Back returns to that page rather than to a board you never saw.
@@ -2229,7 +2232,7 @@ export default function Brain() {
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe ? 'hidden' : ''}`}>
+      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat ? 'hidden' : ''}`}>
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
@@ -2331,16 +2334,45 @@ export default function Brain() {
         />
       )}
 
-      {/* How the board shows processes: as cards, every step laid out, or as a 3D globe of departments. */}
+      {/* Every process colored by the people hours it takes, over the board. */}
+      {heat && procs && (
+        <BrainHeat
+          depts={[...new Set(procs.map((p) => p.department || ''))].map((name) => ({
+            name,
+            hue: name ? deptHues.get(name) ?? 220 : 220,
+            procs: procs
+              .filter((p) => (p.department || '') === name)
+              .map((p) => {
+                const work = p.automated + p.review + p.manual;
+                return {
+                  id: p.id,
+                  name: p.name,
+                  hours: hoursOf(p),
+                  autoPct: work ? Math.round((p.automated / work) * 100) : 0,
+                  topSteps: p.steps
+                    .filter((s) => isTeamStep(s) && (s.minutes ?? 0) > 0)
+                    .sort((x, y) => (y.minutes ?? 0) - (x.minutes ?? 0))
+                    .slice(0, 2)
+                    .map((s) => s.title),
+                };
+              }),
+          }))}
+          onOpenProcess={(id) => setSelected(id)}
+          onOpenDept={(name) => setDeptOpen(name || '~none')}
+        />
+      )}
+
+      {/* How the board shows processes: as cards, every step laid out, a 3D globe of departments, or a heat map of hours. */}
       <div
         data-ui
         data-tour="view"
         className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur"
       >
         {[
-          { on: !globe && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); if (allOpen) toggleAll(); } },
-          { on: !globe && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); if (!allOpen) toggleAll(); } },
-          { on: globe, label: '3D', Icon: Globe2, act: () => setGlobe(true) },
+          { on: !globe && !heat && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); if (allOpen) toggleAll(); } },
+          { on: !globe && !heat && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); if (!allOpen) toggleAll(); } },
+          { on: globe, label: '3D', Icon: Globe2, act: () => { setHeat(false); setGlobe(true); } },
+          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setHeat(true); } },
         ].map((b) => (
           <button
             key={b.label}
@@ -2706,7 +2738,7 @@ export default function Brain() {
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
           panelOpen ? 'right-[364px]' : 'right-4'
-        } ${globe ? 'hidden' : ''}`}
+        } ${globe || heat ? 'hidden' : ''}`}
       >
         {(() => {
           const center = () => {
