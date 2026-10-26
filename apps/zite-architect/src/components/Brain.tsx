@@ -602,6 +602,19 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
   return (
     <>
       <div className="flex h-16 items-center gap-3 px-7">
+        {/* Close sits right by the name as well as at the end, so it's always within reach. */}
+        {onClose && (
+          <button
+            type="button"
+            data-ui
+            onClick={onClose}
+            title="Close it back to a card"
+            aria-label={`Close ${p.name} back to a card`}
+            className="-ml-2 inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground shadow-sm hover:border-primary/40 hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" /> Close
+          </button>
+        )}
         <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -637,9 +650,9 @@ function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpen
               onClick={onClose}
               title="Close it back to a card"
               aria-label={`Close ${p.name} back to a card`}
-              className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <Minimize2 className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" /> Close
             </button>
           )}
         </span>
