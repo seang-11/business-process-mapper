@@ -171,3 +171,26 @@ export function SolarIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** A small night skyline with lit windows and a beacon. For the 3D view switch. */
+export function CityIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="2" y="12" width="6" height="10" rx="0.6" fill="hsl(225 45% 45%)" />
+      <rect x="9" y="5" width="7" height="17" rx="0.6" fill="hsl(250 45% 55%)" />
+      <rect x="17" y="9" width="5" height="13" rx="0.6" fill="hsl(205 50% 45%)" />
+      <g fill="hsl(45 100% 72%)">
+        <rect x="3.5" y="14" width="1.4" height="1.4" />
+        <rect x="5.6" y="17" width="1.4" height="1.4" />
+        <rect x="10.6" y="8" width="1.4" height="1.4" />
+        <rect x="13.2" y="8" width="1.4" height="1.4" />
+        <rect x="10.6" y="12" width="1.4" height="1.4" />
+        <rect x="13.2" y="15.5" width="1.4" height="1.4" />
+        <rect x="18.5" y="11.5" width="1.4" height="1.4" />
+        <rect x="18.5" y="16" width="1.4" height="1.4" />
+      </g>
+      <line x1="12.5" y1="5" x2="12.5" y2="2.2" stroke="hsl(220 15% 75%)" strokeWidth="0.8" />
+      <circle cx="12.5" cy="1.9" r="1.2" fill="hsl(0 100% 62%)" />
+    </svg>
+  );
+}

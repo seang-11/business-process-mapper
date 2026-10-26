@@ -13,7 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/
 import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
 import BrainHeat from './BrainHeat';
 import BrainSolar from './BrainSolar';
-import { GlobeIcon, SolarIcon } from './PlanetArt';
+import BrainCity from './BrainCity';
+import { CityIcon, GlobeIcon, SolarIcon } from './PlanetArt';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -1815,12 +1816,15 @@ export default function Brain() {
   const [globe, setGlobe] = useState(false);
   /** The departments as a solar system round the company, in place of the board. */
   const [solar, setSolar] = useState(false);
+  /** Every process as a tower in a city at night, in place of the board. */
+  const [city, setCity] = useState(false);
   /** Which 3D view the 3D button opens: the last one you picked. */
-  const open3d = (mode?: 'globe' | 'solar') => {
+  const open3d = (mode?: 'globe' | 'solar' | 'city') => {
     let m = mode;
     if (!m) {
       try {
-        m = localStorage.getItem('bpm_space_mode') === 'solar' ? 'solar' : 'globe';
+        const saved = localStorage.getItem('bpm_space_mode');
+        m = saved === 'solar' || saved === 'city' ? saved : 'globe';
       } catch {
         m = 'globe';
       }
@@ -1834,6 +1838,7 @@ export default function Brain() {
     setHeat(false);
     setGlobe(m === 'globe');
     setSolar(m === 'solar');
+    setCity(m === 'city');
   };
   /** Leaving a department while the globe is up flies back out of it; the count makes each return new. */
   const [globeReturn, setGlobeReturn] = useState<{ name: string; n: number } | null>(null);
@@ -2319,7 +2324,7 @@ export default function Brain() {
       </div>
 
       {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat || solar ? 'hidden' : ''}`}>
+      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat || solar || city ? 'hidden' : ''}`}>
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
@@ -2430,6 +2435,26 @@ export default function Brain() {
         />
       )}
 
+      {/* Every process as a tower, in its department's neighborhood. */}
+      {city && procs && (
+        <BrainCity
+          procs={procs.map((p) => {
+            const work = p.automated + p.review + p.manual;
+            return {
+              id: p.id,
+              name: p.name,
+              department: p.department || '',
+              hue: p.department ? deptHues.get(p.department) ?? 220 : 220,
+              hours: hoursOf(p),
+              autoPct: work ? Math.round((p.automated / work) * 100) : 0,
+              future: p.future,
+            };
+          })}
+          onOpenProcess={(id) => setSelected(id)}
+          onOpenDept={(name) => setDeptOpen(name || '~none')}
+        />
+      )}
+
       {/* Every process colored by the people hours it takes, over the board. */}
       {heat && procs && (
         <BrainHeat
@@ -2477,10 +2502,10 @@ export default function Brain() {
         className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur"
       >
         {[
-          { on: !globe && !heat && !solar && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (allOpen) toggleAll(); } },
-          { on: !globe && !heat && !solar && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); if (!allOpen) toggleAll(); } },
-          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setSolar(false); setHeat(true); } },
-          { on: globe || solar, label: '3D', Icon: Globe2, act: () => { if (!globe && !solar) open3d(); } },
+          { on: !globe && !heat && !solar && !city && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); setCity(false); if (allOpen) toggleAll(); } },
+          { on: !globe && !heat && !solar && !city && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); setCity(false); if (!allOpen) toggleAll(); } },
+          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setSolar(false); setCity(false); setHeat(true); } },
+          { on: globe || solar || city, label: '3D', Icon: Globe2, act: () => { if (!globe && !solar && !city) open3d(); } },
         ].map((b) => (
           <button
             key={b.label}
@@ -2497,7 +2522,7 @@ export default function Brain() {
       </div>
 
       {/* Inside 3D: the globe or the solar system. */}
-      {(globe || solar) && (
+      {(globe || solar || city) && (
         <div
           data-ui
           className="absolute left-1/2 top-[64px] z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-white/15 bg-slate-950/70 p-1 shadow-lg backdrop-blur"
@@ -2505,6 +2530,7 @@ export default function Brain() {
           {[
             { on: globe, mode: 'globe' as const, label: 'Globe', Icon: GlobeIcon },
             { on: solar, mode: 'solar' as const, label: 'Solar system', Icon: SolarIcon },
+            { on: city, mode: 'city' as const, label: 'City', Icon: CityIcon },
           ].map((b) => (
             <button
               key={b.mode}
@@ -2871,7 +2897,7 @@ export default function Brain() {
         data-ui
         className={`absolute bottom-4 z-20 flex cursor-default items-center gap-0.5 rounded-full border border-border bg-background/95 p-1 shadow-md backdrop-blur ${
           panelOpen ? 'right-[364px]' : 'right-4'
-        } ${globe || heat || solar ? 'hidden' : ''}`}
+        } ${globe || heat || solar || city ? 'hidden' : ''}`}
       >
         {(() => {
           const center = () => {

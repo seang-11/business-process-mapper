@@ -63,6 +63,8 @@ export default createEndpoint({
         icon: z.string(),
         /** How often it runs, for hours. Null when nobody has estimated it. */
         runsPerMonth: z.number().nullable(),
+        /** The newest future version, if there is one: its people hours a month and the share of steps apps do. */
+        future: z.object({ hours: z.number().nullable(), autoPct: z.number() }).nullable(),
         stepCount: z.number(),
         /** Steps an app does on its own, steps a person decides, and steps done by hand. Waiting steps are not counted. */
         automated: z.number(),
@@ -187,6 +189,28 @@ export default createEndpoint({
           if (sub && processIds.has(sub) && sub !== p.id) runs.push({ processId: sub, stepTitle: s.title ?? '' });
         }
 
+        // The newest future version: what the hours and the apps' share would be once it's live.
+        const futureVersion = versions
+          .filter((v) => v.id !== version?.id && /future/i.test(v.state ?? ''))
+          .sort((a, b) => (b.lastEdited ?? '').localeCompare(a.lastEdited ?? ''))[0];
+        const futureSteps = futureVersion ? stepRes.records.filter((s) => one(s.version) === futureVersion.id) : [];
+        let future: { hours: number | null; autoPct: number } | null = null;
+        if (futureVersion && futureSteps.length) {
+          let mins = 0;
+          let auto = 0;
+          let work = 0;
+          for (const s of futureSteps) {
+            const performer = one(s.performedBy);
+            if (s.stepType === 'Wait') continue;
+            work += 1;
+            if (classOf(performer) === 'System') auto += 1;
+            const party = performer ? elementById.get(performer)?.party : '';
+            if (classOf(performer) === 'Human' && party !== 'External' && !one(s.subProcess)) mins += s.minutesPerRun ?? 0;
+          }
+          const runsPm = p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null;
+          future = { hours: runsPm && mins ? (mins * runsPm) / 60 : runsPm ? 0 : null, autoPct: work ? Math.round((auto / work) * 100) : 0 };
+        }
+
         const ownerId = one(p.owner);
         return {
           id: p.id,
@@ -198,6 +222,7 @@ export default createEndpoint({
           live: !!live,
           icon: p.icon ?? '',
           runsPerMonth: p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null,
+          future,
           stepCount: steps.length,
           automated,
           review,
