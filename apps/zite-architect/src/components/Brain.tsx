@@ -644,6 +644,19 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
             <X className="h-3.5 w-3.5" /> Close
           </button>
         )}
+        {/* Edit sits by the name too, like Close, so both are in reach from either end. */}
+        {onEdit && (
+          <button
+            type="button"
+            data-ui
+            onClick={onEdit}
+            title="Edit this process"
+            aria-label={`Edit ${p.name}`}
+            className="cursor-pointer rounded-full border border-border bg-background p-1.5 text-muted-foreground shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
         {!hideTitle && (
           <>
             <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
