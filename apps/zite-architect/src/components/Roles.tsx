@@ -9,7 +9,8 @@ import { useMe } from '@/lib/me';
 import type { ElementSummary, ElementType } from '@/types';
 import ElementDialog from './ElementDialog';
 import { PageEmpty, PageError, PageLoading } from './PageState';
-import RoleAvatar, { hueFor } from './RoleAvatar';
+import RoleAvatar from './RoleAvatar';
+import { deptTag } from '@/lib/deptColors';
 const plural = (n: number, word: string, many?: string) => `${n} ${n === 1 ? word : many ?? `${word}s`}`;
 const fmtHrs = (h: number) => `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10} hrs`;
 
@@ -139,7 +140,7 @@ export default function Roles() {
         ) : shown.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">No role matches that.</p>
         ) : (
-          <RoleCards roles={shown} onOpen={(id) => navigate(`/roles/${id}`)} />
+          <RoleCards roles={shown} hues={new Map(data.departments.map((d) => [d.name, d.hue]))} onOpen={(id) => navigate(`/roles/${id}`)} />
         )}
       </div>
 
@@ -177,6 +178,7 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
   onOpen: (id: string) => void;
 }) {
   const hours = useMemo(() => hoursByRole(data), [data]);
+  const deptHues = useMemo(() => new Map(data.departments.map((d) => [d.name, d.hue])), [data]);
   const byId = useMemo(() => new Map(summaries.map((r) => [r.who.id, r])), [summaries]);
   const avatarOf = useMemo(() => new Map(data.people.map((w) => [w.id, w])), [data]);
   const rows = taxonomy.elements
@@ -250,7 +252,7 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
                         <span
                           key={d}
                           className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                          style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
+                          style={deptTag(deptHues.get(d))}
                         >
                           {d}
                         </span>
@@ -323,7 +325,7 @@ function RolesTable({ data, taxonomy, summaries, query, onEdit, onOpen }: {
 }
 
 /** The cards everyone sees: one per role that does work, with a link to its brief. */
-function RoleCards({ roles, onOpen }: { roles: RoleSummary[]; onOpen: (id: string) => void }) {
+function RoleCards({ roles, hues, onOpen }: { roles: RoleSummary[]; hues: Map<string, number>; onOpen: (id: string) => void }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {roles.map((r) => (
@@ -348,7 +350,7 @@ function RoleCards({ roles, onOpen }: { roles: RoleSummary[]; onOpen: (id: strin
                 <span
                   key={d}
                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                  style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
+                  style={deptTag(hues.get(d))}
                 >
                   {d}
                 </span>

@@ -354,12 +354,15 @@ export type DepartmentsRecordType = {
   name?: string;
   /** Links to elements ("Elements"). Single record only. "Lead" */
   lead?: string | string[];
+  /** "Color". 0 decimal places, format: local (e.g. 1,000,000.50) */
+  color?: number;
 };
 
 /** What you may write when creating or updating a record in the "Departments" table. */
 export type DepartmentsRecordInput = {
   name: string | null;
   lead: string | string[] | null;
+  color: string | number | null;
 };
 
 export interface ZiteAuthUser {

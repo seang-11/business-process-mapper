@@ -1171,6 +1171,18 @@
               "inverseFieldId": "f42ARDRzEvC"
             }
           }
+        },
+        {
+          "id": "f7aJgycDwza",
+          "sdkName": "color",
+          "definition": {
+            "name": "Color",
+            "type": "number",
+            "template": {
+              "numberFormat": "local",
+              "decimalPlaces": 0
+            }
+          }
         }
       ]
     }

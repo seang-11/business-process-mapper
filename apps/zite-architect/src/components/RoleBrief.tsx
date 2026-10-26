@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
+import { deptTag } from '@/lib/deptColors';
 import { ArrowLeft, ChevronDown, Download, GraduationCap, Link2, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@project/components/ui/button';
@@ -70,6 +71,7 @@ export default function RoleBrief() {
   }, [load]);
 
   const brief = useMemo(() => (data && id ? buildBrief(data, id) : null), [data, id]);
+  const deptHues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
   const today = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
   if (failed) return <div className="mx-auto max-w-3xl px-8 py-10"><PageError onRetry={load} /></div>;
@@ -218,7 +220,7 @@ export default function RoleBrief() {
                     {p.department && (
                       <span
                         className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{ backgroundColor: `hsl(${hueFor(p.department)} 80% 93%)`, color: `hsl(${hueFor(p.department)} 45% 32%)` }}
+                        style={deptTag(deptHues.get(p.department))}
                       >
                         {p.department}
                       </span>

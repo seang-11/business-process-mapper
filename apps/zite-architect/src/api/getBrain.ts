@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
+import { assignDeptHues } from '../lib/deptColors';
 
 const one = (v?: string | string[]): string | null =>
   (Array.isArray(v) ? v[0] : v) ?? null;
@@ -41,7 +42,8 @@ export default createEndpoint({
   inputSchema: z.object({}),
   outputSchema: z.object({
     /** Every department that has a lead set. */
-    departments: z.array(z.object({ name: z.string(), lead: participant.nullable() })),
+    /** Every department in use, with its lead and its own color (a hue, never shared). */
+    departments: z.array(z.object({ name: z.string(), lead: participant.nullable(), hue: z.number() })),
     /** Everyone who could lead a department. */
     people: z.array(participant),
     processes: z.array(
@@ -232,12 +234,14 @@ export default createEndpoint({
       })
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    const departments = deptRes.records
-      .map((d) => {
-        const leadId = one(d.lead);
-        return { name: (d.name ?? '').trim(), lead: leadId ? describe(leadId) : null };
-      })
-      .filter((d) => d.name);
+    const deptRows = new Map(deptRes.records.filter((d) => (d.name ?? '').trim()).map((d) => [(d.name ?? '').trim(), d]));
+    const picked = new Map<string, number>();
+    for (const [name, d] of deptRows) if (typeof d.color === 'number') picked.set(name, d.color);
+    const hues = assignDeptHues([...deptRows.keys(), ...processes.map((p) => p.department)], picked);
+    const departments = [...hues].map(([name, hue]) => {
+      const leadId = one(deptRows.get(name)?.lead);
+      return { name, lead: leadId ? describe(leadId) : null, hue };
+    });
     const people = elementRes.records
       .filter((e) => classOf(e.id) === 'Human')
       .map((e) => describe(e.id)!)

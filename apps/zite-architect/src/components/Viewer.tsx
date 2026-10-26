@@ -11,11 +11,11 @@ import {
 } from 'zitejs/api';
 import { AppWindow, ArrowLeft, ArrowRight, FileText, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
+import { deptTag } from '@/lib/deptColors';
 import { useMe } from '@/lib/me';
 import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import Train from './Train';
-import { hueFor } from './RoleAvatar';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessTimeline from './ProcessTimeline';
 import type { ElementSummary, ProcessStep } from '@/types';
@@ -46,6 +46,7 @@ export function ViewerHome() {
   const { data, failed, load } = useBrain();
   const [query, setQuery] = useState('');
 
+  const hues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
   const groups = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
@@ -101,10 +102,7 @@ export function ViewerHome() {
               <h2 className="mb-2.5 flex items-center gap-2 px-1">
                 <span
                   className="rounded-full px-2.5 py-0.5 text-[13px] font-semibold"
-                  style={{
-                    backgroundColor: dept ? `hsl(${hueFor(dept)} 80% 93%)` : 'hsl(var(--muted))',
-                    color: dept ? `hsl(${hueFor(dept)} 45% 30%)` : undefined,
-                  }}
+                  style={deptTag(dept ? hues.get(dept) : undefined)}
                 >
                   {dept || 'Other'}
                 </span>
@@ -123,10 +121,7 @@ export function ViewerHome() {
                       {/* Each process wears its department's color, so the list has some life and groups read at a glance. */}
                       <span
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                        style={{
-                          backgroundColor: dept ? `hsl(${hueFor(dept)} 80% 94%)` : 'hsl(var(--muted))',
-                          color: dept ? `hsl(${hueFor(dept)} 50% 38%)` : undefined,
-                        }}
+                        style={deptTag(dept ? hues.get(dept) : undefined)}
                       >
                         <Workflow className="h-[18px] w-[18px]" />
                       </span>

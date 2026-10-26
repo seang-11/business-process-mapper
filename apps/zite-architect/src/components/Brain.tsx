@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { getBrain, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
+import { getBrain, setDepartmentColor, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
   ArrowRight, Brain as BrainIcon, ChevronDown, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
   Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
+import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@project/components/ui/dialog';
@@ -102,7 +104,7 @@ const fmtHrs = (h: number) => `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 
  * packed left to right in rows. Always the same answer for the same input, so
  * the board doesn't shuffle between visits.
  */
-function layoutBoard(procs: Proc[], opened: Set<string>) {
+function layoutBoard(procs: Proc[], opened: Set<string>, hues: Map<string, number>) {
   const byDept = new Map<string, Proc[]>();
   for (const p of procs) {
     const key = p.department || '';
@@ -144,7 +146,7 @@ function layoutBoard(procs: Proc[], opened: Set<string>) {
       key: key || '~none',
       dept: key,
       title: key || 'No department yet',
-      hue: key ? hueFor(key) : 220,
+      hue: key ? hues.get(key) ?? 220 : 220,
       x, y, w, h,
       ids: list.map((p) => p.id),
     });
@@ -825,6 +827,58 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
   );
 }
 
+// --- A department's color ---
+
+/**
+ * A swatch that opens the palette, for editors. Picking a color another
+ * department has moves that one to a free color, so no two ever match.
+ */
+function DeptColorPicker({ hue, big, onPick }: { hue: number; big?: boolean; onPick: (hue: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const pick = (h: number | null) => {
+    setOpen(false);
+    onPick(h);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-ui
+          title="Pick this department's color"
+          className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border bg-white/80 font-medium transition-colors hover:bg-white ${
+            big ? 'px-4 py-2 text-[22px]' : 'px-2.5 py-1.5 text-[13px]'
+          }`}
+          style={{ borderColor: `hsl(${hue} 55% 86%)` }}
+        >
+          <span className={`rounded-full ${big ? 'h-6 w-6' : 'h-3.5 w-3.5'}`} style={{ backgroundColor: `hsl(${hue} 60% 55%)` }} />
+          Color
+        </button>
+      </PopoverTrigger>
+      <PopoverContent data-ui align="end" className="w-60 p-3">
+        <p className="text-sm font-semibold">Department color</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Every department gets its own color.</p>
+        <div className="mt-3 grid grid-cols-5 gap-2">
+          {DEPT_PALETTE.map((c) => (
+            <button
+              key={c.hue}
+              type="button"
+              title={c.name}
+              aria-label={c.name}
+              onClick={() => pick(c.hue)}
+              className={`h-8 w-8 rounded-full transition-transform hover:scale-110 ${c.hue === hue ? 'ring-2 ring-foreground ring-offset-2' : ''}`}
+              style={{ backgroundColor: `hsl(${c.hue} 60% 55%)` }}
+            />
+          ))}
+        </div>
+        <button type="button" onClick={() => pick(null)} className="mt-3 text-xs text-muted-foreground hover:text-foreground hover:underline">
+          Let the app choose
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // --- A department, opened ---
 
 /**
@@ -908,7 +962,7 @@ function deptInsight(title: string, procs: Proc[]) {
  * in it laid out left to right at a readable size, one under the other. Wide
  * processes scroll sideways. Back returns to the board exactly as it was.
  */
-function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, onSetLead, onOpenProcess, onTrain }: {
+function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJump, onBack, onSetLead, onPickColor, onOpenProcess, onTrain }: {
   title: string;
   hue: number;
   procs: Proc[];
@@ -920,6 +974,8 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
   onJump: (processId: string) => void;
   onBack: () => void;
   onSetLead: (() => void) | null;
+  /** Editors only: change the department's color. */
+  onPickColor: ((hue: number | null) => void) | null;
   onOpenProcess: (id: string) => void;
   onTrain: (id: string) => void;
 }) {
@@ -973,6 +1029,7 @@ function DeptView({ title, hue, procs, lead, canEdit, lens, names, runByOf, onJu
               {a + r + m > 0 ? ` · ${Math.round((a / (a + r + m)) * 100)}% automated` : ''}
             </p>
           </div>
+          {canEdit && onPickColor && <DeptColorPicker hue={hue} onPick={onPickColor} />}
           {(lead || (canEdit && onSetLead)) && (
             <button
               type="button"
@@ -1283,6 +1340,8 @@ export default function Brain() {
   const names = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p.name])), [procs]);
   const byId = useMemo(() => new Map((procs ?? []).map((p) => [p.id, p])), [procs]);
   const leads = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.lead])), [data]);
+  // Each department's own color, worked out on the server so no two ever match.
+  const deptHues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
 
   // Every app and person on the board, with the processes they are part of.
   const lenses = useMemo(() => {
@@ -1314,7 +1373,7 @@ export default function Brain() {
     () => (pinned && onlyLens ? (procs ?? []).filter((p) => pinned.ids.has(p.id)) : procs ?? []),
     [procs, pinned, onlyLens],
   );
-  const board = useMemo(() => layoutBoard(boardProcs, opened), [boardProcs, opened]);
+  const board = useMemo(() => layoutBoard(boardProcs, opened, deptHues), [boardProcs, opened, deptHues]);
 
   const links = useMemo(() => {
     const shown = new Set(boardProcs.map((p) => p.id));
@@ -1639,6 +1698,16 @@ export default function Brain() {
 
   // --- Department leads ---
   const [leadFor, setLeadFor] = useState<string | null>(null);
+  // Colors are settled on the server (so none repeat), so fetch them again after a change.
+  const chooseColor = async (dept: string, hue: number | null) => {
+    try {
+      await setDepartmentColor({ department: dept, hue });
+      setData(await getBrain({}));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the color.');
+    }
+  };
+
   const chooseLead = async (dept: string, leadId: string | null) => {
     setLeadFor(null);
     try {
@@ -1646,7 +1715,13 @@ export default function Brain() {
       const lead = leadId ? data?.people.find((w) => w.id === leadId) ?? null : null;
       setData((d) =>
         d
-          ? { ...d, departments: [...d.departments.filter((x) => x.name !== dept), { name: dept, lead }] }
+          ? {
+              ...d,
+              departments: [
+                ...d.departments.filter((x) => x.name !== dept),
+                { name: dept, lead, hue: d.departments.find((x) => x.name === dept)?.hue ?? 220 },
+              ],
+            }
           : d,
       );
       toast.success(lead ? `${lead.name} now leads ${dept}` : `${dept} has no lead`);
@@ -1855,13 +1930,18 @@ export default function Brain() {
                     </span>
                   )}
                 </button>
+                {f.dept && canEdit && (
+                  <span className="ml-auto mt-2">
+                    <DeptColorPicker hue={f.hue} big={big} onPick={(h) => chooseColor(f.dept, h)} />
+                  </span>
+                )}
                 {f.dept && (lead || canEdit) && (
                   <button
                     type="button"
                     data-ui
                     disabled={!canEdit}
                     onClick={() => setLeadFor(f.dept)}
-                    className={`ml-auto mt-2 inline-flex shrink-0 items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 font-medium transition-colors ${
+                    className={`${canEdit ? '' : 'ml-auto '}mt-2 inline-flex shrink-0 items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 font-medium transition-colors ${
                       big ? 'text-[22px]' : 'text-[13px]'
                     } ${canEdit ? 'cursor-pointer hover:bg-white' : 'cursor-default'}`}
                     style={{ borderColor: `hsl(${f.hue} 55% 86%)` }}
@@ -2074,7 +2154,7 @@ export default function Brain() {
                     <span
                       key={d}
                       className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                      style={{ backgroundColor: `hsl(${hueFor(d)} 80% 93%)`, color: `hsl(${hueFor(d)} 45% 32%)` }}
+                      style={deptTag(deptHues.get(d))}
                     >
                       {d}
                     </span>
@@ -2373,7 +2453,7 @@ export default function Brain() {
         return (
           <DeptView
             title={dept || 'No department yet'}
-            hue={dept ? hueFor(dept) : 220}
+            hue={dept ? deptHues.get(dept) ?? 220 : 220}
             procs={members}
             lead={dept ? leads.get(dept) ?? null : null}
             canEdit={canEdit}
@@ -2383,6 +2463,7 @@ export default function Brain() {
             onJump={jumpTo}
             onBack={() => setDeptOpen(null)}
             onSetLead={dept ? () => setLeadFor(dept) : null}
+            onPickColor={dept ? (h) => chooseColor(dept, h) : null}
             onOpenProcess={(id) => navigate(`/process/${id}`)}
             onTrain={(id) => navigate(`/process/${id}?train=all&view=process`)}
           />
