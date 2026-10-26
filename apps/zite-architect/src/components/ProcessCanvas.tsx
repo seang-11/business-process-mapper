@@ -108,7 +108,7 @@ export default function ProcessCanvas() {
   const [showOverview, setShowOverview] = useState(() => storedView() === 'overview');
   const [allProcesses, setAllProcesses] = useState<ProcessRow[]>([]);
   /** Inside the Overview: one version, or Current and Future side by side. */
-  const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('side');
+  const [overviewMode, setOverviewMode] = useState<'single' | 'side'>('single');
   const [managingVersions, setManagingVersions] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState(false);
@@ -707,14 +707,13 @@ export default function ProcessCanvas() {
               {process && process.versions.length > 1 && (
                 <div className="flex shrink-0 justify-center border-b border-border bg-background px-6 py-2.5">
                   <div className={SEG_TRACK}>
-                    <button
-                      className={segBtn(overviewMode === 'side')}
-                      onClick={() => setOverviewMode('side')}
-                    >
-                      Side by side
-                    </button>
-                    {/* Each version is its own tab, so the one on screen is always named. */}
-                    {process.versions.map((v) => {
+                    {/* Each version is its own tab, so the one on screen is always named: live first, then future, then the rest. */}
+                    {[...process.versions]
+                      .sort((a, b) => {
+                        const rank = (st: string) => (st === 'Current' ? 0 : /future/i.test(st) ? 1 : 2);
+                        return rank(a.state) - rank(b.state) || b.lastEdited.localeCompare(a.lastEdited);
+                      })
+                      .map((v) => {
                       const active = overviewMode === 'single' && graph?.version?.id === v.id;
                       return (
                         <button
@@ -735,6 +734,12 @@ export default function ProcessCanvas() {
                         </button>
                       );
                     })}
+                    <button
+                      className={segBtn(overviewMode === 'side')}
+                      onClick={() => setOverviewMode('side')}
+                    >
+                      Side by side
+                    </button>
                   </div>
                 </div>
               )}
