@@ -194,3 +194,20 @@ export function CityIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** A small factory: a sawtooth roof with a chimney, a belt and a box on it. For the 3D view switch. */
+export function FactoryIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M2 20V11l5 3V11l5 3V11l5 3V5h3v15z" fill="hsl(225 40% 50%)" />
+      <rect x="17" y="3.2" width="3" height="1.4" rx="0.5" fill="hsl(220 15% 75%)" />
+      <g fill="hsl(45 100% 72%)">
+        <rect x="4" y="15.5" width="2" height="2" />
+        <rect x="9" y="15.5" width="2" height="2" />
+        <rect x="14" y="15.5" width="2" height="2" />
+      </g>
+      <rect x="1" y="20.6" width="22" height="2" rx="1" fill="hsl(225 20% 35%)" />
+      <rect x="18.6" y="17.6" width="3" height="3" rx="0.4" fill="hsl(28 90% 58%)" />
+    </svg>
+  );
+}
