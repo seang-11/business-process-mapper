@@ -378,7 +378,6 @@ export default function WorkspaceList() {
       )}
       {me && !isAdmin && !welcomeSeen && (
         <Welcome
-          firstName={me.firstName}
           onDone={markWelcomeSeen}
         />
       )}

@@ -2,21 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
-import { ChevronDown, Keyboard, Network, Search } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@project/components/ui/dropdown-menu';
+import { HelpCircle, Network, Search, UserRound } from 'lucide-react';
 import { useMe } from '@/lib/me';
 import { useTrackTrail } from '@/lib/backTrail';
 import CommandMenu from './CommandMenu';
 import ShortcutsDialog from './ShortcutsDialog';
 import PreviewSwitcher from './PreviewSwitcher';
 import { PageError } from './PageState';
+import Welcome from './Welcome';
 
 type ProcessRow = GetProcessesOutputType['processes'][number];
 
@@ -36,7 +29,7 @@ export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { me, isAdmin, canEdit } = useMe();
+  const { me, isAdmin, canEdit, isRealAdmin, welcomeSeen, markWelcomeSeen, replayWelcome } = useMe();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -86,7 +79,7 @@ export default function AppShell() {
         return;
       }
       const typing = (e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]');
-      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === '?') {
+      if (canEdit && !typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === '?') {
         e.preventDefault();
         setShortcutsOpen(true);
       }
@@ -114,7 +107,6 @@ export default function AppShell() {
   ];
 
   const name = me?.name || me?.email || 'You';
-  const access = ACCESS_WORD[me?.access ?? 'viewer'];
 
   return (
     <div className="flex h-screen flex-col bg-[hsl(220_20%_98.5%)] print:block print:h-auto print:bg-white">
@@ -164,38 +156,30 @@ export default function AppShell() {
           </button>
           )}
 
-          <PreviewSwitcher />
+          {isRealAdmin && <PreviewSwitcher />}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="Your profile"
-                className="flex h-9 items-center gap-2 rounded-lg pl-1 pr-2 transition-colors hover:bg-muted"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-                  {initialsOf(name)}
-                </span>
-                <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="font-normal">
-                <span className="block truncate text-sm font-semibold">{name}</span>
-                {me?.email && me.email !== name && (
-                  <span className="block truncate text-xs text-muted-foreground">{me.email}</span>
-                )}
-                <span className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {access}
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => setShortcutsOpen(true)}>
-                <Keyboard className="mr-2 h-4 w-4" /> Keyboard shortcuts
-                <kbd className="ml-auto rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium">?</kbd>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            type="button"
+            onClick={replayWelcome}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <HelpCircle className="h-4 w-4" />
+            <span className="hidden sm:inline">How it works</span>
+          </button>
+
+          {me?.email ? (
+            <span className="hidden h-9 items-center gap-2 rounded-lg border border-border pl-1 pr-2.5 text-sm sm:flex" title={me.email}>
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">{initialsOf(name)}</span>
+              {ACCESS_WORD[me.access]}
+            </span>
+          ) : (
+            <span className="flex h-9 items-center gap-2 rounded-lg border border-border pl-1 pr-2.5 text-sm">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
+                <UserRound className="h-4 w-4 text-muted-foreground" />
+              </span>
+              Guest
+            </span>
+          )}
         </div>
       </header>
 
@@ -223,6 +207,7 @@ export default function AppShell() {
         onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      {!canEdit && !welcomeSeen && <Welcome onDone={markWelcomeSeen} />}
     </div>
   );
 }

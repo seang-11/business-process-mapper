@@ -1,122 +1,90 @@
 import { useState } from 'react';
-import { ArrowRight, Compass, GraduationCap, Hand, Layers, UsersRound, Network } from 'lucide-react';
+import { ArrowRight, GitCompare, Layers, MousePointerClick, Network, UsersRound } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 
 interface Props {
-  firstName: string;
   onDone: () => void;
 }
 
 const STEPS = 3;
 
-/** Three quick screens for someone's first visit. Skippable, and shown once. */
-export default function Welcome({ firstName, onDone }: Props) {
+/** Three quick screens for a visitor's first time here. Skippable, and shown once. */
+export default function Welcome({ onDone }: Props) {
   const [step, setStep] = useState(0);
   const last = step === STEPS - 1;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]"
-      role="dialog"
-      aria-label="Welcome"
-    >
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]" role="dialog" aria-label="How it works">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
-        <div className="px-8 pb-6 pt-9 text-center">
+        <div className="px-6 pb-6 pt-9 text-center sm:px-8">
           {step === 0 && (
             <>
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Hand className="h-7 w-7" />
-              </span>
-              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Welcome, {firstName}</h2>
+              <Badge><Network className="h-7 w-7" /></Badge>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Every process, mapped and clickable</h2>
               <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                This is where you can see how work gets done here: who does what, in which tool, and in what order.
-                It takes about a minute to see how it works.
+                This replaces messy whiteboards. Each process shows who does every step, in which tool and in what order,
+                both how it runs today and how it will run next.
               </p>
             </>
           )}
-
           {step === 1 && (
             <>
-              <h2 className="text-2xl font-semibold tracking-tight">Pick a process, then your role</h2>
+              <Badge><MousePointerClick className="h-7 w-7" /></Badge>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Open a process, then click a step</h2>
               <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Every process is on the home page. Open one and press Start training, or switch to Cards for a Start training
-                button on each. You'll see the whole picture first, then pick your role to see exactly what you do.
+                Pick any process from the list. Click a step on the map to see who does it, the tools they use, how long it
+                takes and what comes next. You can't break anything, so click around.
               </p>
-              <div className="mx-auto mt-6 max-w-xs rounded-xl border border-border bg-card p-4 text-left shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                    <Network className="h-5 w-5" />
-                  </span>
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">Live</span>
-                </div>
-                <p className="mt-3 text-sm font-semibold">Employee Onboarding</p>
-                <p className="text-xs text-muted-foreground">17 steps · 2 roles</p>
-                <div className="mt-3 rounded-md border border-border py-1.5 text-center text-xs font-medium">
-                  <GraduationCap className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />
-                  Start training
-                </div>
-              </div>
+              <ul className="mx-auto mt-5 max-w-xs space-y-2.5 text-left text-sm">
+                <Item icon={<UsersRound className="h-5 w-5" />} title="By person" text="Who does what, in order." />
+                <Item icon={<Layers className="h-5 w-5" />} title="By app" text="Which tools are used where." />
+              </ul>
             </>
           )}
-
           {step === 2 && (
             <>
-              <h2 className="text-2xl font-semibold tracking-tight">Look at it your way</h2>
+              <Badge><GitCompare className="h-7 w-7" /></Badge>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Today vs. tomorrow</h2>
               <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Open any process and switch how you see it. You can't break anything, so click around.
+                Processes marked <b className="font-semibold text-foreground">Current</b> show how work runs now.
+                <b className="font-semibold text-foreground"> Future</b> shows the improved, more automated version. Use the
+                Current / Future switch on a process to compare them.
               </p>
-              <ul className="mx-auto mt-6 max-w-sm space-y-3 text-left text-sm">
-                <li className="flex items-start gap-3">
-                  <UsersRound className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                  <span>
-                    <b className="font-semibold">By person</b>
-                    <span className="block text-xs text-muted-foreground">Who does what, in order.</span>
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Layers className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                  <span>
-                    <b className="font-semibold">By app</b>
-                    <span className="block text-xs text-muted-foreground">Which tools are used where.</span>
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Compass className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                  <span>
-                    <b className="font-semibold">Overview</b>
-                    <span className="block text-xs text-muted-foreground">The whole thing as a simple list.</span>
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                  <span>
-                    <b className="font-semibold">Train</b>
-                    <span className="block text-xs text-muted-foreground">A lesson for your role, and a handover page.</span>
-                  </span>
-                </li>
-              </ul>
             </>
           )}
 
           <div className="mt-7 flex justify-center gap-1.5" aria-hidden="true">
             {Array.from({ length: STEPS }, (_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-primary' : 'w-1.5 bg-border'}`}
-              />
+              <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-primary' : 'w-1.5 bg-border'}`} />
             ))}
           </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-3">
           <button type="button" onClick={onDone} className="text-sm text-muted-foreground hover:text-foreground">
-            Skip for now
+            Skip
           </button>
           <Button onClick={() => (last ? onDone() : setStep((s) => s + 1))}>
-            {last ? 'Get started' : 'Next'} <ArrowRight className="ml-2 h-4 w-4" />
+            {last ? 'Start exploring' : 'Next'} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
     </div>
+  );
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">{children}</span>;
+}
+
+function Item({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+      <span>
+        <b className="font-semibold">{title}</b>
+        <span className="block text-xs text-muted-foreground">{text}</span>
+      </span>
+    </li>
   );
 }

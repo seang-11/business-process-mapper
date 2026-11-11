@@ -36,6 +36,27 @@ function parseChecklist(raw?: string | null): { text: string; appId?: string }[]
   }
 }
 
+const stepOut = z.object({
+            id: z.string(),
+            title: z.string(),
+            stepType: z.string(),
+            /** An app does it on its own. */
+            automated: z.boolean(),
+            who: participant.nullable(),
+            /** Everything the step uses, so a spotlight can find the steps an app is part of. */
+            useIds: z.array(z.string()),
+            /** The same things, ready to draw, for the hover panel. */
+            uses: z.array(participant),
+            produces: z.array(z.string()),
+            description: z.string(),
+            checklist: z.array(z.object({ text: z.string(), app: participant.nullable() })),
+            /** The process this step runs, when it is a sub-process step. */
+            subProcessId: z.string().nullable(),
+            /** Rough minutes a person spends on it each run. Null when not estimated. */
+            minutes: z.number().nullable(),
+          });
+const linkOut = z.object({ from: z.string(), to: z.string(), label: z.string() });
+
 export default createEndpoint({
   description: 'The company brain: every process with its department, owner, people, apps and the other processes it runs',
   inputSchema: z.object({}),
@@ -74,29 +95,14 @@ export default createEndpoint({
         /** The other processes this one runs, through a sub-process step. */
         runs: z.array(z.object({ processId: z.string(), stepTitle: z.string() })),
         /** Every step in order, for when you zoom in close enough to read them. */
-        steps: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            stepType: z.string(),
-            /** An app does it on its own. */
-            automated: z.boolean(),
-            who: participant.nullable(),
-            /** Everything the step uses, so a spotlight can find the steps an app is part of. */
-            useIds: z.array(z.string()),
-            /** The same things, ready to draw, for the hover panel. */
-            uses: z.array(participant),
-            produces: z.array(z.string()),
-            description: z.string(),
-            checklist: z.array(z.object({ text: z.string(), app: participant.nullable() })),
-            /** The process this step runs, when it is a sub-process step. */
-            subProcessId: z.string().nullable(),
-            /** Rough minutes a person spends on it each run. Null when not estimated. */
-            minutes: z.number().nullable(),
-          }),
-        ),
+        steps: z.array(stepOut),
         /** The arrows between those steps, so the board can lay the process out left to right. */
-        links: z.array(z.object({ from: z.string(), to: z.string(), label: z.string() })),
+        links: z.array(linkOut),
+        /** The version shown above, and the newest future version of a live process (with its own steps and arrows). */
+        versionId: z.string().nullable(),
+        futureFlow: z
+          .object({ versionId: z.string(), steps: z.array(stepOut), links: z.array(linkOut) })
+          .nullable(),
       }),
     ),
   }),
@@ -210,31 +216,7 @@ export default createEndpoint({
           future = { hours: runsPm && mins ? (mins * runsPm) / 60 : runsPm ? 0 : null, autoPct: work ? Math.round((auto / work) * 100) : 0 };
         }
 
-        const ownerId = one(p.owner);
-        return {
-          id: p.id,
-          name: p.name ?? '',
-          description: p.description ?? '',
-          department: (p.department ?? '').trim(),
-          ownerId,
-          ownerName: ownerId ? elementById.get(ownerId)?.name ?? '' : '',
-          live: !!live,
-          icon: p.icon ?? '',
-          runsPerMonth: p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null,
-          future,
-          stepCount: steps.length,
-          automated,
-          review,
-          manual,
-          people: [...people.values()],
-          apps: [...apps.values()],
-          runs,
-          links: version
-            ? connRes.records
-                .filter((c) => one(c.version) === version.id)
-                .map((c) => ({ from: one(c.fromStep) ?? '', to: one(c.toStep) ?? '', label: c.label ?? '' }))
-            : [],
-          steps: steps.map((s) => {
+        const mapSteps = (list: typeof steps) => list.map((s) => {
             const performer = one(s.performedBy);
             return {
               id: s.id,
@@ -260,7 +242,41 @@ export default createEndpoint({
               })(),
               minutes: s.minutesPerRun && s.minutesPerRun > 0 ? s.minutesPerRun : null,
             };
-          }),
+          });
+        const linksOf = (vid: string) =>
+          connRes.records
+            .filter((c) => one(c.version) === vid)
+            .map((c) => ({ from: one(c.fromStep) ?? '', to: one(c.toStep) ?? '', label: c.label ?? '' }));
+        const ownerId = one(p.owner);
+        return {
+          id: p.id,
+          name: p.name ?? '',
+          description: p.description ?? '',
+          department: (p.department ?? '').trim(),
+          ownerId,
+          ownerName: ownerId ? elementById.get(ownerId)?.name ?? '' : '',
+          live: !!live,
+          icon: p.icon ?? '',
+          runsPerMonth: p.runsPerMonth && p.runsPerMonth > 0 ? p.runsPerMonth : null,
+          future,
+          stepCount: steps.length,
+          automated,
+          review,
+          manual,
+          people: [...people.values()],
+          apps: [...apps.values()],
+          runs,
+          links: version ? linksOf(version.id) : [],
+          steps: mapSteps(steps),
+          versionId: version?.id ?? null,
+          futureFlow:
+            live && futureVersion && futureSteps.length
+              ? {
+                  versionId: futureVersion.id,
+                  steps: mapSteps([...futureSteps].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))),
+                  links: linksOf(futureVersion.id),
+                }
+              : null,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));

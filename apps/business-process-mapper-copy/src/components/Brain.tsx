@@ -544,7 +544,9 @@ function StepDetails({ st, box, names }: { st: Step; box: DOMRect; names: Map<st
 }
 
 /** One process opened up on the board: every step left to right, with its arrows, like a small map. */
-export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, onEdit, extra, hideTitle }: {
+export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose, onOpenProcess, onEdit, extra, hideTitle, onStepClick }: {
+  /** Click a step box, e.g. to open its details. */
+  onStepClick?: (stepId: string) => void;
   p: Proc;
   rect: Rect;
   layout: FlowLayout;
@@ -788,7 +790,8 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
             key={id}
             onMouseEnter={(e) => setHoverStep({ id, box: e.currentTarget.getBoundingClientRect() })}
             onMouseLeave={() => setHoverStep((h) => (h?.id === id ? null : h))}
-            className={`absolute flex flex-col rounded-xl border p-2.5 transition-[opacity,box-shadow] duration-200 ${
+            onClick={onStepClick ? () => onStepClick(id) : undefined}
+            className={`absolute flex flex-col rounded-xl border p-2.5 transition-[opacity,box-shadow] duration-200 ${onStepClick ? 'cursor-pointer' : ''} ${
               hoverStep?.id === id ? 'ring-2 ring-primary' : ''
             } ${
               lens && on
@@ -834,7 +837,7 @@ export function FlowView({ p, rect, layout, lens, names, runBy, onJump, onClose,
                 <button
                   type="button"
                   data-ui
-                  onClick={() => onJump(st.subProcessId!)}
+                  onClick={(e) => { e.stopPropagation(); onJump(st.subProcessId!); }}
                   className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 hover:bg-white"
                 >
                   Runs {sub} <ArrowRight className="h-2.5 w-2.5 shrink-0" />

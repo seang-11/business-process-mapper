@@ -9,15 +9,15 @@ import {
   GetProcessGraphOutputType,
   getTaxonomy,
 } from 'zitejs/api';
-import { AppWindow, ArrowLeft, ArrowRight, FileText, LayoutGrid, PlayCircle, Search, Users, Workflow } from 'lucide-react';
+import { AppWindow, ArrowLeft, ArrowRight, FileText, LayoutGrid, MousePointerClick, PlayCircle, Search, Users, Workflow } from 'lucide-react';
 import { flowLayout } from '@/lib/brainFlow';
 import { deptTag } from '@/lib/deptColors';
 import { processIcon } from '@/lib/processIcon';
 import { useBack } from '@/lib/backTrail';
-import { useMe } from '@/lib/me';
 import { FlowView } from './Brain';
 import { PageEmpty, PageError, PageLoading } from './PageState';
 import Train from './Train';
+import StepPanel from './StepPanel';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessPopup from './ProcessPopup';
 import WatchLive from './WatchLive';
@@ -45,24 +45,28 @@ function useBrain() {
  */
 export function ViewerHome() {
   const navigate = useNavigate();
-  const { me } = useMe();
   const { data, failed, load } = useBrain();
   const [query, setQuery] = useState('');
+  const [show, setShow] = useState<'all' | 'current' | 'future'>('all');
 
   const hues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
   const groups = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    const live = data.processes.filter((p) => p.live && p.stepCount > 0 && (!q || p.name.toLowerCase().includes(q)));
+    const live = data.processes.filter(
+      (p) =>
+        p.stepCount > 0 &&
+        (show === 'all' || (show === 'current' ? p.live : !p.live || !!p.futureFlow)) &&
+        (!q || p.name.toLowerCase().includes(q)),
+    );
     const byDept = new Map<string, typeof live>();
     for (const p of live) {
       const key = p.department || '';
       byDept.set(key, [...(byDept.get(key) ?? []), p]);
     }
     return [...byDept.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
-  }, [data, query]);
+  }, [data, query, show]);
 
-  const first = me?.firstName?.trim();
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
     <div className="mx-auto max-w-[880px] px-6 py-10">
@@ -72,13 +76,14 @@ export function ViewerHome() {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
           <Workflow className="h-5 w-5" />
         </span>
-        <h1 className="mt-4 text-[28px] font-semibold tracking-tight">{first ? `Welcome, ${first}` : 'Welcome'}</h1>
+        <h1 className="mt-4 text-[28px] font-semibold tracking-tight">Welcome to the process map</h1>
         <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          Every process the team runs, step by step. Open one to see who does each step and which tools they use.
+          Click any process to see every step: who does it, which tools they use, and what happens next. Switch between how it runs today and how it will run in the future.
         </p>
       </header>
 
-      <div className="relative mt-6">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+      <div className="relative flex-1">
         <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
@@ -86,6 +91,22 @@ export function ViewerHome() {
           placeholder="Search processes"
           className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
         />
+      </div>
+      <div className="flex shrink-0 rounded-xl border border-border bg-card p-1 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        {(['all', 'current', 'future'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={show === k}
+            onClick={() => setShow(k)}
+            className={`flex-1 rounded-lg px-3.5 py-1.5 font-medium capitalize transition-colors ${
+              show === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
       </div>
 
       <div className="mt-8 space-y-8">
@@ -97,7 +118,7 @@ export function ViewerHome() {
           query ? (
             <p className="py-12 text-center text-sm text-muted-foreground">No process matches "{query}".</p>
           ) : (
-            <PageEmpty icon={<Search className="h-6 w-6" />} title="Nothing to see yet" text="Processes show up here once they go live." />
+            <PageEmpty icon={<Search className="h-6 w-6" />} title="Nothing to see here yet" text={show === 'all' ? 'Processes show up here once they are mapped.' : `No ${show} processes yet. Try All.`} />
           )
         ) : (
           groups.map(([dept, procs]) => (
@@ -134,7 +155,7 @@ export function ViewerHome() {
                   <li key={p.id}>
                     <button
                       type="button"
-                      onClick={() => navigate(`/view/${p.id}`)}
+                      onClick={() => navigate(`/view/${p.id}${show === 'future' && p.live && p.futureFlow ? '?ver=future' : ''}`)}
                       className="group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40"
                     >
                       {/* Each process wears its department's color, so the list has some life and groups read at a glance. */}
@@ -160,6 +181,14 @@ export function ViewerHome() {
                           </span>
                         )}
                         <span className="block">{p.stepCount} steps</span>
+                      </span>
+                      <span className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-accent text-accent-foreground'}`}>
+                          {p.live ? 'Current' : 'Future'}
+                        </span>
+                        {p.live && p.futureFlow && (
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">Future version ready</span>
+                        )}
                       </span>
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-[13px] font-medium text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         View <ArrowRight className="h-3.5 w-3.5" />
@@ -197,9 +226,27 @@ export function ViewerProcess() {
   const [params, setParams] = useSearchParams();
   const asked = params.get('lanes');
   const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' || asked === 'watch' ? asked : 'flow';
-  const setLook = (next: Look) => setParams(next === 'flow' ? {} : { lanes: next }, { replace: true });
+  const wantFuture = params.get('ver') === 'future';
+  const setParam = (key: string, value: string | null) =>
+    setParams((prev) => {
+      const n = new URLSearchParams(prev);
+      if (value) n.set(key, value);
+      else n.delete(key);
+      return n;
+    }, { replace: true });
+  const setLook = (next: Look) => setParam('lanes', next === 'flow' ? null : next);
   const { data, failed, load } = useBrain();
-  const p = data?.processes.find((x) => x.id === id && x.live) ?? null;
+  const base = data?.processes.find((x) => x.id === id && x.stepCount > 0) ?? null;
+  const showFuture = !!(wantFuture && base?.futureFlow);
+  // The process as it should be drawn: the live version, or its future version when switched.
+  const p = useMemo(
+    () => (base && showFuture && base.futureFlow ? { ...base, steps: base.futureFlow.steps, links: base.futureFlow.links } : base),
+    [base, showFuture],
+  );
+  const versionId = showFuture ? base?.futureFlow?.versionId : base?.versionId;
+  const [openStepId, setOpenStepId] = useState<string | null>(null);
+  useEffect(() => setOpenStepId(null), [id, versionId]);
+  const openStep = p?.steps.find((s) => s.id === openStepId) ?? null;
   const names = useMemo(() => new Map((data?.processes ?? []).map((x) => [x.id, x.name])), [data]);
   const layout = useMemo(() => (p ? flowLayout(p.steps.map((s) => s.id), p.links) : null), [p]);
   const runBy = useMemo(
@@ -212,14 +259,14 @@ export function ViewerProcess() {
   const [lanesFailed, setLanesFailed] = useState(false);
   useEffect(() => {
     setLanes(null);
-  }, [id]);
+  }, [id, versionId]);
   useEffect(() => {
     if (look === 'flow' || look === 'overview' || lanes || !id) return;
     setLanesFailed(false);
-    Promise.all([getProcessGraph({ processId: id }), getTaxonomy({})])
+    Promise.all([getProcessGraph(versionId ? { versionId } : { processId: id }), getTaxonomy({})])
       .then(([graph, tax]) => setLanes({ graph, elements: tax.elements as ElementSummary[] }))
       .catch(() => setLanesFailed(true));
-  }, [look, lanes, id]);
+  }, [look, lanes, id, versionId]);
 
   return (
     <div className="flex h-full flex-col px-6 py-6">
@@ -252,19 +299,48 @@ export function ViewerProcess() {
       </div>
       {/* The same name, badge and description over every view, so switching views never changes the heading. */}
       {p && (
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
-          {p.name}
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
-        </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">{p.name}</h1>
+          {base?.futureFlow ? (
+            <div className="flex rounded-lg border border-border bg-card p-0.5 text-xs font-medium">
+              {[
+                { key: false, label: 'Current' },
+                { key: true, label: 'Future' },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  aria-pressed={showFuture === o.key}
+                  onClick={() => setParam('ver', o.key ? 'future' : null)}
+                  className={`rounded-md px-2.5 py-1 transition-colors ${
+                    showFuture === o.key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-accent text-accent-foreground'}`}>
+              {p.live ? 'Current' : 'Future'}
+            </span>
+          )}
+          {(look === 'flow' || look === 'people' || look === 'app') && (
+            <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
+              <MousePointerClick className="h-3.5 w-3.5" /> Click any step for details
+            </span>
+          )}
+        </div>
       )}
       {p?.description && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{p.description}</p>}
-      <div className="mt-4 min-h-0 flex-1">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+      <div className="min-h-0 min-w-0 flex-1">
         {failed ? (
           <PageError onRetry={load} />
         ) : !data ? (
           <PageLoading blocks={1} height="h-64" />
         ) : !p || !layout ? (
-          <PageEmpty icon={<Search className="h-6 w-6" />} title="That process isn't available" text="It may not be live yet. Go back to see the ones that are." />
+          <PageEmpty icon={<Search className="h-6 w-6" />} title="That process isn't available" text="It may have been removed. Go back to see all processes." />
         ) : look === 'flow' ? (
           <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <div className="overflow-x-auto">
@@ -277,6 +353,7 @@ export function ViewerProcess() {
                   names={names}
                   runBy={runBy}
                   onJump={(next) => navigate(`/view/${next}`)}
+                  onStepClick={setOpenStepId}
                   hideTitle
                 />
               </div>
@@ -314,13 +391,27 @@ export function ViewerProcess() {
               connections={lanes.graph.connections}
               grouping={look as LaneGrouping}
               elements={lanes.elements}
-              onClickStep={() => {}}
+              onClickStep={(st) => setOpenStepId(st.id)}
               onOpenSubProcess={(next) => navigate(`/view/${next}`)}
               laneOrder={lanes.graph.laneOrder?.[look as LaneGrouping] ?? []}
               viewKey={`${lanes.graph.version?.id ?? id}-${look}`}
             />
           </section>
         )}
+      </div>
+      {p && openStep && look !== 'overview' && look !== 'watch' && (
+        <div className="max-h-[70vh] md:max-h-none">
+          <StepPanel
+            step={openStep}
+            steps={p.steps}
+            links={p.links}
+            names={names}
+            onPick={setOpenStepId}
+            onJump={(next) => navigate(`/view/${next}`)}
+            onClose={() => setOpenStepId(null)}
+          />
+        </div>
+      )}
       </div>
     </div>
   );
