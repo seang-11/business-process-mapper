@@ -1,5 +1,6 @@
 // This app is a public showcase: the owner's personal name never leaves the server.
 const swaps: [RegExp, string][] = [
+  [/\s*Gumloop referred Quo\.?/g, ''],
   [/sean@prospectautomations\.com/gi, 'founder@example.com'],
   [/\bSean Grady\b/g, 'Founder'],
   [/\bGrady\b/g, ''],

@@ -1805,8 +1805,8 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
             on screen and wraps to the narrower card instead. */}
         <div style={{ zoom: textScale }} className={`transition-opacity duration-200 ${isDimmed ? 'opacity-30' : ''}`}>
         {detail !== 'compact' && (
-        <div className="flex items-center justify-between gap-1.5 mb-1.5">
-          <span className="inline-flex min-w-0 max-w-[120px] items-center gap-1.5 text-[11px] font-semibold leading-tight text-foreground">
+        <div className="flex flex-wrap-reverse items-start justify-between gap-x-1.5 gap-y-1 mb-1.5">
+          <span className="inline-flex min-w-0 flex-1 basis-[90px] items-start gap-1.5 text-[11px] font-semibold leading-tight text-foreground">
             {performer && (
               <ElementIcon
                 name={performer.name}
@@ -1817,9 +1817,9 @@ const StepCard = forwardRef<HTMLDivElement, StepCardProps>(
                 size={14}
               />
             )}
-            <span className="break-words">{performer?.name || 'Unassigned'}</span>
+            <span className="min-w-0 break-words line-clamp-2">{performer?.name || 'Unassigned'}</span>
           </span>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="ml-auto flex items-center gap-1 shrink-0">
             {isDecision ? (
               // BPMN draws a gateway as a diamond; a rotated square is the
               // honest version of that at badge size.
