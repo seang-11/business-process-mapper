@@ -13,5 +13,11 @@
     "domains": [
       "prospectautomations.com"
     ]
+  },
+  "seoSettings": {
+    "title": "Business Process Mapper",
+    "description": "",
+    "thumbnailUrl": "https://images.fillout.com/orgid-446582/flowpublicid-ouwxsottkm/widgetid-default/fQkAzc5ruAbf2yKGG3m8YS/NewBetterSize-AnimatedLogo3333.jpg",
+    "faviconUrl": ""
   }
 }
