@@ -1,0 +1,28 @@
+{
+  "accessMode": "external",
+  "id": "9ewqvktazj",
+  "brandKitId": "bk_9XB8kUaS7r",
+  "brandKitThemeHash": "1lxz6lg",
+  "authentication": {
+    "signup": "domain-restricted",
+    "authenticationMethods": {
+      "sso": false,
+      "magicLink": true,
+      "googleSignIn": true
+    },
+    "domains": [
+      "prospectautomations.com"
+    ],
+    "authPage": {
+      "messages": {
+        "signInTitle": "Sign In"
+      }
+    }
+  },
+  "seoSettings": {
+    "title": "Business Process Mapper",
+    "description": "",
+    "thumbnailUrl": "https://images.fillout.com/orgid-446582/flowpublicid-9ewqvktazj/widgetid-default/fQkAzc5ruAbf2yKGG3m8YS/NewBetterSize-AnimatedLogo3333.jpg",
+    "faviconUrl": ""
+  }
+}

@@ -1,0 +1,170 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@300;400;500;600;700&display=swap");
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 223 78% 57%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 48 97% 77%;
+    --accent-foreground: 0 0% 4%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 4%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 223 78% 57%;
+
+    --chart-1: 223 78% 57%;
+    --chart-2: 12 70% 55%;
+    --chart-3: 173 70% 36%;
+    --chart-4: 257 70% 55%;
+    --chart-5: 43 70% 40%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 223 78% 57%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 48 97% 77%;
+    --sidebar-accent-foreground: 0 0% 4%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 223 78% 57%;
+
+    --radius: 0.625rem;
+
+    --font-sans: 'Inter', sans-serif;
+    --font-mono: 'Roboto Mono', monospace;
+    --shadow-x: 0px;
+    --shadow-y: 1px;
+    --shadow-blur: 4px;
+    --shadow-spread: 0px;
+    --shadow-opacity: 0.2;
+    --shadow-color: #000000;
+    --shadow-rgb: 0 0 0;
+
+    --shadow-2xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / calc(var(--shadow-opacity) * 0.5));
+    --shadow-xs: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / calc(var(--shadow-opacity) * 0.5));
+    --shadow-sm: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / var(--shadow-opacity)), var(--shadow-x) calc(var(--shadow-y) / 4) calc(var(--shadow-blur) / 2) calc(var(--shadow-spread) - 1px) rgb(var(--shadow-rgb) / var(--shadow-opacity));
+    --shadow: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / var(--shadow-opacity)), var(--shadow-x) calc(var(--shadow-y) / 2) calc(var(--shadow-blur) / 2) calc(var(--shadow-spread) - 1px) rgb(var(--shadow-rgb) / var(--shadow-opacity));
+    --shadow-md: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / var(--shadow-opacity)), var(--shadow-x) calc(var(--shadow-y) / 2) calc(var(--shadow-blur) * 2) calc(var(--shadow-spread) - 1px) rgb(var(--shadow-rgb) / var(--shadow-opacity));
+    --shadow-lg: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / var(--shadow-opacity)), var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 3) calc(var(--shadow-spread) - 1px) rgb(var(--shadow-rgb) / var(--shadow-opacity));
+    --shadow-xl: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / var(--shadow-opacity)), var(--shadow-x) calc(var(--shadow-y) * 2) calc(var(--shadow-blur) * 5) calc(var(--shadow-spread) - 1px) rgb(var(--shadow-rgb) / var(--shadow-opacity));
+    --shadow-2xl: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) rgb(var(--shadow-rgb) / calc(var(--shadow-opacity) * 2.5));
+  }
+
+  .dark {
+    --background: 0 0% 9.0196%;
+    --foreground: 0 0% 89.8039%;
+
+    --card: 0 0% 14.9020%;
+    --card-foreground: 0 0% 89.8039%;
+
+    --popover: 0 0% 14.9020%;
+    --popover-foreground: 0 0% 89.8039%;
+
+    --primary: 217.2193 91.2195% 59.8039%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 14.9020%;
+    --secondary-foreground: 0 0% 89.8039%;
+
+    --muted: 0 0% 12.1569%;
+    --muted-foreground: 0 0% 63.9216%;
+
+    --accent: 224.4444 64.2857% 32.9412%;
+    --accent-foreground: 213.3333 96.9231% 87.2549%;
+
+    --destructive: 0 84.2365% 60.1961%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 25.0980%;
+    --input: 0 0% 25.0980%;
+    --ring: 217.2193 91.2195% 59.8039%;
+
+    --chart-1: 213.1169 93.9024% 67.8431%;
+    --chart-2: 217.2193 91.2195% 59.8039%;
+    --chart-3: 221.2121 83.1933% 53.3333%;
+    --chart-4: 224.2781 76.3265% 48.0392%;
+    --chart-5: 225.9310 70.7317% 40.1961%;
+
+    --sidebar-background: 0 0% 9.0196%;
+    --sidebar-foreground: 0 0% 89.8039%;
+    --sidebar-primary: 217.2193 91.2195% 59.8039%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224.4444 64.2857% 32.9412%;
+    --sidebar-accent-foreground: 213.3333 96.9231% 87.2549%;
+    --sidebar-border: 0 0% 25.0980%;
+    --sidebar-ring: 217.2193 91.2195% 59.8039%;
+  }
+}
+
+/* The little celebration at the end of a lesson. */
+.confetti-piece {
+  position: absolute;
+  top: -14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall ease-in forwards;
+}
+@keyframes confetti-fall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(280px) rotate(560deg); }
+}
+
+/* Printing from training: show only the brief, flowing over as many pages as it needs.
+   Only while training is on screen. Without that check, every other page (the shared
+   process's Save as PDF, a role brief) printed blank. */
+@media print {
+  body:has(.train-print) * {
+    visibility: hidden !important;
+  }
+  .train-print,
+  .train-print * {
+    visibility: visible !important;
+  }
+  .train-shell {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .train-shell main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .train-noprint {
+    display: none !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.005em;
+  }
+}
