@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
@@ -67,7 +68,7 @@ export default createEndpoint({
     types: z.array(typeSchema),
     elements: z.array(elementSchema),
   }),
-  execute: async () => {
+  execute: scrubbed(async () => {
     await ensureCoreTypes();
 
     const [typeRes, elementRes, stepRes] = await Promise.all([
@@ -146,5 +147,5 @@ export default createEndpoint({
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return { types, elements };
-  },
+  }),
 });

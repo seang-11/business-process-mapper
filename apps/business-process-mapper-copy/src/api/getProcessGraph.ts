@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { connectionSchema, loadGraph, stepSchema } from '../lib/processGraph';
@@ -24,5 +25,5 @@ export default createEndpoint({
     laneOrder: z.object({ people: z.array(z.string()), app: z.array(z.string()) }),
     connections: z.array(connectionSchema),
   }),
-  execute: async ({ input }) => loadGraph(input),
+  execute: scrubbed(async ({ input }: { input: Parameters<typeof loadGraph>[0] }) => loadGraph(input)),
 });

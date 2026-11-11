@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
@@ -33,7 +34,7 @@ export default createEndpoint({
     steps: z.array(stepSchema),
     connections: z.array(connectionSchema),
   }),
-  execute: async ({ input }) => {
+  execute: scrubbed(async ({ input }) => {
     const token = input.token.trim();
     // Real tokens are 64 characters. Anything short is never worth a lookup.
     if (token.length < 40) return NOT_AVAILABLE;
@@ -58,5 +59,5 @@ export default createEndpoint({
       steps: graph.steps,
       connections: graph.connections,
     };
-  },
+  }),
 });

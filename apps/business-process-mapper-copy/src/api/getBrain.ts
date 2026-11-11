@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
@@ -106,7 +107,7 @@ export default createEndpoint({
       }),
     ),
   }),
-  execute: async () => {
+  execute: scrubbed(async () => {
     const [typeRes, elementRes, versionRes, stepRes, connRes, deptRes] = await Promise.all([
       zite.elementTypes.findAll({ limit: 500 }),
       zite.elements.findAll({ limit: 2000 }),
@@ -299,5 +300,5 @@ export default createEndpoint({
     const setting = (n: string) => settings.records.find((r) => r.name === n)?.value ?? '';
     const company = { name: setting('companyName'), website: setting('companyWebsite') };
     return { departments, people, processes, heatColor, company };
-  },
+  }),
 });

@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
@@ -57,7 +58,7 @@ export default createEndpoint({
     owns: z.array(owned),
     steps: z.array(stepRef),
   }),
-  execute: async ({ input }) => {
+  execute: scrubbed(async ({ input }) => {
     const [typeRes, elementRes, stepRes, versionRes] = await Promise.all([
       zite.elementTypes.findAll({ limit: 500 }),
       zite.elements.findAll({ limit: 2000 }),
@@ -148,5 +149,5 @@ export default createEndpoint({
       owns,
       steps,
     };
-  },
+  }),
 });

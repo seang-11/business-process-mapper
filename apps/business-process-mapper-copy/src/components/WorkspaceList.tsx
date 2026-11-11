@@ -18,7 +18,6 @@ import ProcessesTable from './ProcessesTable';
 import ProcessCards from './ProcessCards';
 import ProcessBoard from './ProcessBoard';
 import ProcessGrid from './ProcessGrid';
-import Welcome from './Welcome';
 import { PageError } from './PageState';
 import TalkItThrough from './TalkItThrough';
 import { useMe } from '@/lib/me';
@@ -62,7 +61,7 @@ const greetingFor = (date: Date) => {
 
 export default function WorkspaceList() {
   const navigate = useNavigate();
-  const { canEdit, isAdmin, me, welcomeSeen, markWelcomeSeen } = useMe();
+  const { canEdit, isAdmin, me } = useMe();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const tab = tabParam === 'elements' || tabParam === 'departments' ? tabParam : 'processes';
@@ -374,11 +373,6 @@ export default function WorkspaceList() {
             setDeleteProcessTarget(null);
             load();
           }}
-        />
-      )}
-      {me && !isAdmin && !welcomeSeen && (
-        <Welcome
-          onDone={markWelcomeSeen}
         />
       )}
     </div>

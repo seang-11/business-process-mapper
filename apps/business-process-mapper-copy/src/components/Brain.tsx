@@ -10,12 +10,8 @@ import { toast } from 'sonner';
 import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
 import { useBack } from '@/lib/backTrail';
 import { Popover, PopoverContent, PopoverTrigger } from '@project/components/ui/popover';
-import BrainGlobe, { type GlobeHandoff } from './BrainGlobe';
-import BrainHeat from './BrainHeat';
-import BrainSolar from './BrainSolar';
-import BrainCity from './BrainCity';
+import type { GlobeHandoff } from './BrainGlobe';
 import ProcessPopup from './ProcessPopup';
-import BrainFactory from './BrainFactory';
 import { CityIcon, FactoryIcon, GlobeIcon, SolarIcon } from './PlanetArt';
 import { flowLayout, FLOW_FOOT, STEP_GAP_X, STEP_H, STEP_W, type FlowLayout } from '@/lib/brainFlow';
 import { Button } from '@project/components/ui/button';
@@ -1925,15 +1921,8 @@ export default function Brain() {
 
   // --- The tour: on the first visit, and from the ? button ---
   const [touring, setTouring] = useState(false);
-  useEffect(() => {
-    if (!procs || procs.length === 0) return;
-    try {
-      if (!localStorage.getItem(TOUR_KEY)) setTouring(true);
-    } catch {
-      /* no storage: just skip the tour */
-    }
-  }, [procs]);
   const endTour = () => {
+    void TOUR_KEY;
     setTouring(false);
     try {
       localStorage.setItem(TOUR_KEY, '1');
@@ -2337,15 +2326,6 @@ export default function Brain() {
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
             <p className="flex-1 text-sm font-semibold">Company brain</p>
-            <button
-              type="button"
-              onClick={() => setTouring(true)}
-              title="How to use this page"
-              aria-label="How to use this page"
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <HelpCircle className="h-4 w-4" />
-            </button>
           </div>
           <div className="relative mt-2.5">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -2419,93 +2399,6 @@ export default function Brain() {
         </div>
       </div>
 
-      {/* Departments as a spinning globe, over the board. */}
-      {globe && procs && (
-        <BrainGlobe
-          depts={spaceDepts(procs)}
-          handoffs={handoffs}
-          onOpen={(name) => setDeptOpen(name || '~none')}
-          onOpenProcess={(id) => setSelected(id)}
-          returnFrom={globeReturn}
-        />
-      )}
-
-      {/* The departments as planets round the company's own sun. */}
-      {solar && procs && (
-        <BrainSolar
-          depts={spaceDepts(procs)}
-          handoffs={handoffs}
-          company={data?.company ?? { name: '', website: '' }}
-          onSaveCompany={canEdit ? saveCompany : undefined}
-          onOpen={(name) => setDeptOpen(name || '~none')}
-          onOpenProcess={(id) => setSelected(id)}
-          returnFrom={globeReturn}
-        />
-      )}
-
-      {/* Every process as a production line, with work piling up where it waits. */}
-      {factory && procs && <BrainFactory procs={procs} hues={deptHues} onOpenProcess={(id) => setSelected(id)} />}
-
-      {/* Every process as a tower, in its department's neighborhood. */}
-      {city && procs && (
-        <BrainCity
-          procs={procs.map((p) => {
-            const work = p.automated + p.review + p.manual;
-            return {
-              id: p.id,
-              name: p.name,
-              department: p.department || '',
-              hue: p.department ? deptHues.get(p.department) ?? 220 : 220,
-              hours: hoursOf(p),
-              autoPct: work ? Math.round((p.automated / work) * 100) : 0,
-              future: p.future,
-            };
-          })}
-          onOpenProcess={(id) => setSelected(id)}
-          onOpenDept={(name) => setDeptOpen(name || '~none')}
-        />
-      )}
-
-      {/* Every process colored by the people hours it takes, over the board. */}
-      {heat && procs && (
-        <BrainHeat
-          depts={[...new Set(procs.map((p) => p.department || ''))].map((name) => ({
-            name,
-            hue: name ? deptHues.get(name) ?? 220 : 220,
-            procs: procs
-              .filter((p) => (p.department || '') === name)
-              .map((p) => {
-                const work = p.automated + p.review + p.manual;
-                return {
-                  id: p.id,
-                  name: p.name,
-                  hours: hoursOf(p),
-                  autoPct: work ? Math.round((p.automated / work) * 100) : 0,
-                  topSteps: p.steps
-                    .filter((s) => isTeamStep(s) && (s.minutes ?? 0) > 0)
-                    .sort((x, y) => (y.minutes ?? 0) - (x.minutes ?? 0))
-                    .slice(0, 2)
-                    .map((s) => s.title),
-                  runsPerMonth: p.runsPerMonth,
-                  steps: p.steps.map((s) => ({
-                    id: s.id,
-                    title: s.title,
-                    minutes: s.minutes,
-                    team: isTeamStep(s),
-                    automated: s.automated,
-                    who: s.who?.name ?? '',
-                    whoId: s.who?.id ?? '',
-                    apps: s.uses.filter((u) => u.kind === 'app').map((u) => u.name),
-                  })),
-                };
-              }),
-          }))}
-          palette={data?.heatColor ?? ''}
-          onPickPalette={canEdit ? chooseHeatColor : undefined}
-          onOpenDept={(name) => setDeptOpen(name || '~none')}
-        />
-      )}
-
       {/* How the board shows processes: as cards, every step laid out, a heat map of hours, a 3D globe, or a solar system. */}
       <div
         data-ui
@@ -2515,8 +2408,6 @@ export default function Brain() {
         {[
           { on: !globe && !heat && !solar && !city && !factory && !allOpen, label: 'Cards', Icon: Minimize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); setCity(false); setFactory(false); if (allOpen) toggleAll(); } },
           { on: !globe && !heat && !solar && !city && !factory && allOpen, label: 'Every step', Icon: Maximize2, act: () => { setGlobe(false); setHeat(false); setSolar(false); setCity(false); setFactory(false); if (!allOpen) toggleAll(); } },
-          { on: heat, label: 'Heat map', Icon: Flame, act: () => { setGlobe(false); setSolar(false); setCity(false); setFactory(false); setHeat(true); } },
-          { on: globe || solar || city || factory, label: '3D', Icon: Globe2, act: () => { if (!globe && !solar && !city && !factory) open3d(); } },
         ].map((b) => (
           <button
             key={b.label}
@@ -2532,32 +2423,6 @@ export default function Brain() {
         ))}
       </div>
 
-      {/* Inside 3D: the globe or the solar system. */}
-      {(globe || solar || city || factory) && (
-        <div
-          data-ui
-          className="absolute left-1/2 top-[64px] z-20 flex -translate-x-1/2 cursor-default items-center gap-1 rounded-full border border-white/15 bg-slate-950/70 p-1 shadow-lg backdrop-blur"
-        >
-          {[
-            { on: city, mode: 'city' as const, label: 'City', Icon: CityIcon },
-            { on: factory, mode: 'factory' as const, label: 'Factory', Icon: FactoryIcon },
-            { on: globe, mode: 'globe' as const, label: 'Globe', Icon: GlobeIcon },
-            { on: solar, mode: 'solar' as const, label: 'Solar system', Icon: SolarIcon },
-          ].map((b) => (
-            <button
-              key={b.mode}
-              type="button"
-              onClick={() => open3d(b.mode)}
-              aria-pressed={b.on}
-              className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                b.on ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <b.Icon className="h-4 w-4 text-white" /> {b.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* The spotlight, in one line, with a way to hide everything else. */}
       {pinned && spot && (
@@ -2806,9 +2671,6 @@ export default function Brain() {
               <span className="mx-0.5 h-4 w-px bg-border" />
               <button type="button" className={btn} aria-label="Fit everything" title="Fit everything (0)" onClick={() => fit()}>
                 <Maximize className="h-3.5 w-3.5" />
-              </button>
-              <button type="button" className={btn} aria-label="How to use this page" title="How to use this page" onClick={() => setTouring(true)}>
-                <HelpCircle className="h-3.5 w-3.5" />
               </button>
             </>
           );

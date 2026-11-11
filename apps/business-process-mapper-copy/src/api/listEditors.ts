@@ -1,3 +1,4 @@
+import { scrubbed } from '@/lib/scrub';
 import { z } from 'zod';
 import { createEndpoint } from 'zitejs/backend';
 import { zite } from 'zitejs/db';
@@ -18,7 +19,7 @@ export default createEndpoint({
       }),
     ),
   }),
-  execute: async ({ context }) => {
+  execute: scrubbed(async ({ context }) => {
     await requireAdmin(context);
     const { records } = await zite.editors.findAll({ limit: 500 });
     const people = records
@@ -37,5 +38,5 @@ export default createEndpoint({
     }
     people.sort((a, b) => Number(b.owner) - Number(a.owner) || a.email.localeCompare(b.email));
     return { people };
-  },
+  }),
 });
