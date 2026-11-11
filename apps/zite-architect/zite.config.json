@@ -12,7 +12,12 @@
     },
     "domains": [
       "prospectautomations.com"
-    ]
+    ],
+    "authPage": {
+      "messages": {
+        "signInTitle": "Sign In"
+      }
+    }
   },
   "seoSettings": {
     "title": "Business Process Mapper",
