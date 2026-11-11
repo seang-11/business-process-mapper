@@ -23,7 +23,6 @@ const norm = (t?: string) => (t ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
  */
 export default createEndpoint({
   description: 'Match the steps of two versions of a process, for comparing them',
-  authenticated: true,
   inputSchema: z.object({ leftVersionId: z.string(), rightVersionId: z.string() }),
   outputSchema: z.object({
     matches: z.array(z.object({ leftId: z.string(), rightId: z.string(), by: z.enum(['link', 'title']) })),

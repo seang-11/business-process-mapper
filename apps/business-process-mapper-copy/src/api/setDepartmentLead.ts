@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Set or clear the person who leads a department',
   inputSchema: z.object({
     department: z.string().min(1),

@@ -3,7 +3,6 @@ import { createEndpoint } from 'zitejs/backend';
 import { ZiteMeta } from 'zitejs/meta';
 
 export default createEndpoint({
-  authenticated: true,
   description: "This app's own workspace and app links, so an AI agent can find the right workspace",
   inputSchema: z.object({}),
   outputSchema: z.object({

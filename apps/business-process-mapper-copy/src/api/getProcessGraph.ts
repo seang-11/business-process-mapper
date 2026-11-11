@@ -3,7 +3,6 @@ import { createEndpoint } from 'zitejs/backend';
 import { connectionSchema, loadGraph, stepSchema } from '../lib/processGraph';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'The full graph for one process version — steps, connections, and the elements each step touches',
   inputSchema: z.object({
     versionId: z.string().optional(),

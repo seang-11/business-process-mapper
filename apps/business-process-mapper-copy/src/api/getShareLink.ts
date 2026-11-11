@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'The current read-only share link token for a process, for editors',
   inputSchema: z.object({ processId: z.string() }),
   outputSchema: z.object({ token: z.string().nullable() }),

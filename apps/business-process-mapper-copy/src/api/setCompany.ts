@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: "Set the company's name and website, shown in the sun of the Brain's solar system",
   inputSchema: z.object({ name: z.string(), website: z.string() }),
   outputSchema: z.object({ ok: z.boolean() }),

@@ -37,7 +37,6 @@ function parseChecklist(raw?: string | null): { text: string; appId?: string }[]
 }
 
 export default createEndpoint({
-  authenticated: true,
   description: 'The company brain: every process with its department, owner, people, apps and the other processes it runs',
   inputSchema: z.object({}),
   outputSchema: z.object({

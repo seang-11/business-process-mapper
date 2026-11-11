@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: "Write a department's description in your own words, or clear it to go back to the one written from the map",
   inputSchema: z.object({
     department: z.string().min(1),

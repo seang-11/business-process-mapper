@@ -7,7 +7,7 @@
     "signup": "domain-restricted",
     "authenticationMethods": {
       "sso": false,
-      "magicLink": true,
+      "emailSignIn": true,
       "googleSignIn": true
     },
     "domains": [

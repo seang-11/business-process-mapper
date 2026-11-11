@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Create or update a connection between two steps',
   inputSchema: z.object({
     id: z.string().optional(),

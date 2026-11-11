@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: "Pick the Brain heat map's color scale for everyone",
   inputSchema: z.object({ palette: z.string().min(1) }),
   outputSchema: z.object({ ok: z.boolean() }),

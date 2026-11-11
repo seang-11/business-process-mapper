@@ -10,7 +10,6 @@ const one = (v?: string | string[]): string | null =>
 const newToken = () => `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Turn the read-only share link for a process on or off',
   inputSchema: z.object({ processId: z.string(), enabled: z.boolean() }),
   outputSchema: z.object({ token: z.string().nullable() }),

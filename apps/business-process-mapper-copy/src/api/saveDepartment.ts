@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Add a department, or change its name, color, lead and description',
   inputSchema: z.object({
     /** The name it has now, when editing one; leave out to add a new department. */

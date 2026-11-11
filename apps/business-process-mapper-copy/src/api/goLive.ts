@@ -6,7 +6,6 @@ import { zite } from 'zitejs/db';
 const one = (v?: string | string[]): string | null => (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Make a version the live way the work is done, and retire the one it replaces',
   inputSchema: z.object({
     versionId: z.string(),

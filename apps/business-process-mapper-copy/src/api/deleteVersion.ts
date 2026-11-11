@@ -7,7 +7,6 @@ const one = (v?: string | string[]): string | null =>
   (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Delete a process version along with its steps and connections',
   inputSchema: z.object({ id: z.string() }),
   outputSchema: z.object({

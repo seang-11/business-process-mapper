@@ -6,7 +6,6 @@ import { zite, type ProcessVersionsRecordInput } from 'zitejs/db';
 const day = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Use a date like 2026-10-22');
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Rename a process version, or change its state, notes or the dates it was live',
   inputSchema: z.object({
     id: z.string(),

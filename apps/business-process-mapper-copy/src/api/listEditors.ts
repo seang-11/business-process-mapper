@@ -4,7 +4,6 @@ import { zite } from 'zitejs/db';
 import { OWNER_EMAIL, requireAdmin } from '../lib/access';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'List the admins, for admins',
   inputSchema: z.object({}),
   outputSchema: z.object({

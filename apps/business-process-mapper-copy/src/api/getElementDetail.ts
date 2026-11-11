@@ -30,7 +30,6 @@ const stepRef = z.object({
 });
 
 export default createEndpoint({
-  authenticated: true,
   description: 'One element with everything it owns and every step it touches — the "what does this role own" view',
   inputSchema: z.object({ id: z.string() }),
   outputSchema: z.object({

@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: "Pick a department's color, or clear it to go back to the automatic one",
   inputSchema: z.object({
     department: z.string().min(1),

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTaxonomy, GetProcessesOutputType } from 'zitejs/api';
-import { logout } from 'zitejs/auth';
-import { Boxes, Brain, Users2, GraduationCap, Home, Keyboard, LogOut, Plus, Users } from 'lucide-react';
+import { Boxes, Brain, Users2, GraduationCap, Home, Keyboard, Plus, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@project/components/ui/dialog';
 import {
   Command,
@@ -114,9 +113,6 @@ export default function CommandMenu({ open, onOpenChange, processes, onShowShort
               )}
               <CommandItem className={ITEM} value="keyboard shortcuts help" onSelect={() => run(onShowShortcuts)}>
                 <Keyboard className="h-4 w-4 text-muted-foreground" /> Keyboard shortcuts
-              </CommandItem>
-              <CommandItem className={ITEM} value="sign out log out" onSelect={() => run(() => logout())}>
-                <LogOut className="h-4 w-4 text-muted-foreground" /> Sign out
               </CommandItem>
             </CommandGroup>
 

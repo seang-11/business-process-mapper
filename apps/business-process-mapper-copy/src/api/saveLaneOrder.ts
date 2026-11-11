@@ -14,7 +14,6 @@ const one = (v?: string | string[] | null): string | null =>
  */
 export default createEndpoint({
   description: 'Save the lane order for one view (people or app) of a process',
-  authenticated: true,
   inputSchema: z.object({
     processId: z.string(),
     grouping: z.enum(['people', 'app']),

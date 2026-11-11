@@ -13,7 +13,6 @@ const one = (v?: string | string[] | null): string | null =>
  */
 export default createEndpoint({
   description: 'Set or clear which step in another version a step corresponds to',
-  authenticated: true,
   inputSchema: z.object({ stepId: z.string(), matchStepId: z.string().nullable() }),
   outputSchema: z.object({ ok: z.boolean() }),
   execute: async ({ input, context }) => {

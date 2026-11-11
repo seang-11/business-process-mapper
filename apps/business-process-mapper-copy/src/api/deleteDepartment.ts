@@ -4,7 +4,6 @@ import { requireEditor } from '../lib/access';
 import { zite } from 'zitejs/db';
 
 export default createEndpoint({
-  authenticated: true,
   description: 'Remove a department; its processes are left with no department',
   inputSchema: z.object({ name: z.string().min(1) }),
   outputSchema: z.object({ ok: z.boolean() }),

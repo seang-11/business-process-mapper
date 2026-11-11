@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getProcesses, GetProcessesOutputType } from 'zitejs/api';
-import { logout } from 'zitejs/auth';
-import { ChevronDown, Keyboard, LogOut, Network, Search } from 'lucide-react';
+import { ChevronDown, Keyboard, Network, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,10 +193,6 @@ export default function AppShell() {
               <DropdownMenuItem onSelect={() => setShortcutsOpen(true)}>
                 <Keyboard className="mr-2 h-4 w-4" /> Keyboard shortcuts
                 <kbd className="ml-auto rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium">?</kbd>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => logout()}>
-                <LogOut className="mr-2 h-4 w-4" /> Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
