@@ -94,7 +94,7 @@ export default function AppShell() {
     <div className="flex h-screen flex-col bg-background print:block print:h-auto print:bg-white">
       <header className="z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border/70 bg-background/80 px-4 backdrop-blur-md print:hidden md:px-6">
         <button type="button" onClick={() => navigate('/')} aria-label="Home" className="flex shrink-0 items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[hsl(218_70%_18%)] text-primary-foreground shadow-sm">
             <Network className="h-4 w-4" />
           </span>
           <span className="hidden text-[15px] font-semibold tracking-tight sm:block">Process Mapper</span>
