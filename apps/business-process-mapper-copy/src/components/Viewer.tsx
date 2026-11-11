@@ -78,7 +78,7 @@ export function ViewerHome() {
         </span>
         <h1 className="mt-4 text-[28px] font-semibold tracking-tight">Welcome to the process map</h1>
         <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          Click any process to see every step: who does it, which tools they use, and what happens next. Switch between how it runs today and how it will run in the future.
+          Click any process to see every step: who does it, which tools they use, and what happens next.
         </p>
       </header>
 
@@ -208,9 +208,6 @@ export function ViewerHome() {
 type Look = 'flow' | LaneGrouping | 'overview' | 'watch';
 const LOOKS: { key: Look; label: string; Icon: typeof Workflow }[] = [
   { key: 'flow', label: 'Steps', Icon: Workflow },
-  { key: 'people', label: 'By person', Icon: Users },
-  { key: 'app', label: 'By app', Icon: AppWindow },
-  { key: 'overview', label: 'Overview', Icon: FileText },
   { key: 'watch', label: 'Watch it Live', Icon: PlayCircle },
 ];
 
@@ -225,8 +222,8 @@ export function ViewerProcess() {
   const back = useBack('/', 'Home');
   const [params, setParams] = useSearchParams();
   const asked = params.get('lanes');
-  const look: Look = asked === 'people' || asked === 'app' || asked === 'overview' || asked === 'watch' ? asked : 'flow';
-  const wantFuture = params.get('ver') === 'future';
+  const look = (asked === 'watch' ? 'watch' : 'flow') as Look;
+  const wantFuture = false;
   const setParam = (key: string, value: string | null) =>
     setParams((prev) => {
       const n = new URLSearchParams(prev);
@@ -301,35 +298,6 @@ export function ViewerProcess() {
       {p && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">{p.name}</h1>
-          {base?.futureFlow ? (
-            <div className="flex rounded-lg border border-border bg-card p-0.5 text-xs font-medium">
-              {[
-                { key: false, label: 'Current' },
-                { key: true, label: 'Future' },
-              ].map((o) => (
-                <button
-                  key={o.label}
-                  type="button"
-                  aria-pressed={showFuture === o.key}
-                  onClick={() => setParam('ver', o.key ? 'future' : null)}
-                  className={`rounded-md px-2.5 py-1 transition-colors ${
-                    showFuture === o.key ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.live ? 'bg-emerald-50 text-emerald-700' : 'bg-accent text-accent-foreground'}`}>
-              {p.live ? 'Current' : 'Future'}
-            </span>
-          )}
-          {(look === 'flow' || look === 'people' || look === 'app') && (
-            <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
-              <MousePointerClick className="h-3.5 w-3.5" /> Click any step for details
-            </span>
-          )}
         </div>
       )}
       {p?.description && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{p.description}</p>}

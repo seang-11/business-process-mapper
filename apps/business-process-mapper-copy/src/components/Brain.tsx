@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setCompany, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
   ArrowRight, Brain as BrainIcon, ChevronDown, Flame, Globe2, Pencil, Crown, Eye, GraduationCap, HelpCircle, ListChecks, Maximize, Maximize2, Minimize2, Minus, Plus,
-  Search, Workflow, X, Zap,
+  PanelLeftOpen, Search, Workflow, X, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEPT_PALETTE, deptTag } from '@/lib/deptColors';
@@ -1811,6 +1811,7 @@ export default function Brain() {
   const [selected, setSelected] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // The department opened at full size, by its frame key.
   const [deptOpen, setDeptOpen] = useState<string | null>(null);
   /** The 3D globe of departments, in place of the board. */
@@ -2320,8 +2321,18 @@ export default function Brain() {
 
       </div>
 
-      {/* Top left: name, search, and the apps and people list. These stay put while the board moves. */}
-      <div data-ui className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-2rem)] w-[264px] cursor-default flex-col gap-2 ${globe || heat || solar || city || factory ? 'hidden' : ''}`}>
+      {/* Top left: a Details button that slides the search, key and roles/apps list in and out. */}
+      <button
+        data-ui
+        type="button"
+        onClick={() => setDetailsOpen((o) => !o)}
+        aria-expanded={detailsOpen}
+        className="absolute left-4 top-4 z-30 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/95 px-3.5 py-1.5 text-sm font-medium shadow-sm backdrop-blur transition-colors hover:bg-muted"
+      >
+        {detailsOpen ? <X className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+        {detailsOpen ? 'Hide' : 'Details'}
+      </button>
+      <div data-ui className={`absolute left-4 top-[60px] z-20 flex max-h-[calc(100%-76px)] w-[264px] cursor-default flex-col gap-2 transition-all duration-300 ease-out ${detailsOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-[110%] opacity-0'} ${globe || heat || solar || city || factory ? 'hidden' : ''}`}>
         <div className="rounded-2xl border border-border bg-background/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-2">
             <BrainIcon className="h-4 w-4 text-primary" />
