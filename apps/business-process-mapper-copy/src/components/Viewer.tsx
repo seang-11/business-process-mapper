@@ -22,6 +22,9 @@ import StepPanel from './StepPanel';
 import SwimlaneDiagram, { type LaneGrouping } from './SwimlaneDiagram';
 import ProcessPopup from './ProcessPopup';
 import WatchLive from './WatchLive';
+import MobileSteps from './MobileSteps';
+import { useIsMobile } from '@project/components/hooks/use-mobile';
+import { Sheet, SheetContent, SheetTitle } from '@project/components/ui/sheet';
 import type { ElementSummary, ProcessStep } from '@/types';
 
 type Data = GetBrainOutputType;
@@ -71,7 +74,7 @@ export function ViewerHome() {
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
     <div className="min-h-full bg-[linear-gradient(hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:28px_28px]">
-    <div className="mx-auto max-w-[880px] px-6 py-10">
+    <div className="mx-auto max-w-[880px] px-4 py-6 md:px-6 md:py-10">
       <HeroBanner processes={data ? total : undefined} departments={groups.filter(([d]) => d).length} />
 
       <div className="mt-8 space-y-8">
@@ -110,7 +113,7 @@ export function ViewerHome() {
                     }}
                   >
                     <LayoutGrid className="h-3.5 w-3.5" />
-                    <span className="group-hover/dept:underline">View department</span>
+                    <span className="group-hover/dept:underline"><span className="hidden sm:inline">View </span>department</span>
                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/dept:translate-x-0.5" />
                   </button>
                 )}
@@ -121,7 +124,7 @@ export function ViewerHome() {
                     <button
                       type="button"
                       onClick={() => navigate(`/view/${p.id}${show === 'future' && p.live && p.futureFlow ? '?ver=future' : ''}`)}
-                      className="group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40"
+                      className="group flex w-full items-center gap-3 px-4 py-3.5 text-left md:gap-4 md:px-5 md:py-4 transition-colors hover:bg-muted/40"
                     >
                       {/* Each process wears its department's color, so the list has some life and groups read at a glance. */}
                       <span
@@ -156,7 +159,7 @@ export function ViewerHome() {
                         )}
                       </span>
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-[13px] font-medium text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                        View <ArrowRight className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">View</span> <ArrowRight className="h-3.5 w-3.5" />
                       </span>
                     </button>
                   </li>
@@ -208,6 +211,8 @@ export function ViewerProcess() {
   );
   const versionId = showFuture ? base?.futureFlow?.versionId : base?.versionId;
   const [openStepId, setOpenStepId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  const [mobileMap, setMobileMap] = useState(false);
   useEffect(() => setOpenStepId(null), [id, versionId]);
   const openStep = p?.steps.find((s) => s.id === openStepId) ?? null;
   const names = useMemo(() => new Map((data?.processes ?? []).map((x) => [x.id, x.name])), [data]);
@@ -232,7 +237,7 @@ export function ViewerProcess() {
   }, [look, lanes, id, versionId]);
 
   return (
-    <div className="flex h-full flex-col px-6 py-6">
+    <div className="flex h-full flex-col px-4 py-4 md:px-6 md:py-6">
       {/* Back, then the ways to look at it, side by side on the left where they're easy to find. */}
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -264,6 +269,20 @@ export function ViewerProcess() {
       {p && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">{p.name}</h1>
+          {isMobile && look === 'flow' && (
+            <div className="ml-auto flex rounded-lg border border-border bg-card p-0.5 text-xs font-medium">
+              {(['List', 'Map'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMobileMap(m === 'Map')}
+                  className={`rounded-md px-3 py-1 ${(m === 'Map') === mobileMap ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {p?.description && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{p.description}</p>}
@@ -275,6 +294,8 @@ export function ViewerProcess() {
           <PageLoading blocks={1} height="h-64" />
         ) : !p || !layout ? (
           <PageEmpty icon={<Search className="h-6 w-6" />} title="That process isn't available" text="It may have been removed. Go back to see all processes." />
+        ) : look === 'flow' && isMobile && !mobileMap ? (
+          <MobileSteps steps={p.steps} links={p.links} onOpen={setOpenStepId} />
         ) : look === 'flow' ? (
           <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
             <div className="overflow-x-auto">
@@ -333,7 +354,23 @@ export function ViewerProcess() {
           </section>
         )}
       </div>
-      {p && openStep && look !== 'overview' && look !== 'watch' && (
+      {p && openStep && look !== 'overview' && look !== 'watch' && isMobile && (
+        <Sheet open onOpenChange={(o) => !o && setOpenStepId(null)}>
+          <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl p-0 [&>button]:hidden">
+            <SheetTitle className="sr-only">{openStep.title}</SheetTitle>
+            <StepPanel
+              step={openStep}
+              steps={p.steps}
+              links={p.links}
+              names={names}
+              onPick={setOpenStepId}
+              onJump={(next) => navigate(`/view/${next}`)}
+              onClose={() => setOpenStepId(null)}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
+      {p && openStep && look !== 'overview' && look !== 'watch' && !isMobile && (
         <div className="max-h-[70vh] md:max-h-none">
           <StepPanel
             step={openStep}

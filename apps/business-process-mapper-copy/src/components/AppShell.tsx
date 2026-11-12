@@ -38,20 +38,14 @@ export default function AppShell() {
 
   useTrackTrail();
 
-  // The Brain and the process map zoom themselves; a stray pinch never zooms the whole page.
+  // The Brain and the process map zoom themselves; a stray ctrl+wheel never zooms the whole page.
+  // (Phones keep normal pinch-zoom so small text can still be read.)
   useEffect(() => {
     const stopPageZoom = (e: WheelEvent) => {
       if (e.ctrlKey) e.preventDefault();
     };
-    const stopGesture = (e: Event) => e.preventDefault();
     window.addEventListener('wheel', stopPageZoom, { passive: false });
-    document.addEventListener('gesturestart', stopGesture);
-    document.addEventListener('gesturechange', stopGesture);
-    return () => {
-      window.removeEventListener('wheel', stopPageZoom);
-      document.removeEventListener('gesturestart', stopGesture);
-      document.removeEventListener('gesturechange', stopGesture);
-    };
+    return () => window.removeEventListener('wheel', stopPageZoom);
   }, []);
 
   useEffect(() => {

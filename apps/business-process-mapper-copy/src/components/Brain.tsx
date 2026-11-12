@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useIsMobile } from '@project/components/hooks/use-mobile';
+import MobileBrain from './MobileBrain';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getBrain, setCompany, setDepartmentColor, setHeatColor, setDepartmentDescription, setDepartmentLead, GetBrainOutputType } from 'zitejs/api';
 import {
@@ -1555,6 +1557,7 @@ interface View {
  * Click an app or a person on the left to spotlight every step they touch.
  */
 export default function Brain() {
+  const isMobileView = useIsMobile();
   const navigate = useNavigate();
   const { canEdit } = useMe();
   const [data, setData] = useState<Data | null>(null);
@@ -2105,6 +2108,7 @@ export default function Brain() {
   }
 
   const lensList = tab === 'apps' ? lenses.apps : lenses.people;
+  if (isMobileView && data) return <MobileBrain data={data} />;
   const firstCardId = boardProcs.find((p) => board.cards.has(p.id))?.id;
 
   return (
