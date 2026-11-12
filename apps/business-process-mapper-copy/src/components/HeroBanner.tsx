@@ -8,7 +8,6 @@ import zapier from '@/assets/logos/zapier.svg';
 
 // Positions in a 360x160 box. The hub sits in the middle; apps orbit it.
 const NODES = [
-  { id: 'hub', x: 180, y: 80 },
   { id: 'hubspot', x: 40, y: 34, src: hubspot },
   { id: 'gmail', x: 40, y: 126, src: gmail },
   { id: 'slack', x: 110, y: 18, src: slack },
@@ -19,8 +18,8 @@ const NODES = [
 ];
 const at = (id: string) => NODES.find((n) => n.id === id)!;
 const LINKS: [string, string][] = [
-  ['hubspot', 'hub'], ['gmail', 'hub'], ['slack', 'hub'], ['hub', 'stripe'],
-  ['hub', 'sheets'], ['hub', 'notion'], ['hub', 'zapier'], ['hubspot', 'slack'], ['stripe', 'sheets'],
+  ['hubspot', 'slack'], ['slack', 'zapier'], ['zapier', 'stripe'], ['stripe', 'sheets'],
+  ['sheets', 'notion'], ['notion', 'gmail'], ['gmail', 'hubspot'], ['hubspot', 'zapier'], ['gmail', 'sheets'],
 ];
 const curve = (a: string, b: string) => {
   const p = at(a), q = at(b);
@@ -28,11 +27,11 @@ const curve = (a: string, b: string) => {
   return `M${p.x} ${p.y} C${mx} ${p.y} ${mx} ${q.y} ${q.x} ${q.y}`;
 };
 
-const DUR = (i: number) => 1.3 + (i % 3) * 0.35;
+const DUR = (i: number) => 4.5 + (i % 3) * 1.2;
 // When a packet lands on a node, that node flashes. Each node flashes in step with its first incoming link.
 const flashFor = (id: string) => {
   const i = LINKS.findIndex(([a, b]) => b === id || a === id);
-  return i < 0 ? null : { dur: DUR(i), delay: i * 0.45 };
+  return i < 0 ? null : { dur: DUR(i), delay: i * 0.9 };
 };
 
 function Network() {
@@ -52,7 +51,7 @@ function Network() {
               <path d={d} stroke="url(#hb-line)" strokeWidth="1.5" strokeDasharray="4 5" className="hb-dash" />
               {[0, 0.08, 0.16].map((lag, k) => (
                 <circle key={k} r={3 - k * 0.8} fill="#ffffff" opacity={1 - k * 0.3} style={{ filter: 'drop-shadow(0 0 5px hsl(var(--primary)))' }}>
-                  <animateMotion dur={`${DUR(i)}s`} begin={`${i * 0.45 + lag}s`} repeatCount="indefinite" path={d} keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.6 0 0.3 1" />
+                  <animateMotion dur={`${DUR(i)}s`} begin={`${i * 0.9 + lag * 3}s`} repeatCount="indefinite" path={d} keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.6 0 0.3 1" />
                 </circle>
               ))}
             </g>
@@ -97,8 +96,8 @@ export default function HeroBanner({ processes, departments }: { processes?: num
       <style>{`
         @keyframes hbDash{to{stroke-dashoffset:-90}}
         .hb-dash{animation:hbDash 5s linear infinite}
-        @keyframes hbFloat{0%,100%{margin-top:0}50%{margin-top:-4px}}
-        .hb-float{animation:hbFloat 4s ease-in-out infinite}
+        @keyframes hbFloat{0%,100%{margin-top:0}50%{margin-top:-2px}}
+        .hb-float{animation:hbFloat 7s ease-in-out infinite}
         @keyframes hbFlash{0%,88%{opacity:0;transform:scale(.85)}94%{opacity:1;transform:scale(1.08)}100%{opacity:0;transform:scale(1.25)}}
         .hb-flash{opacity:0;animation:hbFlash linear infinite}
       `}</style>
