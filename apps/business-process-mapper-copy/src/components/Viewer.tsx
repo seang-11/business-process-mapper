@@ -70,6 +70,7 @@ export function ViewerHome() {
 
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
+    <div className="min-h-full bg-[linear-gradient(hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:28px_28px]">
     <div className="mx-auto max-w-[880px] px-6 py-10">
       <HeroBanner processes={data ? total : undefined} departments={groups.filter(([d]) => d).length} />
 
@@ -165,6 +166,7 @@ export function ViewerHome() {
           ))
         )}
       </div>
+    </div>
     </div>
   );
 }
