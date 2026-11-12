@@ -3,8 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getBrain, GetBrainOutputType } from 'zitejs/api';
 import { deptTag } from '@/lib/deptColors';
 import { useBack } from '@/lib/backTrail';
-import { ArrowLeft, ChevronDown, Download, GraduationCap, Link2, Users, Zap } from 'lucide-react';
-import { toast } from 'sonner';
+import { ArrowLeft, ChevronDown, Users } from 'lucide-react';
 import { Button } from '@project/components/ui/button';
 import { buildBrief, type Neighbour } from '@/lib/roleBrief';
 import { PageEmpty, PageError, PageLoading } from './PageState';
@@ -74,7 +73,6 @@ export default function RoleBrief() {
 
   const brief = useMemo(() => (data && id ? buildBrief(data, id) : null), [data, id]);
   const deptHues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
-  const today = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
   if (failed) return <div className="mx-auto max-w-3xl px-8 py-10"><PageError onRetry={load} /></div>;
   if (!data) return <div className="mx-auto max-w-3xl px-8 py-10"><PageLoading blocks={3} height="h-32" /></div>;
@@ -93,11 +91,6 @@ export default function RoleBrief() {
 
   const { who } = brief;
   const hue = hueFor(who.name);
-  const copyLink = () =>
-    navigator.clipboard.writeText(window.location.href).then(
-      () => toast.success('Link copied'),
-      () => toast.error('Could not copy the link'),
-    );
 
   return (
     <div className="mx-auto max-w-3xl px-8 pb-16 pt-6 print:max-w-none print:px-0 print:pt-0">
@@ -107,13 +100,6 @@ export default function RoleBrief() {
         <Button variant="ghost" size="sm" className="-ml-2" onClick={back.go}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> {back.name === 'Roles' ? 'All roles' : `Back to ${back.name}`}
         </Button>
-        <span className="ml-auto" />
-        <Button variant="outline" size="sm" onClick={copyLink}>
-          <Link2 className="mr-1.5 h-4 w-4" /> Copy link
-        </Button>
-        <Button size="sm" onClick={() => window.print()}>
-          <Download className="mr-1.5 h-4 w-4" /> Download PDF
-        </Button>
       </div>
 
       {/* Cover */}
@@ -121,12 +107,12 @@ export default function RoleBrief() {
         className="mt-5 rounded-2xl border border-border p-7 print:mt-0 print:border-0 print:p-0"
         style={{ background: `linear-gradient(160deg, hsl(${hue} 85% 95%), transparent 70%)` }}
       >
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Handover brief</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Role</p>
         <div className="mt-3 flex items-center gap-4">
           <RoleAvatar w={who} size={48} />
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{who.name}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">For whoever takes over this role · {today}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{brief.depts.join(' · ')}</p>
           </div>
         </div>
         <p className="mt-5 text-[15px] leading-relaxed">
@@ -244,17 +230,6 @@ export default function RoleBrief() {
                 </button>
                 {/* Closed cards still print their steps, so the PDF has everything. */}
                 <div className={open ? 'border-t border-border' : 'hidden border-t border-border print:block'}>
-                  {p.live && (
-                    <div className="flex justify-end px-5 pt-3 print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/process/${p.id}?train=${encodeURIComponent(who.id)}&view=lesson`)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
-                      >
-                        <GraduationCap className="h-3.5 w-3.5" /> Train on this
-                      </button>
-                    </div>
-                  )}
               <ol className="divide-y divide-border">
                 {steps.map(({ step: s, number, before, after }) => (
                   <li key={s.id} className="brief-step px-5 py-4">
@@ -315,43 +290,8 @@ export default function RoleBrief() {
         </div>
       </Section>
 
-      <Section title="The first week">
-        <ol className="divide-y divide-border rounded-2xl border border-border bg-card">
-          {[
-            ['Day 1', brief.apps.length ? `Get access to ${brief.apps.map((a) => a.name).join(', ')}.` : 'Get set up and meet the team.'],
-            ['Day 2', `Go through the training for ${brief.processes.map((x) => x.p.name).join(', ')}, as the ${who.name}.`],
-            ['Days 3 to 4', `Do the ${plural(brief.hand, 'hand step')} alongside whoever does them today.`],
-            ['Day 5', `Run the steps on your own while the person handing over checks${brief.decisions ? `, especially the ${plural(brief.decisions, 'decision')}` : ''}.`],
-          ].map(([day, text]) => (
-            <li key={day} className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 px-5 py-3 text-sm">
-              <span className="font-medium text-muted-foreground">{day}</span>
-              <span>{text}</span>
-            </li>
-          ))}
-        </ol>
-      </Section>
 
-      <Section title="For the person handing over to confirm">
-        <ul className="space-y-2.5 rounded-2xl border border-border bg-card p-5 text-sm">
-          {[
-            'Access to every tool above is handed over or set up for the new person.',
-            'Work in progress is listed, with where each piece stands.',
-            'Regular dates and deadlines this role owns are written down.',
-            'Key contacts at clients and suppliers have been introduced.',
-            'Anything this role does that is not on these maps has been added to them.',
-          ].map((t) => (
-            <li key={t} className="flex items-start gap-2.5">
-              <span className="mt-0.5 h-4 w-4 shrink-0 rounded border border-foreground/30" />
-              {t}
-            </li>
-          ))}
-        </ul>
-      </Section>
 
-      <p className="mt-10 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
-        <Zap className="h-3.5 w-3.5" /> Built from the live processes in Business Process Mapper on {today}. It updates
-        itself when the processes change.
-      </p>
     </div>
   );
 }

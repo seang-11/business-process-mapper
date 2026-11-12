@@ -68,7 +68,6 @@ function MemberRoutes() {
           <Route path="/brain" element={<Brain />} />
           <Route path="/roles" element={<Roles />} />
           <Route path="/roles/:id" element={<RoleBrief />} />
-          <Route path="/training" element={<TrainingHome />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

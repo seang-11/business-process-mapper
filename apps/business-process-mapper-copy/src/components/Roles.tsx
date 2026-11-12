@@ -82,17 +82,18 @@ export default function Roles() {
   const roles = useMemo(() => (data ? roleSummaries(data) : []), [data]);
   const q = query.trim().toLowerCase();
   const shown = roles.filter((r) => !q || r.who.name.toLowerCase().includes(q) || r.depts.some((d) => d.toLowerCase().includes(q)));
-  const showTable = canEdit && view === 'table';
+  // The public site keeps Roles simple: cards only, click one to see it.
+  const showTable = false;
+  void canEdit;
+  void view;
+  void pickView;
 
   return (
     <div className="mx-auto max-w-[1100px] px-8 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Roles</h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-            Pick a role to get its handover brief: every process it is part of, every step it does, the tools it needs, and who it
-            works with. Ready to give to whoever steps in next.
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">Click a role to see what it does.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(roles.length > 0 || showTable) && (
@@ -101,7 +102,7 @@ export default function Roles() {
               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a role…" className="h-9 pl-8 text-sm" />
             </div>
           )}
-          {canEdit && (
+          {false && (
             <>
               <div className="flex rounded-lg border border-border p-0.5 text-xs font-medium">
                 {([['table', 'Table', Table2], ['cards', 'Cards', LayoutGrid]] as const).map(([k, label, Icon]) => (
@@ -418,7 +419,7 @@ function RoleCards({ roles, hues, onOpen }: { roles: RoleSummary[]; hues: Map<st
             </span>
           )}
           <span className="mt-5 flex items-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-primary">
-            <FileText className="h-4 w-4" /> Handover brief
+            View role
             <ArrowRight className="ml-auto h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </span>
         </button>

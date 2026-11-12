@@ -83,7 +83,6 @@ export default function AppShell() {
     { to: '/', label: 'Processes', active: onHome },
     { to: '/brain', label: 'Brain', active: location.pathname === '/brain' },
     { to: '/roles', label: 'Roles', active: location.pathname.startsWith('/roles') },
-    { to: '/training', label: 'Training', active: location.pathname === '/training' },
     ...(isAdmin ? [{ to: '/team', label: 'Team', active: location.pathname === '/team' }] : []),
   ];
 
