@@ -90,7 +90,7 @@ export default function AppShell() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[hsl(218_70%_18%)] text-primary-foreground shadow-sm">
             <Network className="h-4 w-4" />
           </span>
-          <span className="hidden text-[15px] font-semibold tracking-tight sm:block">Process Mapper</span>
+          <span className="hidden text-[15px] font-semibold tracking-tight sm:block">Business Process Mapper</span>
         </button>
 
         <nav className="ml-2 flex min-w-0 items-center gap-0.5 overflow-x-auto md:ml-4" aria-label="Main">

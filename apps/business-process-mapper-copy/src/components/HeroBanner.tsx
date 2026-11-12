@@ -283,10 +283,7 @@ export default function HeroBanner({ processes, departments }: { processes?: num
 
       <div className="relative flex items-center justify-between gap-6">
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> Welcome to the process map
-          </p>
-          <h1 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
             Every process in the company,{' '}
             <span className="underline decoration-primary decoration-[3px] underline-offset-[6px]">connected.</span>
           </h1>
