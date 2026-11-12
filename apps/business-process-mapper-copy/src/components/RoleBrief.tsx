@@ -93,6 +93,7 @@ export default function RoleBrief() {
   const hue = hueFor(who.name);
 
   return (
+    <div className="min-h-full bg-[linear-gradient(hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:28px_28px]">
     <div className="mx-auto max-w-3xl px-8 pb-16 pt-6 print:max-w-none print:px-0 print:pt-0">
       <style>{PRINT_CSS}</style>
 
@@ -292,6 +293,7 @@ export default function RoleBrief() {
 
 
 
+    </div>
     </div>
   );
 }

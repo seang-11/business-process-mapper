@@ -89,6 +89,7 @@ export default function Roles() {
   void pickView;
 
   return (
+    <div className="min-h-full bg-[linear-gradient(hsl(var(--border)/0.35)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border)/0.35)_1px,transparent_1px)] bg-[size:28px_28px]">
     <div className="mx-auto max-w-[1100px] px-8 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -162,6 +163,7 @@ export default function Roles() {
           }}
         />
       )}
+    </div>
     </div>
   );
 }
