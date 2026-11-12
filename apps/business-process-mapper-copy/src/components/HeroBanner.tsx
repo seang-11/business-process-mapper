@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import granola from '@/assets/logos/granola.svg';
-import gumloop from '@/assets/logos/gumloop.svg';
 import asana from '@/assets/logos/asana.svg';
 import hubspot from '@/assets/logos/hubspot.svg';
 import gmail from '@/assets/logos/gmail.svg';
@@ -11,7 +10,7 @@ import notion from '@/assets/logos/notion.svg';
 // the Gumloop agent wakes up, then hands the work to each app in turn.
 const NODES: Record<string, { x: number; y: number; src: string; name: string }> = {
   granola: { x: 34, y: 88, src: granola, name: 'Granola' },
-  gumloop: { x: 140, y: 88, src: gumloop, name: 'Gumloop' },
+  gumloop: { x: 140, y: 88, src: '', name: 'Gumloop' },
   asana: { x: 260, y: 22, src: asana, name: 'Asana' },
   hubspot: { x: 330, y: 62, src: hubspot, name: 'HubSpot' },
   gmail: { x: 340, y: 120, src: gmail, name: 'Gmail' },
@@ -32,6 +31,32 @@ const curve = (a: string, b: string) => {
   const mx = (p.x + q.x) / 2;
   return `M${p.x} ${p.y} C${mx} ${p.y} ${mx} ${q.y} ${q.x} ${q.y}`;
 };
+
+// Gumloop-style agent mascots: black shapes with two white eyes. The agent changes
+// shape as it works, blinks, and its eyes look toward whichever app it's handing work to.
+const SHAPES = [
+  // blob
+  <path key="blob" d="M14 3c6.5 0 11 4.6 11 10.6C25 20 20.4 25 13.6 25 7.3 25 3 20.6 3 14.6 3 8 7.6 3 14 3z" />,
+  // square
+  <rect key="sq" x="3.5" y="4" width="21" height="20" rx="4" />,
+  // flower
+  <g key="fl">{[[14, 6.5], [21.5, 14], [14, 21.5], [6.5, 14], [8.7, 8.7], [19.3, 8.7], [19.3, 19.3], [8.7, 19.3]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="5.2" />)}<circle cx="14" cy="14" r="7" /></g>,
+  // flame
+  <path key="fl2" d="M14 2.5c1.2 3.6 4 4.8 6.6 7.8 2.4 2.8 3.4 5.4 3.4 8C24 23 19.7 26 14 26S4 23 4 18.3c0-3.3 1.6-5.6 3.6-7.4.4 1.8 1.4 3 2.6 3.6C10 10 11.6 5.8 14 2.5z" />,
+];
+
+function Agent({ shape, look, working }: { shape: number; look: { x: number; y: number }; working: boolean }) {
+  const ex = look.x * 1.6, ey = look.y * 1.4;
+  return (
+    <svg viewBox="0 0 28 28" className={`h-8 w-8 ${working ? 'hb-hop' : ''}`}>
+      <g key={shape} className="hb-morph" fill="#111">{SHAPES[shape % SHAPES.length]}</g>
+      <g className="hb-blink" style={{ transform: `translate(${ex}px, ${ey}px)`, transition: 'transform .5s ease' }}>
+        <ellipse cx="11.2" cy="14.5" rx="1.6" ry="2.6" fill="#fff" />
+        <ellipse cx="16.8" cy="14.5" rx="1.6" ry="2.6" fill="#fff" />
+      </g>
+    </svg>
+  );
+}
 
 function Network() {
   const [step, setStep] = useState(0);
@@ -75,14 +100,27 @@ function Network() {
                   on || target ? 'opacity-100' : 'opacity-40'
                 } ${isAgent && step > 0 ? 'shadow-[0_0_0_3px_hsl(var(--primary)),0_0_28px_hsl(var(--primary)/0.7)]' : 'shadow-[0_6px_16px_-4px_rgba(0,0,0,0.5)]'}`}
               >
-                <img src={n.src} alt={n.name} className={isAgent ? 'h-7 w-7' : 'h-5 w-5'} />
+                {isAgent ? (
+                  <Agent
+                    shape={step}
+                    working={working}
+                    look={(() => {
+                      if (!cur) return { x: 0, y: 0 };
+                      const t = NODES[cur.to === 'gumloop' ? cur.from : cur.to];
+                      const dx = t.x - n.x, dy = t.y - n.y, m = Math.hypot(dx, dy) || 1;
+                      return { x: dx / m, y: dy / m };
+                    })()}
+                  />
+                ) : (
+                  <img src={n.src} alt={n.name} className="h-5 w-5" />
+                )}
                 {working && <span className="absolute -inset-2 animate-ping rounded-2xl border border-primary/60" style={{ animationDuration: '1.8s' }} />}
                 {target && <span key={`f${step}`} className="hb-land pointer-events-none absolute -inset-1 rounded-[14px] ring-2 ring-primary" />}
                 {on && !isAgent && id !== 'granola' && (
                   <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white ring-2 ring-[#0a0f1c]">✓</span>
                 )}
               </div>
-              {isAgent && <span className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-white/60">AI agent</span>}
+              {isAgent && <span className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-white/60">Gumloop agent</span>}
             </div>
           );
         })}
@@ -107,6 +145,12 @@ export default function HeroBanner({ processes, departments }: { processes?: num
         .hb-land{animation:hbLand 1.8s ease-out forwards}
         @keyframes hbCap{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
         .hb-cap{animation:hbCap .4s ease-out}
+        @keyframes hbBlink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+        .hb-blink ellipse{transform-box:fill-box;transform-origin:center;animation:hbBlink 3.6s infinite}
+        @keyframes hbHop{0%,100%{transform:translateY(0)}40%{transform:translateY(-3px) scale(1.04,.96)}}
+        .hb-hop{animation:hbHop 1.3s ease-in-out infinite}
+        @keyframes hbMorph{from{transform:scale(.6) rotate(-20deg);opacity:.3}to{transform:none;opacity:1}}
+        .hb-morph{transform-box:fill-box;transform-origin:center;animation:hbMorph .45s cubic-bezier(.3,1.6,.5,1)}
         @keyframes hbFlash{0%,88%{opacity:0;transform:scale(.85)}94%{opacity:1;transform:scale(1.08)}100%{opacity:0;transform:scale(1.25)}}
         .hb-flash{opacity:0;animation:hbFlash linear infinite}
       `}</style>
