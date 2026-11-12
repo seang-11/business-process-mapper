@@ -82,10 +82,8 @@ export default function AppShell() {
   const links: { to: string; label: string; active: boolean }[] = [
     { to: '/', label: 'Processes', active: onHome },
     { to: '/brain', label: 'Brain', active: location.pathname === '/brain' },
-    ...(canEdit ? [
-      { to: '/roles', label: 'Roles', active: location.pathname.startsWith('/roles') },
-      { to: '/training', label: 'Training', active: location.pathname === '/training' },
-    ] : []),
+    { to: '/roles', label: 'Roles', active: location.pathname.startsWith('/roles') },
+    { to: '/training', label: 'Training', active: location.pathname === '/training' },
     ...(isAdmin ? [{ to: '/team', label: 'Team', active: location.pathname === '/team' }] : []),
   ];
 

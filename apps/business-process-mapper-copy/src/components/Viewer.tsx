@@ -46,8 +46,8 @@ function useBrain() {
 export function ViewerHome() {
   const navigate = useNavigate();
   const { data, failed, load } = useBrain();
-  const [query, setQuery] = useState('');
-  const [show, setShow] = useState<'all' | 'current' | 'future'>('all');
+  const query = '';
+  const show = 'all' as 'all' | 'current' | 'future';
 
   const hues = useMemo(() => new Map((data?.departments ?? []).map((d) => [d.name, d.hue])), [data]);
   const groups = useMemo(() => {
@@ -70,44 +70,10 @@ export function ViewerHome() {
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
     <div className="mx-auto max-w-[880px] px-6 py-10">
-      {/* A soft branded banner, so the page greets you with a bit of color. */}
-      <header className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.12] via-primary/[0.04] to-card px-7 py-7 shadow-[0_1px_3px_rgba(16,24,40,0.05)]">
-        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]">
-          <Workflow className="h-5 w-5" />
-        </span>
-        <h1 className="mt-4 text-[28px] font-semibold tracking-tight">Welcome to the process map</h1>
-        <p className="mt-1.5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          Click any process to see every step: who does it, which tools they use, and what happens next.
-        </p>
+      <header className="px-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Process map</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Click any process to see every step.</p>
       </header>
-
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-      <div className="relative flex-1">
-        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search processes"
-          className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)] outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
-        />
-      </div>
-      <div className="flex shrink-0 rounded-xl border border-border bg-card p-1 text-sm shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-        {(['all', 'current', 'future'] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            aria-pressed={show === k}
-            onClick={() => setShow(k)}
-            className={`flex-1 rounded-lg px-3.5 py-1.5 font-medium capitalize transition-colors ${
-              show === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {k}
-          </button>
-        ))}
-      </div>
-      </div>
 
       <div className="mt-8 space-y-8">
         {failed ? (
