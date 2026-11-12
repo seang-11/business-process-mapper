@@ -1,3 +1,4 @@
+import HeroBanner from './HeroBanner';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -70,27 +71,7 @@ export function ViewerHome() {
   const total = groups.reduce((n, [, procs]) => n + procs.length, 0);
   return (
     <div className="mx-auto max-w-[880px] px-6 py-10">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/85 to-sky-400 px-6 py-5 text-primary-foreground shadow-[0_10px_30px_-12px_hsl(var(--primary)/0.6)]">
-        <svg className="pointer-events-none absolute -right-4 top-1/2 h-32 w-64 -translate-y-1/2 opacity-40 sm:opacity-60" viewBox="0 0 260 120" fill="none" aria-hidden>
-          <path d="M20 90 C60 90 60 30 100 30 S140 80 180 80 S220 25 245 25" stroke="currentColor" strokeWidth="2" strokeDasharray="5 6" className="animate-[dash_6s_linear_infinite]" />
-          {[[20, 90], [100, 30], [180, 80], [245, 25]].map(([x, y], i) => (
-            <g key={i}>
-              <circle cx={x} cy={y} r="11" fill="currentColor" fillOpacity="0.18" className="animate-ping" style={{ animationDuration: `${2.4 + i * 0.6}s`, transformOrigin: `${x}px ${y}px` }} />
-              <circle cx={x} cy={y} r="6" fill="currentColor" />
-            </g>
-          ))}
-        </svg>
-        <style>{'@keyframes dash{to{stroke-dashoffset:-110}}'}</style>
-        <p className="relative text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/75">Welcome to the process map</p>
-        <h1 className="relative mt-1 text-xl font-semibold tracking-tight sm:text-2xl">Every process in the company, in one place</h1>
-        <p className="relative mt-1 max-w-md text-sm text-primary-foreground/85">Pick one to see who does each step, which tools they use, and what happens next.</p>
-        {data && (
-          <div className="relative mt-3 flex flex-wrap gap-2 text-xs font-medium">
-            <span className="rounded-full bg-white/15 px-2.5 py-1 backdrop-blur">{total} processes</span>
-            <span className="rounded-full bg-white/15 px-2.5 py-1 backdrop-blur">{groups.filter(([d]) => d).length} departments</span>
-          </div>
-        )}
-      </header>
+      <HeroBanner processes={data ? total : undefined} departments={groups.filter(([d]) => d).length} />
 
       <div className="mt-8 space-y-8">
         {failed ? (
