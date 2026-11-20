@@ -6,6 +6,6 @@
     "packages/*"
   ],
   "dependencies": {
-    "zitejs": "0.10.2"
+    "zitejs": "0.10.11"
   }
 }
