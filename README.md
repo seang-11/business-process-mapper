@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="https://images.fillout.com/orgid-446582/flowpublicid-ouwxsottkm/widgetid-default/fQkAzc5ruAbf2yKGG3m8YS/NewBetterSize-AnimatedLogo3333.jpg" alt="Business Process Mapper" width="560" />
-
 # Business Process Mapper
 
 **Map how a company actually works — every process, step, person and app — in one living diagram.**
